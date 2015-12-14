@@ -11,15 +11,16 @@ import (
 func collectLatency(p *ping.Pinger, c *statsd.Client) {
 	go func() {
 		for {
-			latency_ms := int(<-p.RTT / time.Millisecond)
-			fmt.Printf( "latency: %d\n", latency_ms )
-			c.SendTiming("latency-ya", latency_ms)
+			latency := <-p.RTT
+			latency_s := latency.Seconds()
+			fmt.Printf( "latency: %f\n", latency_s )
+			c.SendTiming("latency-ya", latency_s)
 		}
 	}()
 
 	ticker := time.NewTicker(time.Second)
 	for {
-		<- ticker.C
+		<-ticker.C
 		p.Latency()
 	}
 }

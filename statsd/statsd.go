@@ -36,11 +36,11 @@ func (c *Client) SendFoo() error {
 	return c.send([]byte("foo_latency:300|ms\n"))
 }
 
-func (c *Client) SendTiming(name string, timing int) error {
+func (c *Client) SendTiming(name string, timing float64) error {
 	var buffer bytes.Buffer
 	buffer.WriteString(name)
 	buffer.WriteString(":")
-	buffer.Write([]byte(strconv.Itoa(timing)))
+	buffer.Write([]byte(strconv.FormatFloat(timing, 'f', 3, 64)))
 	buffer.WriteString("|ms")
 	return c.send(buffer.Bytes())
 }
