@@ -7,7 +7,6 @@ import (
 	"log"
 	"time"
 	"net"
-	"sync"
 )
 
 func getAddr(dst string) (net.Addr, error) {
@@ -18,12 +17,18 @@ func getAddr(dst string) (net.Addr, error) {
 	}
 }
 
+type pingResult struct {
+	Seq   int
+	Stop  time.Time
+}
+
 type Pinger struct {
 	seq         int
 	dst         net.Addr
 	conn        *icmp.PacketConn
 	RTT         chan  time.Duration
-	seqM        *sync.Mutex
+	senderC     chan  bool
+	receiverC   chan  pingResult
 	startTimes  map[int]time.Time
 }
 
@@ -47,10 +52,12 @@ func NewPinger(dst string) (*Pinger, error) {
 
 	p.dst = udpAddr
 	p.RTT = make(chan time.Duration)
-	p.seqM = &sync.Mutex {}
+	p.senderC = make(chan bool)
+	p.receiverC = make(chan pingResult)
 	p.startTimes = make(map[int]time.Time)
 
 	go p.receiver()
+	go p.manager()
 
 	return p, nil
 }
@@ -58,17 +65,36 @@ func NewPinger(dst string) (*Pinger, error) {
 func (p *Pinger) Close() {
 	p.conn.Close()
 	close(p.RTT)
+	close(p.senderC)
+	close(p.receiverC)
 }
 
 func (p *Pinger) Latency() {
-	go p.ping()
+	p.senderC <- true
 }
 
+func (p *Pinger) manager() {
+	for {
+		select {
+		case result, ok := <-p.receiverC:
+			if !ok {
+				break
+			}
+			if start, ok := p.startTimes[result.Seq]; ok {
+				p.RTT <- result.Stop.Sub(start)
+				delete(p.startTimes, result.Seq)
+			}
+		case <-p.senderC:
+			p.ping()
+//		case <-expiryTicker.C:
+		}
+	}
+}
+
+// Now this is called only from manager, so it's okay it's not thread safe
 func (p *Pinger) ping() {
-	p.seqM.Lock()
 	p.seq += 1
 	seq := p.seq
-	p.seqM.Unlock()
 
 	wm := icmp.Message {
 		Type: ipv4.ICMPTypeEcho,
@@ -94,11 +120,19 @@ func (p *Pinger) ping() {
 }
 
 func (p *Pinger) receiver() {
+	// If the receiver channel was closed then trying to send on it will panic
+	defer func() {
+		if r := recover(); r != nil {
+			log.Println("Recovered in Pinger.receiver()", r)
+		}
+	}()
 	for {
 		rb := make([]byte, 1500)
 		n, _, err := p.conn.ReadFrom(rb)
+		// TODO If the connection is closed quit the loop
 		if err != nil {
 			log.Printf("Could not read the ICMP reply: %s\n", err)
+			continue
 		}
 
 		stop := time.Now()
@@ -112,9 +146,7 @@ func (p *Pinger) receiver() {
 
 		if rm.Type == ipv4.ICMPTypeEchoReply {
 			echo := rm.Body.(*icmp.Echo)
-			if start, ok := p.startTimes[echo.Seq]; ok {
-				p.RTT <- stop.Sub(start)
-			}
+			p.receiverC <- pingResult { echo.Seq, stop, }
 		}
 	}
 }
