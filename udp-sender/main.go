@@ -41,7 +41,7 @@ func main() {
         log.Printf("udp.NewSender %v: %+v\n", senderConfig, udpSender)
     }
 
-    log.Printf("Run @%v/s", rate)
+    log.Printf("Run @%v/s\n", rate)
 
     if err := udpSender.Run(rate); err != nil {
         log.Fatalf("udp.Sender.Run: %v\n", err)

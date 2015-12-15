@@ -1,8 +1,6 @@
 package udp
 
 import (
-    "encoding/binary"
-    "bytes"
     "fmt"
     "github.com/google/gopacket"
     "golang.org/x/net/ipv4"
@@ -43,20 +41,6 @@ type Sender struct {
         sendPackets     uint
         sendBytes       uint
     }
-}
-
-type Packet struct {
-    SrcIP       net.IP
-    SrcPort     uint16
-    DstIP       net.IP
-    DstPort     uint16
-
-    Payload     Payload
-}
-
-type Payload struct {
-    Start       int64
-    Seq         uint64
 }
 
 func NewSender(config SenderConfig) (*Sender, error) {
@@ -191,15 +175,7 @@ func (self *Sender) sendPacket(packet Packet) error {
         SrcPort:    layers.UDPPort(packet.SrcPort),
         DstPort:    layers.UDPPort(packet.DstPort),
     }
-
-    // serialie payload
-    payloadBuffer := new(bytes.Buffer)
-
-    if err := binary.Write(payloadBuffer, binary.BigEndian, packet.Payload); err != nil {
-        return err
-    }
-
-    payload := gopacket.Payload(payloadBuffer.Bytes())
+    payload := gopacket.Payload(packet.Payload.Pack())
 
     return self.sendLayers(&ip, &udp, &payload)
 }
