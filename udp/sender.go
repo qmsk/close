@@ -164,6 +164,7 @@ func (self *Sender) sendLayers(ip SerializableNetworkLayer, udp *layers.UDP, pay
 func (self *Sender) sendPacket(packet Packet) error {
     // packet structure
     ip := layers.IPv4{
+        Version:    4,
         TTL:        IP_TTL,
         Protocol:   layers.IPProtocolUDP,
 
