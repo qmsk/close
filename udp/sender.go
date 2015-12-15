@@ -34,7 +34,6 @@ type Sender struct {
     ipConn      *net.IPConn
     rawConn     *ipv4.RawConn
 
-    sendChan    chan Packet
     stats       struct {
         rateUnderrun    uint
         sendErrors      uint
@@ -45,7 +44,7 @@ type Sender struct {
 
 func NewSender(config SenderConfig) (*Sender, error) {
     sender := &Sender{
-        sendChan:    make(chan Packet),
+
     }
 
     if err := sender.init(config); err != nil {
@@ -180,16 +179,8 @@ func (self *Sender) sendPacket(packet Packet) error {
     return self.sendLayers(&ip, &udp, &payload)
 }
 
-func (self *Sender) send() {
-    for packet := range self.sendChan {
-        if err := self.sendPacket(packet); err != nil {
-            log.Printf("udp.Sender: %v\n", err)
-        }
-    }
-}
-
 // Generate a sequence of *Packet
-func (self *Sender) generate(rate uint) {
+func (self *Sender) Run(rate uint) error {
     startTime := time.Now()
 
     payload := Payload{
@@ -213,7 +204,7 @@ func (self *Sender) generate(rate uint) {
             float64(payload.Seq) / duration.Seconds(),
         )
 
-        self.sendChan <- Packet{
+        packet := Packet{
             SrcIP:      self.srcAddr,
             SrcPort:    self.srcPort.Port(),
             DstIP:      self.dstIP,
@@ -222,15 +213,10 @@ func (self *Sender) generate(rate uint) {
             Payload:    payload,
         }
 
+        if err := self.sendPacket(packet); err != nil {
+            return err
+        }
+
         payload.Seq++
     }
-}
-
-func (self *Sender) Run(rate uint) error {
-    // service the send queue
-    go self.send()
-
-    self.generate(rate) // sync
-
-    return nil
 }
