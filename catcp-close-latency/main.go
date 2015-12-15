@@ -30,7 +30,7 @@ func collectLatency(src string, p *ping.Pinger, c *statsd.Client) {
 func main() {
 	// TODO Some random value
 	var defaultSrc = "unknown"
-	if hostname, ok := os.Hostname(); ok != nil {
+	if hostname, err := os.Hostname(); err == nil {
 		defaultSrc = hostname
 	}
 
