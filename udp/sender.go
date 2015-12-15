@@ -194,19 +194,24 @@ func (self *Sender) generate(rate uint) {
 
     payload := Payload{
         Start:  startTime.Unix(),
-        Seq:    1,
+        Seq:    0,
     }
 
     for {
+        duration := time.Since(startTime)
+
         // schedule
         packetDuration := time.Duration(payload.Seq) * time.Second / time.Duration(rate)
-        duration := time.Since(startTime)
 
         if packetDuration > duration {
             time.Sleep(packetDuration - duration)
         } else {
             self.stats.rateUnderrun++
         }
+
+        log.Printf("%5.2f send @%d = %5.2f/s", duration.Seconds(), payload.Seq,
+            float64(payload.Seq) / duration.Seconds(),
+        )
 
         self.sendChan <- Packet{
             SrcIP:      self.srcAddr,

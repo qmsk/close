@@ -11,7 +11,7 @@ type ReceiverConfig struct {
 }
 
 type Receiver struct {
-    udpAddr *net.UDPAddr
+    udpAddr net.UDPAddr
     udpConn *net.UDPConn
 
     stats struct {
@@ -20,7 +20,7 @@ type Receiver struct {
         recvBytes       uint
 
         packetErrors    uint
-        packetSeq       uint
+        packetCount     uint
         packetSkip      uint
     }
 }
@@ -43,7 +43,7 @@ func (self *Receiver) init(config ReceiverConfig) error {
     } else if udpConn, err := net.ListenUDP("udp", udpAddr); err != nil {
         return fmt.Errorf("Listen UDP %v: %v", udpAddr, err)
     } else {
-        self.udpAddr = udpAddr
+        self.udpAddr = *udpAddr
         self.udpConn = udpConn
     }
 
@@ -82,18 +82,28 @@ func (self *Receiver) Run() error {
     for {
         var state Payload
 
+        log.Printf("Recv...\n")
+
         if packet, err := self.recv(); err != nil {
-            log.Printf("udp.Receiver.recv: %v\n", err)
+            log.Printf("Recv error: %v\n", err)
         } else {
             if packet.Payload.Start != state.Start {
                 state.Start = packet.Payload.Start
                 state.Seq = packet.Payload.Seq
+                self.stats.packetCount = 0
+
+                log.Printf("Recv Start @%v from seq=%v\n", state.Start, state.Seq)
+
             } else if packet.Payload.Seq > state.Seq {
-                self.stats.packetSeq++
+                self.stats.packetCount++
+
+                log.Printf("Recv %8d/%8d @ %d\n", self.stats.packetCount, packet.Payload.Seq - state.Seq)
 
                 state.Seq = packet.Payload.Seq
             } else {
                 self.stats.packetSkip++
+
+                log.Printf("Skip at seq=%v < %v\n", packet.Payload.Seq, state.Seq)
             }
         }
     }
