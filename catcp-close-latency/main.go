@@ -1,8 +1,8 @@
 package main
 
 import (
-	"catcp/close/ping"
-	"catcp/close/statsd"
+	"close/ping"
+	"close/statsd"
 	"fmt"
 	"time"
 	"log"
