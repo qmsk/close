@@ -24,6 +24,7 @@ type pingResult struct {
 
 type Pinger struct {
 	seq         int
+	DstName     string
 	dst         net.Addr
 	conn        *icmp.PacketConn
 	RTT         chan  time.Duration
@@ -35,6 +36,7 @@ type Pinger struct {
 func NewPinger(dst string) (*Pinger, error) {
 	p := &Pinger {
 		seq: 1,
+		DstName: dst,
 	}
 
         conn, err := icmp.ListenPacket("udp4", "0.0.0.0")

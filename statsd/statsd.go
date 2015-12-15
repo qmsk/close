@@ -3,8 +3,7 @@ package statsd
 import (
 	"net"
 	"log"
-	"bytes"
-	"strconv"
+	"fmt"
 )
 
 type Client struct {
@@ -37,12 +36,8 @@ func (c *Client) SendFoo() error {
 }
 
 func (c *Client) SendTiming(name string, timing float64) error {
-	var buffer bytes.Buffer
-	buffer.WriteString(name)
-	buffer.WriteString(":")
-	buffer.Write([]byte(strconv.FormatFloat(timing, 'f', 3, 64)))
-	buffer.WriteString("|ms")
-	return c.send(buffer.Bytes())
+	pkt := []byte( fmt.Sprintf("%s:%.3f|s", name, timing) )
+	return c.send(pkt)
 }
 
 func (c *Client) send(buf []byte) error {
