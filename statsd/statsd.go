@@ -36,7 +36,7 @@ func (c *Client) SendFoo() error {
 }
 
 func (c *Client) SendTiming(name string, timing float64) error {
-	pkt := []byte( fmt.Sprintf("%s:%.3f|s", name, timing) )
+	pkt := []byte( fmt.Sprintf("%s:%.3f|ms", name, timing) )
 	return c.send(pkt)
 }
 
