@@ -7,19 +7,19 @@ import (
     "time"
 )
 
-type ReceiverConfig struct {
+type RecvConfig struct {
     ListenAddr        string
 }
 
-type Receiver struct {
+type Recv struct {
     udpAddr     net.UDPAddr
     udpConn     *net.UDPConn
 
-    statsChan   chan ReceiverStats
-    stats       ReceiverStats
+    statsChan   chan RecvStats
+    stats       RecvStats
 }
 
-type ReceiverStats struct {
+type RecvStats struct {
     StartTime       time.Time
     StartSeq        uint64
 
@@ -34,7 +34,7 @@ type ReceiverStats struct {
     PacketSkip      uint
 }
 
-func (self ReceiverStats) String() string {
+func (self RecvStats) String() string {
     clock := self.PacketTime.Sub(self.StartTime)
     packetOffset := self.PacketSeq - self.StartSeq
     packetRate := float64(self.RecvPackets) / clock.Seconds()
@@ -49,8 +49,8 @@ func (self ReceiverStats) String() string {
     )
 }
 
-func NewReceiver(config ReceiverConfig) (*Receiver, error) {
-    receiver := &Receiver{
+func NewRecv(config RecvConfig) (*Recv, error) {
+    receiver := &Recv{
 
     }
 
@@ -61,7 +61,7 @@ func NewReceiver(config ReceiverConfig) (*Receiver, error) {
     }
 }
 
-func (self *Receiver) init(config ReceiverConfig) error {
+func (self *Recv) init(config RecvConfig) error {
     if udpAddr, err := net.ResolveUDPAddr("udp", config.ListenAddr); err != nil {
         return fmt.Errorf("Resolve ListenAddr %v: %v", config.ListenAddr, err)
     } else if udpConn, err := net.ListenUDP("udp", udpAddr); err != nil {
@@ -74,7 +74,7 @@ func (self *Receiver) init(config ReceiverConfig) error {
     return nil
 }
 
-func (self *Receiver) recv() (Packet, error) {
+func (self *Recv) recv() (Packet, error) {
     var packet Packet
     buf := make([]byte, PACKET_MTU)
 
@@ -102,13 +102,13 @@ func (self *Receiver) recv() (Packet, error) {
     }
 }
 
-func (self *Receiver) GiveStats() chan ReceiverStats {
-    self.statsChan = make(chan ReceiverStats)
+func (self *Recv) GiveStats() chan RecvStats {
+    self.statsChan = make(chan RecvStats)
 
     return self.statsChan
 }
 
-func (self *Receiver) Run() error {
+func (self *Recv) Run() error {
     var payload Payload
 
     for {
@@ -121,7 +121,7 @@ func (self *Receiver) Run() error {
                 log.Printf("Start from %v: %v\n", packet.Payload.Seq, packet.Payload.Start)
 
                 // reset
-                self.stats = ReceiverStats{
+                self.stats = RecvStats{
                     StartTime:  self.stats.PacketTime,
                     StartSeq:   packet.Payload.Seq,
                 }

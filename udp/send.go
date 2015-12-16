@@ -14,7 +14,7 @@ const PORT uint = 1337
 const PORT_BITS uint = 0
 const IP_TTL uint8 = 64
 
-type SenderConfig struct {
+type SendConfig struct {
     DestAddr        string // host
     DestPort        uint
     SourceNet       string // host/mask
@@ -22,7 +22,7 @@ type SenderConfig struct {
     SourcePortBits  uint
 }
 
-type SenderStats struct {
+type SendStats struct {
     StartTime       time.Time
 
     Rate            uint
@@ -36,7 +36,7 @@ type SenderStats struct {
     SendBytes       uint    // includes IP+UDP+Payload
 }
 
-func (self SenderStats) String() string {
+func (self SendStats) String() string {
     clock := self.RateClock
     sendRate := float64(self.SendPackets) / clock.Seconds()
     util := 1.0 - self.RateSleep.Seconds() / clock.Seconds()
@@ -50,7 +50,7 @@ func (self SenderStats) String() string {
     )
 }
 
-type Sender struct {
+type Send struct {
     dstAddr     net.IPAddr
     dstIP       net.IP
     dstPort     uint16
@@ -61,12 +61,12 @@ type Sender struct {
     ipConn      *net.IPConn
     rawConn     *ipv4.RawConn
 
-    stats       SenderStats
-    statsChan   chan SenderStats
+    stats       SendStats
+    statsChan   chan SendStats
 }
 
-func NewSender(config SenderConfig) (*Sender, error) {
-    sender := &Sender{
+func NewSend(config SendConfig) (*Send, error) {
+    sender := &Send{
 
     }
 
@@ -91,7 +91,7 @@ func probeSource(udpAddr *net.UDPAddr) (*net.UDPAddr, error) {
     }
 }
 
-func (self *Sender) init(config SenderConfig) error {
+func (self *Send) init(config SendConfig) error {
     // resolve
     if ipAddr, err := net.ResolveIPAddr("ip", config.DestAddr); err != nil {
         return fmt.Errorf("Resolve DestAddr%v: %v", config.DestAddr, err)
@@ -155,7 +155,7 @@ type SerializableNetworkLayer interface {
 }
 
 // serialize and send from gopacket layers
-func (self *Sender) sendLayers(ip SerializableNetworkLayer, udp *layers.UDP, payload *gopacket.Payload) error {
+func (self *Send) sendLayers(ip SerializableNetworkLayer, udp *layers.UDP, payload *gopacket.Payload) error {
     // serialize
     serializeBuffer := gopacket.NewSerializeBuffer()
     serializeOptions := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
@@ -184,7 +184,7 @@ func (self *Sender) sendLayers(ip SerializableNetworkLayer, udp *layers.UDP, pay
 }
 
 // serialize and send from Packet
-func (self *Sender) sendPacket(packet Packet) error {
+func (self *Send) sendPacket(packet Packet) error {
     // packet structure
     ip := layers.IPv4{
         Version:    4,
@@ -203,18 +203,18 @@ func (self *Sender) sendPacket(packet Packet) error {
     return self.sendLayers(&ip, &udp, &payload)
 }
 
-func (self *Sender) GiveStats() chan SenderStats {
-    self.statsChan = make(chan SenderStats)
+func (self *Send) GiveStats() chan SendStats {
+    self.statsChan = make(chan SendStats)
 
     return self.statsChan
 }
 
 // Generate a sequence of *Packet
-func (self *Sender) Run(rate uint, size uint) error {
+func (self *Send) Run(rate uint, size uint) error {
     startTime := time.Now()
 
     // reset stats
-    self.stats = SenderStats{
+    self.stats = SendStats{
         StartTime:  startTime,
         Rate:       rate,
     }

@@ -7,7 +7,7 @@ import (
 )
 
 var (
-    senderConfig    udp.SenderConfig
+    senderConfig    udp.SendConfig
     rate            uint
     size            uint
 )
@@ -28,7 +28,7 @@ func init() {
         "bytes")
 }
 
-func stats(statsChan chan udp.SenderStats) {
+func stats(statsChan chan udp.SendStats) {
     for stats := range statsChan {
         log.Println(stats)
     }
@@ -43,22 +43,22 @@ func main() {
         senderConfig.DestAddr = destAddr
     }
 
-    udpSender, err := udp.NewSender(senderConfig)
+    udpSend, err := udp.NewSend(senderConfig)
     if err != nil {
-        log.Fatalf("udp.NewSender %v: %v\n", senderConfig, err)
+        log.Fatalf("udp.NewSend %v: %v\n", senderConfig, err)
     } else {
-        log.Printf("udp.NewSender %v: %+v\n", senderConfig, udpSender)
+        log.Printf("udp.NewSend %v: %+v\n", senderConfig, udpSend)
     }
 
     // stats
-    go stats(udpSender.GiveStats())
+    go stats(udpSend.GiveStats())
 
     // run
     log.Printf("Run @%v/s\n", rate)
 
-    if err := udpSender.Run(rate, size); err != nil {
-        log.Fatalf("udp.Sender.Run: %v\n", err)
+    if err := udpSend.Run(rate, size); err != nil {
+        log.Fatalf("udp.Send.Run: %v\n", err)
     } else {
-        log.Printf("udp.Sender: done\n")
+        log.Printf("udp.Send: done\n")
     }
 }
