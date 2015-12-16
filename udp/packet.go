@@ -6,7 +6,7 @@ import (
     "net"
 )
 
-var packetSize int = binary.Size(Payload{})
+const PACKET_MTU = 1500 // XXX: not including IP overhead..?
 
 type Packet struct {
     SrcIP       net.IP
@@ -14,6 +14,7 @@ type Packet struct {
     DstIP       net.IP
     DstPort     uint16
 
+    PayloadSize uint
     Payload     Payload
 }
 
@@ -22,11 +23,21 @@ type Payload struct {
     Seq         uint64
 }
 
-func (self Payload) Pack() []byte {
+func (self Payload) Pack(dataSize uint) []byte {
     buffer := new(bytes.Buffer)
 
     if err := binary.Write(buffer, binary.BigEndian, self); err != nil {
         panic(err)
+    }
+
+    bufferLen := uint(buffer.Len())
+
+    if bufferLen < dataSize {
+        data := make([]byte, dataSize - bufferLen)
+
+        if err := binary.Write(buffer, binary.BigEndian, data); err != nil {
+            panic(err)
+        }
     }
 
     return buffer.Bytes()

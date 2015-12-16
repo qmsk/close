@@ -198,7 +198,7 @@ func (self *Sender) sendPacket(packet Packet) error {
         SrcPort:    layers.UDPPort(packet.SrcPort),
         DstPort:    layers.UDPPort(packet.DstPort),
     }
-    payload := gopacket.Payload(packet.Payload.Pack())
+    payload := gopacket.Payload(packet.Payload.Pack(packet.PayloadSize))
 
     return self.sendLayers(&ip, &udp, &payload)
 }
@@ -210,7 +210,7 @@ func (self *Sender) GiveStats() chan SenderStats {
 }
 
 // Generate a sequence of *Packet
-func (self *Sender) Run(rate uint) error {
+func (self *Sender) Run(rate uint, size uint) error {
     startTime := time.Now()
 
     // reset stats
@@ -253,7 +253,8 @@ func (self *Sender) Run(rate uint) error {
             DstIP:      self.dstIP,
             DstPort:    self.dstPort,
 
-            Payload:    payload,
+            Payload:        payload,
+            PayloadSize:    size,
         }
 
         if err := self.sendPacket(packet); err != nil {

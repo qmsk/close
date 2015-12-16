@@ -9,6 +9,7 @@ import (
 var (
     senderConfig    udp.SenderConfig
     rate            uint
+    size            uint
 )
 
 func init() {
@@ -23,6 +24,8 @@ func init() {
 
     flag.UintVar(&rate, "rate", 1,
         "rate /s")
+    flag.UintVar(&size, "size", 0,
+        "bytes")
 }
 
 func stats(statsChan chan udp.SenderStats) {
@@ -53,7 +56,7 @@ func main() {
     // run
     log.Printf("Run @%v/s\n", rate)
 
-    if err := udpSender.Run(rate); err != nil {
+    if err := udpSender.Run(rate, size); err != nil {
         log.Fatalf("udp.Sender.Run: %v\n", err)
     } else {
         log.Printf("udp.Sender: done\n")

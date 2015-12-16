@@ -37,13 +37,15 @@ type ReceiverStats struct {
 func (self ReceiverStats) String() string {
     clock := self.PacketTime.Sub(self.StartTime)
     packetOffset := self.PacketSeq - self.StartSeq
+    packetRate := float64(self.RecvPackets) / clock.Seconds()
+    packetThroughput := float64(self.RecvBytes) / 1000 / 1000 * 8 / clock.Seconds()
+    packetLoss := 1.0 - float64(self.PacketCount) / float64(packetOffset)
 
     return fmt.Sprintf("%8.2f: recv %8d / %8d = %8.2f/s %8.2fMb/s @ %6.2f%% loss",
         clock.Seconds(),
         self.PacketCount, packetOffset,
-        float64(self.RecvPackets) / clock.Seconds(),
-        float64(self.RecvBytes) / 1000 / 1000 * 8 / clock.Seconds(),
-        float64(self.PacketCount) / float64(packetOffset) * 100.0,
+        packetRate, packetThroughput,
+        packetLoss * 100.0,
     )
 }
 
@@ -74,7 +76,7 @@ func (self *Receiver) init(config ReceiverConfig) error {
 
 func (self *Receiver) recv() (Packet, error) {
     var packet Packet
-    buf := make([]byte, packetSize)
+    buf := make([]byte, PACKET_MTU)
 
     if recvSize, srcAddr, err := self.udpConn.ReadFromUDP(buf); err != nil {
         self.stats.RecvErrors++
@@ -93,6 +95,7 @@ func (self *Receiver) recv() (Packet, error) {
             packet.SrcPort = uint16(srcAddr.Port)
             packet.DstIP = self.udpAddr.IP // XXX
             packet.DstPort = uint16(self.udpAddr.Port)
+            packet.PayloadSize = uint(recvSize)
 
             return packet, nil
         }
