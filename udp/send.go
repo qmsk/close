@@ -10,8 +10,7 @@ import (
 )
 
 const SOURCE_PORT uint = 0
-const PORT uint = 1337
-const PORT_BITS uint = 0
+const SOURCE_PORT_BITS uint = 0
 const IP_TTL uint8 = 64
 
 type SendConfig struct {
@@ -20,12 +19,15 @@ type SendConfig struct {
     SourceNet       string // host/mask
     SourcePort      uint
     SourcePortBits  uint
+
+    Rate            uint    // 0 - unrated
+    Size            uint    // target size of UDP payload
 }
 
 type SendStats struct {
     StartTime       time.Time
 
-    Rate            uint
+    Rate            uint            // configured rate
     RateClock       time.Duration
     RateSleep       time.Duration
     RateUnderrun    uint
@@ -60,6 +62,9 @@ type Send struct {
 
     ipConn      *net.IPConn
     rawConn     *ipv4.RawConn
+
+    rate        uint
+    size        uint
 
     stats       SendStats
     statsChan   chan SendStats
@@ -146,6 +151,10 @@ func (self *Send) init(config SendConfig) error {
         return fmt.Errorf("Invalid IP family")
     }
 
+    // config
+    self.rate = config.Rate
+    self.size = config.Size
+
     return nil
 }
 
@@ -210,7 +219,7 @@ func (self *Send) GiveStats() chan SendStats {
 }
 
 // Generate a sequence of *Packet
-func (self *Send) Run(rate uint, size uint) error {
+func (self *Send) run(rate uint, size uint) error {
     startTime := time.Now()
 
     // reset stats
@@ -268,4 +277,9 @@ func (self *Send) Run(rate uint, size uint) error {
             self.statsChan <- self.stats
         }
     }
+}
+
+func (self *Send) Run() error {
+    // TODO: reconfigure
+    return self.run(self.rate, self.size)
 }

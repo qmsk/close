@@ -6,6 +6,7 @@ import (
     "net"
 )
 
+const PORT uint = 1337
 const PACKET_MTU = 1500 // XXX: not including IP overhead..?
 
 type Packet struct {

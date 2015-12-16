@@ -8,23 +8,21 @@ import (
 
 var (
     senderConfig    udp.SendConfig
-    rate            uint
-    size            uint
 )
 
 func init() {
-    flag.UintVar(&senderConfig.DestPort, "dest-port", udp.PORT,
+    flag.UintVar(&senderConfig.DestPort, "port", udp.PORT,
         "port")
     flag.StringVar(&senderConfig.SourceNet, "source-net", "",
         "addr/prefixlen")
     flag.UintVar(&senderConfig.SourcePort, "source-port", udp.SOURCE_PORT,
         "port")
-    flag.UintVar(&senderConfig.SourcePortBits, "source-port-bits", udp.PORT_BITS,
+    flag.UintVar(&senderConfig.SourcePortBits, "source-port-bits", udp.SOURCE_PORT_BITS,
         "fixed bits of port")
 
-    flag.UintVar(&rate, "rate", 1,
+    flag.UintVar(&senderConfig.Rate, "rate", 0,
         "rate /s")
-    flag.UintVar(&size, "size", 0,
+    flag.UintVar(&senderConfig.Size, "size", 0,
         "bytes")
 }
 
@@ -54,9 +52,9 @@ func main() {
     go stats(udpSend.GiveStats())
 
     // run
-    log.Printf("Run @%v/s\n", rate)
+    log.Printf("Run...\n")
 
-    if err := udpSend.Run(rate, size); err != nil {
+    if err := udpSend.Run(); err != nil {
         log.Fatalf("udp.Send.Run: %v\n", err)
     } else {
         log.Printf("udp.Send: done\n")
