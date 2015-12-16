@@ -14,6 +14,19 @@ type SockUDP struct {
     stats       SockStats
 }
 
+func (self *SockUDP) initDial(addr string) error {
+    if udpAddr, err := net.ResolveUDPAddr("udp", addr); err != nil {
+        return fmt.Errorf("Resolve UDP %v: %v", addr, err)
+    } else if udpConn, err := net.DialUDP("udp", nil, udpAddr); err != nil {
+        return fmt.Errorf("Dial UDP %v: %v", udpAddr, err)
+    } else {
+        self.udpAddr = *udpAddr
+        self.udpConn = udpConn
+    }
+
+    return nil
+}
+
 func (self *SockUDP) initListen(addr string) error {
     if udpAddr, err := net.ResolveUDPAddr("udp", addr); err != nil {
         return fmt.Errorf("Resolve UDP %v: %v", addr, err)
@@ -25,6 +38,10 @@ func (self *SockUDP) initListen(addr string) error {
     }
 
     return nil
+}
+
+func (self *SockUDP) probeSource() (*net.UDPAddr, error) {
+    return self.udpConn.LocalAddr().(*net.UDPAddr), nil
 }
 
 func (self *SockUDP) recv() (Packet, error) {
@@ -54,19 +71,20 @@ func (self *SockUDP) recv() (Packet, error) {
 }
 
 func (self *SockUDP) send(packet Packet) error {
-    dstAddr := net.UDPAddr{IP: packet.DstIP, Port: int(packet.DstPort)}
     payload := packet.Payload.Pack(packet.PayloadSize)
 
-    if sendSize, err := self.udpConn.WriteToUDP(payload, &dstAddr); err != nil {
+    if sendSize, err := self.udpConn.Write(payload); err != nil {
         self.stats.Errors++
-
-        return err
     } else {
         self.stats.Packets++
         self.stats.Bytes += uint(sendSize)
-
-        return nil
     }
+
+    return nil
+}
+
+func (self *SockUDP) resetStats() {
+    self.stats = SockStats{}
 }
 
 func (self *SockUDP) getStats() SockStats {

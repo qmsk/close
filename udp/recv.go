@@ -37,7 +37,7 @@ func (self RecvStats) String() string {
     packetThroughput := float64(self.Recv.Bytes) / 1000 / 1000 * 8 / clock.Seconds()
     packetLoss := 1.0 - float64(self.PacketCount) / float64(packetOffset)
 
-    return fmt.Sprintf("%8.2f: recv %8d / %8d = %8.2f/s %8.2fMb/s @ %6.2f%% loss",
+    return fmt.Sprintf("%8.2f: recv %10d / %10d = %10.2f/s %8.2fMb/s @ %6.2f%% loss",
         clock.Seconds(),
         self.PacketCount, packetOffset,
         packetRate, packetThroughput,
@@ -87,6 +87,7 @@ func (self *Recv) Run() error {
                 log.Printf("Start from %v: %v\n", packet.Payload.Seq, packet.Payload.Start)
 
                 // reset
+                self.sockRecv.resetStats()
                 self.stats = RecvStats{
                     StartTime:  self.stats.PacketTime,
                     StartSeq:   packet.Payload.Seq,

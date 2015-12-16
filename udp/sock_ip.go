@@ -67,12 +67,7 @@ func (self *SockIP) probeSource() (*net.UDPAddr, error) {
     if udpConn, err := net.DialUDP("udp", nil, &self.udpAddr); err != nil {
         return nil, err
     } else {
-        switch addr := udpConn.LocalAddr().(type) {
-        case *net.UDPAddr:
-            return addr, nil
-        default:
-            return nil, fmt.Errorf("Unknown address: %#v", addr)
-        }
+        return udpConn.LocalAddr().(*net.UDPAddr), nil
     }
 }
 
@@ -127,6 +122,9 @@ func (self *SockIP) send(packet Packet) error {
     return self.sendLayers(&ip, &udp, &payload)
 }
 
+func (self *SockIP) resetStats() {
+    self.stats = SockStats{}
+}
 func (self *SockIP) getStats() SockStats {
     return self.stats
 }

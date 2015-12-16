@@ -22,6 +22,7 @@ type SendConfig struct {
 
 type SendStats struct {
     StartTime       time.Time
+    Clock           time.Duration
 
     Rate            uint            // configured rate
     RateClock       time.Duration
@@ -34,15 +35,15 @@ type SendStats struct {
 }
 
 func (self SendStats) String() string {
-    clock := self.RateClock
-    sendRate := float64(self.Send.Packets) / clock.Seconds()
-    sendMbps := float64(self.Send.Bytes) / 1000 / 1000 * 8 / clock.Seconds()
-    util := 1.0 - self.RateSleep.Seconds() / clock.Seconds()
+    sendRate := float64(self.Send.Packets) / self.Clock.Seconds()
+    sendMbps := float64(self.Send.Bytes) / 1000 / 1000 * 8 / self.Clock.Seconds()
+    util := 1.0 - self.RateSleep.Seconds() / self.RateClock.Seconds()
 
-    return fmt.Sprintf("%8.2f: send %8d @ %8.2f/s = %8.2fMb/s @ %5.2f%% rate %5.2f%% util",
-        clock.Seconds(),
+    return fmt.Sprintf("%8.2f: send %9d @ %10.2f/s = %8.2fMb/s @ %5d errors %6.2f%% rate %6.2f%% util",
+        self.Clock.Seconds(),
         self.Send.Packets, sendRate,
         sendMbps,
+        self.Send.Errors,
         sendRate / float64(self.Rate) * 100,
         util * 100,
     )
@@ -79,19 +80,15 @@ func NewSend(config SendConfig) (*Send, error) {
 }
 
 func (self *Send) init(config SendConfig) error {
-    // setup dest
-    sockIP := &SockIP{}
-    if err := sockIP.init(fmt.Sprintf("%v:%v", config.DestAddr, config.DestPort)); err != nil {
-        return err
+    if config.SourceNet == "" && config.SourcePortBits == 0 {
+        self.initUDP(config)
+    } else {
+        self.initIP(config)
     }
-
-    self.dstIP = sockIP.udpAddr.IP
-    self.dstPort = uint16(sockIP.udpAddr.Port)
-    self.sockSend = sockIP
 
     // source
     if config.SourceNet == "" {
-        if srcAddr, err := sockIP.probeSource(); err != nil {
+        if srcAddr, err := self.sockSend.probeSource(); err != nil {
             return err
         } else {
             self.srcAddr = srcAddr.IP
@@ -117,6 +114,37 @@ func (self *Send) init(config SendConfig) error {
     // config
     self.rate = config.Rate
     self.size = config.Size
+
+    return nil
+}
+
+// init with SockUDP sender
+func (self *Send) initUDP(config SendConfig) error {
+    sockUDP := &SockUDP{}
+    if err := sockUDP.initDial(fmt.Sprintf("%v:%v", config.DestAddr, config.DestPort)); err != nil {
+        return err
+    }
+
+    self.dstIP = sockUDP.udpAddr.IP
+    self.dstPort = uint16(sockUDP.udpAddr.Port)
+
+    self.sockSend = sockUDP
+
+    return nil
+}
+
+// init with SockIP sender
+func (self *Send) initIP(config SendConfig) error {
+    // setup dest
+    sockIP := &SockIP{}
+    if err := sockIP.init(fmt.Sprintf("%v:%v", config.DestAddr, config.DestPort)); err != nil {
+        return err
+    }
+
+    self.dstIP = sockIP.udpAddr.IP
+    self.dstPort = uint16(sockIP.udpAddr.Port)
+
+    self.sockSend = sockIP
 
     return nil
 }
@@ -183,6 +211,7 @@ func (self *Send) run(rate uint, size uint, count uint) error {
 
         // stats
         if self.statsChan != nil {
+            self.stats.Clock = time.Since(self.stats.StartTime)
             self.stats.Send = self.sockSend.getStats()
             self.statsChan <- self.stats
         }
