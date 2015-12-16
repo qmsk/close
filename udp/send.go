@@ -2,16 +2,12 @@ package udp
 
 import (
     "fmt"
-    "github.com/google/gopacket"
-    "golang.org/x/net/ipv4"
-    "github.com/google/gopacket/layers"
     "net"
     "time"
 )
 
 const SOURCE_PORT uint = 0
 const SOURCE_PORT_BITS uint = 0
-const IP_TTL uint8 = 64
 
 type SendConfig struct {
     DestAddr        string // host
@@ -33,20 +29,20 @@ type SendStats struct {
     RateUnderrun    uint
     RateCount       uint
 
-    SendErrors      uint
-    SendPackets     uint
-    SendBytes       uint    // includes IP+UDP+Payload
+    // Send.Bytes includes IP+UDP+Payload
+    Send            SockStats
 }
 
 func (self SendStats) String() string {
     clock := self.RateClock
-    sendRate := float64(self.SendPackets) / clock.Seconds()
+    sendRate := float64(self.Send.Packets) / clock.Seconds()
+    sendMbps := float64(self.Send.Bytes) / 1000 / 1000 * 8 / clock.Seconds()
     util := 1.0 - self.RateSleep.Seconds() / clock.Seconds()
 
     return fmt.Sprintf("%8.2f: send %8d @ %8.2f/s = %8.2fMb/s @ %5.2f%% rate %5.2f%% util",
         clock.Seconds(),
-        self.SendPackets, sendRate,
-        float64(self.SendBytes) / 1000 / 1000 * 8,
+        self.Send.Packets, sendRate,
+        sendMbps,
         sendRate / float64(self.Rate) * 100,
         util * 100,
     )
@@ -60,8 +56,7 @@ type Send struct {
     srcAddrBits uint
     srcPort     RandPort
 
-    ipConn      *net.IPConn
-    rawConn     *ipv4.RawConn
+    sockSend  SockSend
 
     rate        uint
     size        uint
@@ -83,33 +78,20 @@ func NewSend(config SendConfig) (*Send, error) {
     }
 }
 
-// probe the source address the kernel would select for the given destination
-func probeSource(udpAddr *net.UDPAddr) (*net.UDPAddr, error) {
-    if udpConn, err := net.DialUDP("udp", nil, udpAddr); err != nil {
-        return nil, err
-    } else {
-        switch addr := udpConn.LocalAddr().(type) {
-        case *net.UDPAddr:
-            return addr, nil
-        default:
-            return nil, fmt.Errorf("Unknown address: %#v", addr)
-        }
-    }
-}
-
 func (self *Send) init(config SendConfig) error {
-    // resolve
-    if ipAddr, err := net.ResolveIPAddr("ip", config.DestAddr); err != nil {
-        return fmt.Errorf("Resolve DestAddr%v: %v", config.DestAddr, err)
-    } else {
-        self.dstAddr = *ipAddr
-        self.dstIP = ipAddr.IP
+    // setup dest
+    sockIP := &SockIP{}
+    if err := sockIP.init(fmt.Sprintf("%v:%v", config.DestAddr, config.DestPort)); err != nil {
+        return err
     }
 
-    self.dstPort = uint16(config.DestPort)
+    self.dstIP = sockIP.udpAddr.IP
+    self.dstPort = uint16(sockIP.udpAddr.Port)
+    self.sockSend = sockIP
 
+    // source
     if config.SourceNet == "" {
-        if srcAddr, err := probeSource(&net.UDPAddr{IP: self.dstIP, Port: int(self.dstPort)}); err != nil {
+        if srcAddr, err := sockIP.probeSource(); err != nil {
             return err
         } else {
             self.srcAddr = srcAddr.IP
@@ -132,85 +114,11 @@ func (self *Send) init(config SendConfig) error {
         self.srcPort.SetRandom(config.SourcePortBits, 0) // XXX: seed
     }
 
-    // setup
-    if ip4 := self.dstIP.To4(); ip4 != nil {
-        if ipConn, err := net.ListenIP("ip4:udp", nil); err != nil {
-            return fmt.Errorf("ListenIP: %v", err)
-        } else {
-            self.ipConn = ipConn
-        }
-
-        if rawConn, err := ipv4.NewRawConn(self.ipConn); err != nil {
-            return fmt.Errorf("NewRawConn: %v", err)
-        } else {
-            self.rawConn = rawConn
-        }
-
-    } else if ip6 := self.dstIP.To16(); ip6 != nil {
-        return fmt.Errorf("TODO: IPv6")
-    } else {
-        return fmt.Errorf("Invalid IP family")
-    }
-
     // config
     self.rate = config.Rate
     self.size = config.Size
 
     return nil
-}
-
-type SerializableNetworkLayer interface {
-    gopacket.NetworkLayer
-    gopacket.SerializableLayer
-}
-
-// serialize and send from gopacket layers
-func (self *Send) sendLayers(ip SerializableNetworkLayer, udp *layers.UDP, payload *gopacket.Payload) error {
-    // serialize
-    serializeBuffer := gopacket.NewSerializeBuffer()
-    serializeOptions := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
-
-    if err := udp.SetNetworkLayerForChecksum(ip); err != nil {
-        return err
-    }
-
-    if err := gopacket.SerializeLayers(serializeBuffer, serializeOptions,
-        ip,
-        udp,
-        payload,
-    ); err != nil {
-        return err
-    }
-
-    // send
-    if send, err := self.ipConn.WriteToIP(serializeBuffer.Bytes(), &self.dstAddr); err != nil {
-        self.stats.SendErrors++
-    } else {
-        self.stats.SendPackets++
-        self.stats.SendBytes += uint(send)
-    }
-
-    return nil
-}
-
-// serialize and send from Packet
-func (self *Send) sendPacket(packet Packet) error {
-    // packet structure
-    ip := layers.IPv4{
-        Version:    4,
-        TTL:        IP_TTL,
-        Protocol:   layers.IPProtocolUDP,
-
-        SrcIP:      packet.SrcIP,
-        DstIP:      packet.DstIP,
-    }
-    udp := layers.UDP{
-        SrcPort:    layers.UDPPort(packet.SrcPort),
-        DstPort:    layers.UDPPort(packet.DstPort),
-    }
-    payload := gopacket.Payload(packet.Payload.Pack(packet.PayloadSize))
-
-    return self.sendLayers(&ip, &udp, &payload)
 }
 
 func (self *Send) GiveStats() chan SendStats {
@@ -267,7 +175,7 @@ func (self *Send) run(rate uint, size uint, count uint) error {
             PayloadSize:    size,
         }
 
-        if err := self.sendPacket(packet); err != nil {
+        if err := self.sockSend.send(packet); err != nil {
             return err
         }
 
@@ -275,6 +183,7 @@ func (self *Send) run(rate uint, size uint, count uint) error {
 
         // stats
         if self.statsChan != nil {
+            self.stats.Send = self.sockSend.getStats()
             self.statsChan <- self.stats
         }
 
