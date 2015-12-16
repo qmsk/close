@@ -1,14 +1,20 @@
 package udp
 
 import (
-    "encoding/binary"
     "fmt"
+    "github.com/google/gopacket"
+    "github.com/google/gopacket/layers"
     "net"
 )
 
-const PORT uint = 1337
+// used for serializing packets with transport-layer checksums
+type SerializableNetworkLayer interface {
+    gopacket.NetworkLayer
+    gopacket.SerializableLayer
+}
+
 const PACKET_MTU = 1500 // XXX: not including IP overhead..?
-const PAYLOAD_SIZE = 16 // XXX: or smaller with varint?
+const PACKET_TTL uint8 = 64
 
 type Packet struct {
     SrcIP       net.IP
@@ -20,32 +26,45 @@ type Packet struct {
     Payload     Payload
 }
 
-type Payload struct {
-    Start       uint64
-    Seq         uint64
-}
+// Pack into an IP+UDP+Payload packet
+func (self *Packet) PackIP() ([]byte, error) {
+    var ip SerializableNetworkLayer
 
-func (self Payload) Pack(dataSize uint) []byte {
-    if dataSize < PAYLOAD_SIZE {
-        dataSize = PAYLOAD_SIZE
+    if src4, dst4 := self.SrcIP.To4(), self.DstIP.To4(); src4 != nil && dst4 != nil {
+        // packet structure
+        ip = &layers.IPv4{
+            Version:    4,
+            TTL:        PACKET_TTL,
+            Protocol:   layers.IPProtocolUDP,
+
+            SrcIP:      src4,
+            DstIP:      dst4,
+        }
+    } else {
+        return nil, fmt.Errorf("Unsupported IP address")
     }
 
-    // with trailing zeros
-    buf := make([]byte, dataSize)
+    udp := layers.UDP{
+        SrcPort:    layers.UDPPort(self.SrcPort),
+        DstPort:    layers.UDPPort(self.DstPort),
+    }
+    payload := gopacket.Payload(self.Payload.Pack(self.PayloadSize))
 
-    binary.BigEndian.PutUint64(buf[0:8], self.Start)
-    binary.BigEndian.PutUint64(buf[8:16], self.Seq)
+    // serialize
+    serializeBuffer := gopacket.NewSerializeBuffer()
+    serializeOptions := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
 
-    return buf
-}
-
-func (self *Payload) Unpack(buf []byte) error {
-    if len(buf) < PAYLOAD_SIZE {
-        return fmt.Errorf("Short payload")
+    if err := udp.SetNetworkLayerForChecksum(ip); err != nil {
+        return nil, err
     }
 
-    self.Start = binary.BigEndian.Uint64(buf[0:8])
-    self.Seq = binary.BigEndian.Uint64(buf[8:16])
+    if err := gopacket.SerializeLayers(serializeBuffer, serializeOptions,
+        ip,
+        &udp,
+        &payload,
+    ); err != nil {
+        return nil, err
+    }
 
-    return nil
+    return serializeBuffer.Bytes(), nil
 }

@@ -1,24 +1,25 @@
 package udp
 
-// net.IPConn based socket. Supports send with arbitrary source
+// syscall.Socket/Sendto -based implementation. Supports send with arbitrary source
 
 import (
     "fmt"
-    "golang.org/x/net/ipv4"
     "net"
+    "syscall"
 )
 
-type SockIP struct {
+type SockSyscall struct {
     ipAddr      net.IPAddr
     udpAddr     net.UDPAddr
 
-    ipConn      *net.IPConn
-    rawConn     *ipv4.RawConn
+    // XXX: cleanup..
+    fd          int
+    sockaddr    syscall.Sockaddr
 
     stats       SockStats
 }
 
-func (self *SockIP) init(dstAddr string) error {
+func (self *SockSyscall) init(dstAddr string) error {
     // resolve
     if udpAddr, err := net.ResolveUDPAddr("udp", dstAddr); err != nil {
         return fmt.Errorf("Resolve UDP %v: %v", dstAddr, err)
@@ -27,19 +28,20 @@ func (self *SockIP) init(dstAddr string) error {
         self.udpAddr = *udpAddr
     }
 
-    if ipConn, err := net.ListenIP("ip:udp", nil); err != nil {
-        return fmt.Errorf("ListenIP: %v", err)
-    } else {
-        self.ipConn = ipConn
-    }
-
     // setup
     if ip4 := self.udpAddr.IP.To4(); ip4 != nil {
-        // XXX: only used for the side-effect of setsockopt IP_HDRINCL
-        if rawConn, err := ipv4.NewRawConn(self.ipConn); err != nil {
-            return fmt.Errorf("NewRawConn: %v", err)
+        sockaddr := &syscall.SockaddrInet4{}
+
+        for i, b := range self.ipAddr.IP.To4() {
+            sockaddr.Addr[i] = b
+        }
+
+        self.sockaddr = sockaddr
+
+        if fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW|syscall.SOCK_CLOEXEC|syscall.SOCK_NONBLOCK, syscall.IPPROTO_RAW); err != nil {
+            return err
         } else {
-            self.rawConn = rawConn
+            self.fd = fd
         }
 
     } else if ip6 := self.udpAddr.IP.To16(); ip6 != nil {
@@ -52,7 +54,7 @@ func (self *SockIP) init(dstAddr string) error {
 }
 
 // probe the source address the kernel would select for our destination
-func (self *SockIP) probeSource() (*net.UDPAddr, error) {
+func (self *SockSyscall) probeSource() (*net.UDPAddr, error) {
     if udpConn, err := net.DialUDP("udp", nil, &self.udpAddr); err != nil {
         return nil, err
     } else {
@@ -60,27 +62,28 @@ func (self *SockIP) probeSource() (*net.UDPAddr, error) {
     }
 }
 
-// serialize and send from Packet
-func (self *SockIP) send(packet Packet) error {
+func (self *SockSyscall) send(packet Packet) error {
     packetBytes, err := packet.PackIP()
     if err != nil {
         return err
     }
 
     // send
-    if send, err := self.ipConn.WriteToIP(packetBytes, &self.ipAddr); err != nil {
-        self.stats.Errors++
-    } else {
+    if err := syscall.Sendto(self.fd, packetBytes, 0, self.sockaddr); err == nil {
         self.stats.Packets++
-        self.stats.Bytes += uint(send)
+        self.stats.Bytes += uint(len(packetBytes)) // XXX: doesn't Sendto() return...?
+    } else {
+        // TODO: check for EAGAIN -> self.stats.Dropped++
+        self.stats.Errors++
     }
 
     return nil
 }
 
-func (self *SockIP) resetStats() {
+func (self *SockSyscall) resetStats() {
     self.stats = SockStats{}
 }
-func (self *SockIP) getStats() SockStats {
+
+func (self *SockSyscall) getStats() SockStats {
     return self.stats
 }

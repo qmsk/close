@@ -138,15 +138,15 @@ func (self *Send) initUDP(config SendConfig) error {
 // init with SockIP sender
 func (self *Send) initIP(config SendConfig) error {
     // setup dest
-    sockIP := &SockIP{}
-    if err := sockIP.init(fmt.Sprintf("%v:%v", config.DestAddr, config.DestPort)); err != nil {
+    sock := &SockSyscall{}
+    if err := sock.init(fmt.Sprintf("%v:%v", config.DestAddr, config.DestPort)); err != nil {
         return err
     }
 
-    self.dstIP = sockIP.udpAddr.IP
-    self.dstPort = uint16(sockIP.udpAddr.Port)
+    self.dstIP = sock.udpAddr.IP
+    self.dstPort = uint16(sock.udpAddr.Port)
 
-    self.sockSend = sockIP
+    self.sockSend = sock
 
     return nil
 }
