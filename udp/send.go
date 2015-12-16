@@ -87,13 +87,15 @@ func (self *Send) init(config SendConfig) error {
     }
 
     // source
+    self.srcPort.init(0) // TODO: seed
+
     if config.SourceNet == "" {
         if srcAddr, err := self.sockSend.probeSource(); err != nil {
             return err
         } else {
             self.srcAddr = srcAddr.IP
             self.srcAddrBits = 0
-            self.srcPort = makeRandPort(uint(srcAddr.Port))
+            self.srcPort.SetPort(uint(srcAddr.Port))
         }
     } else if _, ipNet, err := net.ParseCIDR(config.SourceNet); err != nil {
         return fmt.Errorf("Parse SourceNet %v: %v", config.SourceNet, err)
@@ -105,10 +107,10 @@ func (self *Send) init(config SendConfig) error {
     }
 
     if config.SourcePort != 0 {
-        self.srcPort = makeRandPort(config.SourcePort)
+        self.srcPort.SetPort(config.SourcePort)
     }
     if config.SourcePortBits > 0 {
-        self.srcPort.SetRandom(config.SourcePortBits, 0) // XXX: seed
+        self.srcPort.SetRandom(config.SourcePortBits)
     }
 
     // config
