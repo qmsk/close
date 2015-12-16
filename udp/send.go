@@ -167,7 +167,7 @@ func (self *Send) run(rate uint, size uint, count uint) error {
         Rate:       rate,
     }
     payload := Payload{
-        Start:  startTime.Unix(),
+        Start:  uint64(startTime.Unix()),
         Seq:    0,
     }
 

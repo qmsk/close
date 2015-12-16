@@ -2,12 +2,13 @@ package udp
 
 import (
     "encoding/binary"
-    "bytes"
+    "fmt"
     "net"
 )
 
 const PORT uint = 1337
 const PACKET_MTU = 1500 // XXX: not including IP overhead..?
+const PAYLOAD_SIZE = 16 // XXX: or smaller with varint?
 
 type Packet struct {
     SrcIP       net.IP
@@ -20,36 +21,31 @@ type Packet struct {
 }
 
 type Payload struct {
-    Start       int64
+    Start       uint64
     Seq         uint64
 }
 
 func (self Payload) Pack(dataSize uint) []byte {
-    buffer := new(bytes.Buffer)
-
-    if err := binary.Write(buffer, binary.BigEndian, self); err != nil {
-        panic(err)
+    if dataSize < PAYLOAD_SIZE {
+        dataSize = PAYLOAD_SIZE
     }
 
-    bufferLen := uint(buffer.Len())
+    // with trailing zeros
+    buf := make([]byte, dataSize)
 
-    if bufferLen < dataSize {
-        data := make([]byte, dataSize - bufferLen)
+    binary.BigEndian.PutUint64(buf[0:8], self.Start)
+    binary.BigEndian.PutUint64(buf[8:16], self.Seq)
 
-        if err := binary.Write(buffer, binary.BigEndian, data); err != nil {
-            panic(err)
-        }
-    }
-
-    return buffer.Bytes()
+    return buf
 }
 
 func (self *Payload) Unpack(buf []byte) error {
-    reader := bytes.NewReader(buf)
-
-    if err := binary.Read(reader, binary.BigEndian, self); err != nil {
-        return err
+    if len(buf) < PAYLOAD_SIZE {
+        return fmt.Errorf("Short payload")
     }
+
+    self.Start = binary.BigEndian.Uint64(buf[0:8])
+    self.Seq = binary.BigEndian.Uint64(buf[8:16])
 
     return nil
 }
