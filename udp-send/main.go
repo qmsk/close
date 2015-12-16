@@ -3,6 +3,7 @@ package main
 import (
     "flag"
     "log"
+    "time"
     "close/udp"
 )
 
@@ -30,9 +31,17 @@ func init() {
         "display stats")
 }
 
-func stats(statsChan chan udp.SendStats) {
+func logStats(statsChan chan udp.SendStats) {
+    statsTime := time.Now()
+
     for stats := range statsChan {
-        log.Println(stats)
+        logTime := time.Now()
+
+        if logTime.Sub(statsTime).Seconds() > 1.0 {
+            statsTime = logTime
+
+            log.Println(stats)
+        }
     }
 }
 
@@ -54,7 +63,7 @@ func main() {
 
     // stats
     if showStats {
-        go stats(udpSend.GiveStats())
+        go logStats(udpSend.GiveStats())
     }
 
     // run
