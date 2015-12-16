@@ -3,17 +3,20 @@ package main
 import (
     "close/ping"
     "close/statsd"
+    "close/influxdb"
     "fmt"
     "time"
     "log"
     "flag"
     "os"
+    "strings"
 )
 
 type LatencyConfig struct {
     Source  string
     Target  string
     Statsd  string
+    InfluxDB  string
 }
 
 var (
@@ -29,20 +32,30 @@ func init() {
 
     flag.StringVar(&config.Statsd, "statsd", "statsd.docker.catcp:8125",
         "URL to statsd daemon")
+    flag.StringVar(&config.InfluxDB, "influxdb", "http://influxdb.docker.catcp:8086",
+        "URL to influxdb")
     flag.StringVar(&config.Target, "ping", "8.8.8.8",
         "target host to send ICMP echos to")
     flag.StringVar(&config.Source, "source", defaultSrc,
         "source to use in the metric name to send ICMP echos from")
 }
 
-func collectLatency(config LatencyConfig, p *ping.Pinger, c *statsd.Client) {
+func collectLatency(config LatencyConfig, p *ping.Pinger, s *statsd.Client, i *influxdb.Client) {
     statsC := p.GiveStats()
     go func() {
         for {
             latency := <-statsC
             latency_s := latency.Seconds()
-            metric := fmt.Sprintf("%s.latency.%s", config.Source, config.Target)
-            c.SendTiming(metric, latency_s)
+            targetName := strings.Replace(config.Target, ".", "_", -1)
+            metric := fmt.Sprintf("%s.latency.%s", config.Source, targetName)
+            s.SendTiming(metric, latency_s)
+
+            point := influxdb.CreatePoint("latency")
+            point.AddTag("source", config.Source)
+            point.AddTag("target", config.Target)
+            point.AddField("value", fmt.Sprintf("%.3f", latency_s) )
+
+            i.AddPoint(*point)
         }
     }()
 
@@ -56,11 +69,19 @@ func collectLatency(config LatencyConfig, p *ping.Pinger, c *statsd.Client) {
 func main() {
     flag.Parse()
 
-    c, err := statsd.NewClient(config.Statsd)
+    statsdClient, err := statsd.NewClient(config.Statsd)
     if err != nil {
         log.Panicf("Could not connect to statsd server\n")
     }
-    defer c.Close()
+    defer statsdClient.Close()
+
+    influxClient, err := influxdb.NewClient(influxdb.Config{
+        Server: config.InfluxDB,
+    })
+    if err != nil {
+        log.Panicf("Could not connect to statsd server\n")
+    }
+    defer statsdClient.Close()
 
     p, err := ping.NewPinger(config.Target)
     if err != nil {
@@ -68,5 +89,5 @@ func main() {
     }
     defer p.Close()
 
-    collectLatency(config, p, c)
+    collectLatency(config, p, statsdClient, influxClient)
 }
