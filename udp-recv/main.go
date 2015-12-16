@@ -8,11 +8,15 @@ import (
 
 var (
     receiverConfig  udp.RecvConfig
+    showStats       bool
 )
 
 func init() {
     flag.StringVar(&receiverConfig.ListenAddr, "listen-addr", "0.0.0.0:1337",
         "host:port")
+
+    flag.BoolVar(&showStats, "show-stats", false,
+        "display stats")
 }
 
 func stats(statsChan chan udp.RecvStats) {
@@ -32,7 +36,9 @@ func main() {
     }
 
     // stats
-    go stats(udpRecv.GiveStats())
+    if showStats {
+        go stats(udpRecv.GiveStats())
+    }
 
     log.Printf("Run...\n",)
     if err := udpRecv.Run(); err != nil {

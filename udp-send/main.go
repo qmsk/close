@@ -8,6 +8,7 @@ import (
 
 var (
     senderConfig    udp.SendConfig
+    showStats       bool
 )
 
 func init() {
@@ -24,6 +25,9 @@ func init() {
         "rate /s")
     flag.UintVar(&senderConfig.Size, "size", 0,
         "bytes")
+
+    flag.BoolVar(&showStats, "show-stats", false,
+        "display stats")
 }
 
 func stats(statsChan chan udp.SendStats) {
@@ -49,7 +53,9 @@ func main() {
     }
 
     // stats
-    go stats(udpSend.GiveStats())
+    if showStats {
+        go stats(udpSend.GiveStats())
+    }
 
     // run
     log.Printf("Run...\n")
