@@ -5,7 +5,6 @@ import (
     "github.com/google/gopacket"
     "golang.org/x/net/ipv4"
     "github.com/google/gopacket/layers"
-    "log"
     "net"
     "time"
 )
@@ -23,6 +22,30 @@ type SenderConfig struct {
     SourcePortBits  uint
 }
 
+type SenderStats struct {
+    StartTime       time.Time
+    Rate            uint
+    RateCount       uint
+    RateSleep       float64 // seconds
+    RateUnderrun    uint
+
+    SendErrors      uint
+    SendPackets     uint
+    SendBytes       uint
+}
+
+func (self SenderStats) String() string {
+    t := time.Since(self.StartTime)
+
+    return fmt.Sprintf("%8.2f: sent %8d @ %8.2f/s / %8d/s = %5.2fMb/s",
+        t.Seconds(),
+        self.SendPackets,
+        float64(self.SendPackets) / t.Seconds(),
+        self.Rate,
+        float64(self.SendBytes) / 1000 / 1000 * 8,
+    )
+}
+
 type Sender struct {
     dstAddr     net.IPAddr
     dstIP       net.IP
@@ -34,12 +57,8 @@ type Sender struct {
     ipConn      *net.IPConn
     rawConn     *ipv4.RawConn
 
-    stats       struct {
-        rateUnderrun    uint
-        sendErrors      uint
-        sendPackets     uint
-        sendBytes       uint
-    }
+    stats       SenderStats
+    statsChan   chan SenderStats
 }
 
 func NewSender(config SenderConfig) (*Sender, error) {
@@ -151,10 +170,10 @@ func (self *Sender) sendLayers(ip SerializableNetworkLayer, udp *layers.UDP, pay
 
     // send
     if send, err := self.ipConn.WriteToIP(serializeBuffer.Bytes(), &self.dstAddr); err != nil {
-        self.stats.sendErrors++
+        self.stats.SendErrors++
     } else {
-        self.stats.sendPackets++
-        self.stats.sendBytes += uint(send)
+        self.stats.SendPackets++
+        self.stats.SendBytes += uint(send)
     }
 
     return nil
@@ -180,31 +199,50 @@ func (self *Sender) sendPacket(packet Packet) error {
     return self.sendLayers(&ip, &udp, &payload)
 }
 
+func (self *Sender) GiveStats() chan SenderStats {
+    self.statsChan = make(chan SenderStats)
+
+    return self.statsChan
+}
+
 // Generate a sequence of *Packet
 func (self *Sender) Run(rate uint) error {
     startTime := time.Now()
 
+    // reset stats
+    self.stats = SenderStats{
+        StartTime:  startTime,
+        Rate:       rate,
+    }
     payload := Payload{
         Start:  startTime.Unix(),
         Seq:    0,
     }
 
     for {
-        duration := time.Since(startTime)
+        // rate-limiting?
+        if rate != 0 {
+            duration := time.Since(startTime)
 
-        // schedule
-        packetDuration := time.Duration(payload.Seq) * time.Second / time.Duration(rate)
+            // scheduled time for packet
+            packetDuration := time.Duration(payload.Seq) * time.Second / time.Duration(rate)
 
-        if packetDuration > duration {
-            time.Sleep(packetDuration - duration)
-        } else {
-            self.stats.rateUnderrun++
+            if packetDuration > duration {
+                // slow down
+                sleepDuration := packetDuration - duration
+
+                time.Sleep(sleepDuration)
+
+                self.stats.RateSleep += sleepDuration.Seconds()
+            } else {
+                // catch up
+                self.stats.RateUnderrun++
+            }
+
+            self.stats.RateCount++
         }
 
-        log.Printf("%5.2f send @%d = %5.2f/s", duration.Seconds(), payload.Seq,
-            float64(payload.Seq) / duration.Seconds(),
-        )
-
+        // send
         packet := Packet{
             SrcIP:      self.srcAddr,
             SrcPort:    self.srcPort.Port(),
@@ -219,5 +257,10 @@ func (self *Sender) Run(rate uint) error {
         }
 
         payload.Seq++
+
+        // stats
+        if self.statsChan != nil {
+            self.statsChan <- self.stats
+        }
     }
 }

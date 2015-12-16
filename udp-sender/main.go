@@ -25,6 +25,12 @@ func init() {
         "rate /s")
 }
 
+func stats(statsChan chan udp.SenderStats) {
+    for stats := range statsChan {
+        log.Println(stats)
+    }
+}
+
 func main() {
     flag.Parse()
 
@@ -41,6 +47,10 @@ func main() {
         log.Printf("udp.NewSender %v: %+v\n", senderConfig, udpSender)
     }
 
+    // stats
+    go stats(udpSender.GiveStats())
+
+    // run
     log.Printf("Run @%v/s\n", rate)
 
     if err := udpSender.Run(rate); err != nil {
