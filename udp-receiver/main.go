@@ -15,6 +15,12 @@ func init() {
         "host:port")
 }
 
+func stats(statsChan chan udp.ReceiverStats) {
+    for stats := range statsChan {
+        log.Println(stats)
+    }
+}
+
 func main() {
     flag.Parse()
 
@@ -24,6 +30,9 @@ func main() {
     } else {
         log.Printf("udp.NewReceiver %v: %+v\n", receiverConfig, udpReceiver)
     }
+
+    // stats
+    go stats(udpReceiver.GiveStats())
 
     log.Printf("Run...\n",)
     if err := udpReceiver.Run(); err != nil {

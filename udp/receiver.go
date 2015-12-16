@@ -12,18 +12,39 @@ type ReceiverConfig struct {
 }
 
 type Receiver struct {
-    udpAddr net.UDPAddr
-    udpConn *net.UDPConn
+    udpAddr     net.UDPAddr
+    udpConn     *net.UDPConn
 
-    stats struct {
-        recvErrors      uint
-        recvPackets     uint
-        recvBytes       uint
+    statsChan   chan ReceiverStats
+    stats       ReceiverStats
+}
 
-        packetErrors    uint
-        packetCount     uint
-        packetSkip      uint
-    }
+type ReceiverStats struct {
+    StartTime       time.Time
+    StartSeq        uint64
+
+    RecvErrors      uint
+    RecvPackets     uint
+    RecvBytes       uint    // only includes Payload
+
+    PacketTime      time.Time
+    PacketSeq       uint64
+    PacketErrors    uint
+    PacketCount     uint
+    PacketSkip      uint
+}
+
+func (self ReceiverStats) String() string {
+    clock := self.PacketTime.Sub(self.StartTime)
+    packetOffset := self.PacketSeq - self.StartSeq
+
+    return fmt.Sprintf("%8.2f: recv %8d / %8d = %8.2f/s %8.2fMb/s @ %6.2f%% loss",
+        clock.Seconds(),
+        self.PacketCount, packetOffset,
+        float64(self.RecvPackets) / clock.Seconds(),
+        float64(self.RecvBytes) / 1000 / 1000 * 8 / clock.Seconds(),
+        float64(self.PacketCount) / float64(packetOffset) * 100.0,
+    )
 }
 
 func NewReceiver(config ReceiverConfig) (*Receiver, error) {
@@ -56,19 +77,18 @@ func (self *Receiver) recv() (Packet, error) {
     buf := make([]byte, packetSize)
 
     if recvSize, srcAddr, err := self.udpConn.ReadFromUDP(buf); err != nil {
-        self.stats.recvErrors++
+        self.stats.RecvErrors++
 
         return packet, err
     } else {
-        self.stats.recvPackets++
-        self.stats.recvBytes += uint(recvSize)
+        self.stats.RecvPackets++
+        self.stats.RecvBytes += uint(recvSize)
 
         if err := packet.Payload.Unpack(buf[:recvSize]); err != nil {
-            self.stats.packetErrors++
+            self.stats.PacketErrors++
 
             return packet, err
         } else {
-
             packet.SrcIP = srcAddr.IP
             packet.SrcPort = uint16(srcAddr.Port)
             packet.DstIP = self.udpAddr.IP // XXX
@@ -79,42 +99,45 @@ func (self *Receiver) recv() (Packet, error) {
     }
 }
 
+func (self *Receiver) GiveStats() chan ReceiverStats {
+    self.statsChan = make(chan ReceiverStats)
+
+    return self.statsChan
+}
+
 func (self *Receiver) Run() error {
-    var state Payload
-    var startTime time.Time
-    var startSeq uint64
+    var payload Payload
 
     for {
         if packet, err := self.recv(); err != nil {
             log.Printf("Recv error: %v\n", err)
         } else {
-            if packet.Payload.Start != state.Start {
-                state.Start = packet.Payload.Start
-                state.Seq = packet.Payload.Seq
-                startTime = time.Now()
-                startSeq = packet.Payload.Seq
-                self.stats.packetCount = 0
+            self.stats.PacketTime = time.Now()
 
-                log.Printf("Recv Start @%v from seq=%v\n", state.Start, state.Seq)
+            if packet.Payload.Start != payload.Start {
+                log.Printf("Start from %v: %v\n", packet.Payload.Seq, packet.Payload.Start)
 
-            } else if packet.Payload.Seq > state.Seq {
-                state.Seq = packet.Payload.Seq
-                self.stats.packetCount++
+                // reset
+                self.stats = ReceiverStats{
+                    StartTime:  self.stats.PacketTime,
+                    StartSeq:   packet.Payload.Seq,
+                }
 
-                duration := time.Since(startTime)
-                offset := state.Seq - startSeq
-
-                log.Printf("Recv %8d of %8d in %5.2fs = %5.2f/s @ %6.2f%%\n",
-                    self.stats.packetCount, offset, duration.Seconds(),
-                    float64(self.stats.packetCount) / duration.Seconds(),
-                    float64(self.stats.packetCount) / float64(offset) * 100.0,
-                )
+            } else if packet.Payload.Seq > payload.Seq {
+                self.stats.PacketSeq = packet.Payload.Seq
+                self.stats.PacketCount++
 
             } else {
-                self.stats.packetSkip++
+                log.Printf("Skip %v <= %v\n", packet.Payload.Seq, payload.Seq)
 
-                log.Printf("Skip at seq=%v < %v\n", packet.Payload.Seq, state.Seq)
+                self.stats.PacketSkip++
             }
+
+            payload = packet.Payload
+        }
+
+        if self.statsChan != nil {
+            self.statsChan <- self.stats
         }
     }
 
