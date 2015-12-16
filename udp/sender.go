@@ -24,25 +24,29 @@ type SenderConfig struct {
 
 type SenderStats struct {
     StartTime       time.Time
+
     Rate            uint
-    RateCount       uint
-    RateSleep       float64 // seconds
+    RateClock       time.Duration
+    RateSleep       time.Duration
     RateUnderrun    uint
+    RateCount       uint
 
     SendErrors      uint
     SendPackets     uint
-    SendBytes       uint
+    SendBytes       uint    // includes IP+UDP+Payload
 }
 
 func (self SenderStats) String() string {
-    t := time.Since(self.StartTime)
+    clock := self.RateClock
+    sendRate := float64(self.SendPackets) / clock.Seconds()
+    util := 1.0 - self.RateSleep.Seconds() / clock.Seconds()
 
-    return fmt.Sprintf("%8.2f: sent %8d @ %8.2f/s / %8d/s = %5.2fMb/s",
-        t.Seconds(),
-        self.SendPackets,
-        float64(self.SendPackets) / t.Seconds(),
-        self.Rate,
+    return fmt.Sprintf("%8.2f: send %8d @ %8.2f/s = %8.2fMb/s @ %5.2f%% rate %5.2f%% util",
+        clock.Seconds(),
+        self.SendPackets, sendRate,
         float64(self.SendBytes) / 1000 / 1000 * 8,
+        sendRate / float64(self.Rate) * 100,
+        util * 100,
     )
 }
 
@@ -222,23 +226,23 @@ func (self *Sender) Run(rate uint) error {
     for {
         // rate-limiting?
         if rate != 0 {
-            duration := time.Since(startTime)
+            // scheduled time for next packet
+            packetClock := time.Duration(payload.Seq) * time.Second / time.Duration(rate)
 
-            // scheduled time for packet
-            packetDuration := time.Duration(payload.Seq) * time.Second / time.Duration(rate)
+            rateClock := time.Since(startTime)
+            rateSkew := packetClock - rateClock
 
-            if packetDuration > duration {
+            if rateSkew > 0 {
                 // slow down
-                sleepDuration := packetDuration - duration
+                time.Sleep(rateSkew)
 
-                time.Sleep(sleepDuration)
-
-                self.stats.RateSleep += sleepDuration.Seconds()
+                self.stats.RateSleep += rateSkew
             } else {
                 // catch up
                 self.stats.RateUnderrun++
             }
 
+            self.stats.RateClock = time.Since(startTime)
             self.stats.RateCount++
         }
 
