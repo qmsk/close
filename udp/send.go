@@ -65,6 +65,7 @@ type Send struct {
 
     rate        uint
     size        uint
+    count       uint
 
     stats       SendStats
     statsChan   chan SendStats
@@ -219,7 +220,7 @@ func (self *Send) GiveStats() chan SendStats {
 }
 
 // Generate a sequence of *Packet
-func (self *Send) run(rate uint, size uint) error {
+func (self *Send) run(rate uint, size uint, count uint) error {
     startTime := time.Now()
 
     // reset stats
@@ -276,10 +277,16 @@ func (self *Send) run(rate uint, size uint) error {
         if self.statsChan != nil {
             self.statsChan <- self.stats
         }
+
+        if count > 0 && payload.Seq > uint64(count) {
+            break
+        }
     }
+
+    return nil
 }
 
 func (self *Send) Run() error {
     // TODO: reconfigure
-    return self.run(self.rate, self.size)
+    return self.run(self.rate, self.size, self.count)
 }
