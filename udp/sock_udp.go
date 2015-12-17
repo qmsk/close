@@ -83,10 +83,9 @@ func (self *SockUDP) send(packet Packet) error {
     return nil
 }
 
-func (self *SockUDP) resetStats() {
+func (self *SockUDP) takeStats() SockStats {
+    stats := self.stats
     self.stats = SockStats{}
-}
 
-func (self *SockUDP) getStats() SockStats {
-    return self.stats
+    return stats
 }

@@ -78,9 +78,9 @@ func (self *SockIP) send(packet Packet) error {
     return nil
 }
 
-func (self *SockIP) resetStats() {
+func (self *SockIP) takeStats() SockStats {
+    stats := self.stats
     self.stats = SockStats{}
-}
-func (self *SockIP) getStats() SockStats {
-    return self.stats
+
+    return stats
 }

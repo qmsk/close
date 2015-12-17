@@ -21,30 +21,31 @@ type SendConfig struct {
 }
 
 type SendStats struct {
-    StartTime       time.Time
-    Clock           time.Duration
+    Time            time.Time       // stats were reset
+    Duration        time.Duration   // stats were collected
 
-    Rate            uint            // configured rate
-    RateClock       time.Duration
-    RateSleep       time.Duration
-    RateUnderrun    uint
-    RateCount       uint
+    Rate            uint            // configured target rate
+    RateSleep       time.Duration   // total time slept
+    RateUnderrun    uint            // count of timing underruns (no sleep)
+    RateCount       uint            // count of timing ticks
 
     // Send.Bytes includes IP+UDP+Payload
     Send            SockStats
 }
 
 func (self SendStats) String() string {
-    sendRate := float64(self.Send.Packets) / self.Clock.Seconds()
-    sendMbps := float64(self.Send.Bytes) / 1000 / 1000 * 8 / self.Clock.Seconds()
-    util := 1.0 - self.RateSleep.Seconds() / self.RateClock.Seconds()
+    sendRate := float64(self.Send.Packets) / self.Duration.Seconds()
+    sendMbps := float64(self.Send.Bytes) / 1000 / 1000 * 8 / self.Duration.Seconds()
 
-    return fmt.Sprintf("%8.2f: send %9d @ %10.2f/s = %8.2fMb/s @ %5d errors %6.2f%% rate %6.2f%% util",
-        self.Clock.Seconds(),
+    rate := float64(self.RateCount) / self.Duration.Seconds() / float64(self.Rate)
+    util := 1.0 - self.RateSleep.Seconds() / self.Duration.Seconds()
+
+    return fmt.Sprintf("%5.2f: send %9d @ %10.2f/s = %8.2fMb/s +%5d errors @ %6.2f%% rate %6.2f%% util",
+        self.Duration.Seconds(),
         self.Send.Packets, sendRate,
         sendMbps,
         self.Send.Errors,
-        sendRate / float64(self.Rate) * 100,
+        rate * 100,
         util * 100,
     )
 }
@@ -63,8 +64,9 @@ type Send struct {
     size        uint
     count       uint
 
-    stats       SendStats
-    statsChan   chan SendStats
+    stats           SendStats
+    statsChan       chan SendStats
+    statsInterval   time.Duration
 }
 
 func NewSend(config SendConfig) (*Send, error) {
@@ -151,8 +153,9 @@ func (self *Send) initIP(config SendConfig) error {
     return nil
 }
 
-func (self *Send) GiveStats() chan SendStats {
+func (self *Send) GiveStats(interval time.Duration) chan SendStats {
     self.statsChan = make(chan SendStats)
+    self.statsInterval = interval
 
     return self.statsChan
 }
@@ -163,8 +166,8 @@ func (self *Send) run(rate uint, size uint, count uint) error {
 
     // reset stats
     self.stats = SendStats{
-        StartTime:  startTime,
-        Rate:       rate,
+        Time:   startTime,
+        Rate:   rate,
     }
     payload := Payload{
         Start:  uint64(startTime.Unix()),
@@ -190,7 +193,6 @@ func (self *Send) run(rate uint, size uint, count uint) error {
                 self.stats.RateUnderrun++
             }
 
-            self.stats.RateClock = time.Since(startTime)
             self.stats.RateCount++
         }
 
@@ -212,12 +214,20 @@ func (self *Send) run(rate uint, size uint, count uint) error {
         payload.Seq++
 
         // stats
-        if self.statsChan != nil {
-            self.stats.Clock = time.Since(self.stats.StartTime)
-            self.stats.Send = self.sockSend.getStats()
+        self.stats.Duration = time.Since(self.stats.Time)
+
+        if self.statsChan != nil && self.stats.Duration >= self.statsInterval {
+            self.stats.Send = self.sockSend.takeStats()
             self.statsChan <- self.stats
+
+            // reset
+            self.stats = SendStats{
+                Time:       time.Now(),
+                Rate:       rate,
+            }
         }
 
+        // end?
         if count > 0 && payload.Seq > uint64(count) {
             break
         }

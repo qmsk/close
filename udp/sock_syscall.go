@@ -80,10 +80,9 @@ func (self *SockSyscall) send(packet Packet) error {
     return nil
 }
 
-func (self *SockSyscall) resetStats() {
+func (self *SockSyscall) takeStats() SockStats {
+    stats := self.stats
     self.stats = SockStats{}
-}
 
-func (self *SockSyscall) getStats() SockStats {
-    return self.stats
+    return stats
 }

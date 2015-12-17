@@ -11,14 +11,18 @@ type SockStats struct {
 }
 
 type SockSend interface {
-    resetStats()
-    getStats() SockStats
+    // return stats and reset
+    takeStats() SockStats
+
     send(packet Packet) error
+
+    // return source address for the destination
     probeSource() (*net.UDPAddr, error)
 }
 
 type SockRecv interface {
-    resetStats()
-    getStats() SockStats
+    // return stats and reset
+    takeStats() SockStats
+
     recv() (Packet, error)
 }
