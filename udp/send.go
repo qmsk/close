@@ -10,8 +10,7 @@ const SOURCE_PORT uint = 0
 const SOURCE_PORT_BITS uint = 0
 
 type SendConfig struct {
-    DestAddr        string // host
-    DestPort        uint
+    DestAddr        string // host:port (or host)
     SourceNet       string // host/mask
     SourcePort      uint
     SourcePortBits  uint
@@ -83,9 +82,13 @@ func NewSend(config SendConfig) (*Send, error) {
 
 func (self *Send) init(config SendConfig) error {
     if config.SourceNet == "" && config.SourcePortBits == 0 {
-        self.initUDP(config)
+        if err := self.initUDP(config); err != nil {
+            return err
+        }
     } else {
-        self.initIP(config)
+        if err := self.initIP(config); err != nil {
+            return err
+        }
     }
 
     // source
@@ -125,7 +128,7 @@ func (self *Send) init(config SendConfig) error {
 // init with SockUDP sender
 func (self *Send) initUDP(config SendConfig) error {
     sockUDP := &SockUDP{}
-    if err := sockUDP.initDial(fmt.Sprintf("%v:%v", config.DestAddr, config.DestPort)); err != nil {
+    if err := sockUDP.initDial(config.DestAddr); err != nil {
         return err
     }
 
@@ -141,7 +144,7 @@ func (self *Send) initUDP(config SendConfig) error {
 func (self *Send) initIP(config SendConfig) error {
     // setup dest
     sock := &SockSyscall{}
-    if err := sock.init(fmt.Sprintf("%v:%v", config.DestAddr, config.DestPort)); err != nil {
+    if err := sock.init(config.DestAddr); err != nil {
         return err
     }
 
