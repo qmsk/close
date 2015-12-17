@@ -22,14 +22,31 @@ type RecvStats struct {
     Time            time.Time       // stats were reset
     Duration        time.Duration   // stats were collected
 
-    PacketClock     time.Duration   // 
     PacketStart     uint64          // first packet
     PacketSeq       uint64          // most recent packet
     PacketErrors    uint            // invalid packets
     PacketCount     uint            // in-sequence packets
-    PacketSkip      uint            // out-of-sequence packets
+    PacketSkips     uint            // skipped in-sequence packets
+    PacketDups      uint            // out-of-sequence packets
 
     Recv            SockStats
+}
+
+// check if we have any received packets to report on
+func (self RecvStats) Valid() bool {
+    return (self.PacketSeq > 0)
+}
+
+// proportion of delivered packets, not counting reordered or duplicated packets
+// this ratio only applies when .Valid()
+func (self RecvStats) PacketWin() float64 {
+    return float64(self.PacketCount) / float64(self.PacketSeq - self.PacketStart)
+}
+
+// proportion of lost or reordered packets, not counting duplicates
+// this ratio only applies when .Valid()
+func (self RecvStats) PacketLoss() float64 {
+    return float64(self.PacketSkips) / float64(self.PacketSeq - self.PacketStart)
 }
 
 func (self RecvStats) String() string {
@@ -94,9 +111,11 @@ func (self *Recv) Run() error {
 
                 self.stats.PacketStart = payload.Seq
                 self.stats.PacketSeq = payload.Seq
+                self.stats.PacketCount++
 
             } else if packet.Payload.Seq > payload.Seq {
                 self.stats.PacketSeq = packet.Payload.Seq
+                self.stats.PacketSkips += uint(packet.Payload.Seq - payload.Seq - 1) // normally 0 if delivered in sequence
                 self.stats.PacketCount++
 
                 payload.Seq = packet.Payload.Seq
@@ -104,7 +123,7 @@ func (self *Recv) Run() error {
             } else {
                 log.Printf("Skip %v <= %v\n", packet.Payload.Seq, payload.Seq)
 
-                self.stats.PacketSkip++
+                self.stats.PacketDups++
             }
         }
 

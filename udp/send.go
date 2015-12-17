@@ -23,29 +23,42 @@ type SendStats struct {
     Time            time.Time       // stats were reset
     Duration        time.Duration   // stats were collected
 
-    Rate            uint            // configured target rate
+    ConfigRate      uint            // configured target rate
     RateSleep       time.Duration   // total time slept
-    RateUnderrun    uint            // count of timing underruns (no sleep)
+    RateUnderruns   uint            // count of timing underruns (no sleep)
     RateCount       uint            // count of timing ticks
 
     // Send.Bytes includes IP+UDP+Payload
     Send            SockStats
 }
 
+func (self SendStats) Rate() float64 {
+    return float64(self.RateCount) / self.Duration.Seconds()
+}
+
+// Return rate-loop utilization between 0..1, with 1.0 being fully utilized (unable to keep up with rate)
+func (self SendStats) RateUtil() float64 {
+    return 1.0 - self.RateSleep.Seconds() / self.Duration.Seconds()
+}
+
+// Return the actual rate vs configured rate as a proportional error, with 1.0 being the most accurate
+func (self SendStats) RateError() float64 {
+    return self.Rate() / float64(self.ConfigRate)
+}
+
 func (self SendStats) String() string {
+    // pps rate of sent packets; may be lower than Rate() in the case of Send.Errors > 0
     sendRate := float64(self.Send.Packets) / self.Duration.Seconds()
+
+    // achieved througput with IP+UDP headers
     sendMbps := float64(self.Send.Bytes) / 1000 / 1000 * 8 / self.Duration.Seconds()
 
-    rate := float64(self.RateCount) / self.Duration.Seconds() / float64(self.Rate)
-    util := 1.0 - self.RateSleep.Seconds() / self.Duration.Seconds()
-
-    return fmt.Sprintf("%5.2f: send %9d @ %10.2f/s = %8.2fMb/s +%5d errors @ %6.2f%% rate %6.2f%% util",
+    return fmt.Sprintf("%5.2f: send %9d with %5d underruns @ %10.2f/s = %8.2fMb/s +%5d errors @ %6.2f%% rate %6.2f%% util",
         self.Duration.Seconds(),
-        self.Send.Packets, sendRate,
-        sendMbps,
-        self.Send.Errors,
-        rate * 100,
-        util * 100,
+        self.Send.Packets, self.RateUnderruns,
+        sendRate, sendMbps, self.Send.Errors,
+        self.RateError() * 100,
+        self.RateUtil() * 100,
     )
 }
 
@@ -169,8 +182,9 @@ func (self *Send) run(rate uint, size uint, count uint) error {
 
     // reset stats
     self.stats = SendStats{
-        Time:   startTime,
-        Rate:   rate,
+        Time:       startTime,
+
+        ConfigRate: rate,
     }
     payload := Payload{
         Start:  uint64(startTime.Unix()),
@@ -193,7 +207,7 @@ func (self *Send) run(rate uint, size uint, count uint) error {
                 self.stats.RateSleep += rateSkew
             } else {
                 // catch up
-                self.stats.RateUnderrun++
+                self.stats.RateUnderruns++
             }
 
             self.stats.RateCount++
@@ -226,7 +240,8 @@ func (self *Send) run(rate uint, size uint, count uint) error {
             // reset
             self.stats = SendStats{
                 Time:       time.Now(),
-                Rate:       rate,
+
+                ConfigRate: rate,
             }
         }
 
