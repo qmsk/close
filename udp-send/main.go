@@ -11,22 +11,23 @@ import (
 var (
     statsConfig     stats.Config
     sendConfig      udp.SendConfig
-    showStats       bool
 )
 
 func init() {
-    statsConfig.Type = "udp"
+    statsConfig.Type = "udp_send"
 
-    flag.StringVar(&statsConfig.Statsd.Server, "statsd-server", os.Getenv("STATSD_SERVER"),
-        "host:port address of statsd UDP server")
-    flag.BoolVar(&statsConfig.Statsd.Debug, "statsd-debug", false,
-        "trace statsd")
+    flag.StringVar(&statsConfig.InfluxDB.Addr, "influxdb-addr", "http://influxdb:8086",
+        "influxdb http://... address")
+    flag.StringVar(&statsConfig.InfluxDBDatabase, "influxdb-database", stats.INFLUXDB_DATABASE,
+        "influxdb database name")
     flag.StringVar(&statsConfig.Hostname, "stats-hostname", os.Getenv("STATS_HOSTNAME"),
         "hostname to uniquely identify this source")
     flag.StringVar(&statsConfig.Instance, "stats-instance", os.Getenv("STATS_INSTANCE"),
         "instance to uniquely identify the target")
     flag.Float64Var(&statsConfig.Interval, "stats-interval", stats.INTERVAL,
         "stats interval")
+    flag.BoolVar(&statsConfig.Print, "stats-print", false,
+        "display stats on stdout")
 
     flag.StringVar(&sendConfig.SourceNet, "source-net", "",
         "addr/prefixlen")
@@ -39,27 +40,6 @@ func init() {
         "rate /s")
     flag.UintVar(&sendConfig.Size, "size", 0,
         "bytes")
-
-    flag.BoolVar(&showStats, "show-stats", false,
-        "display stats")
-}
-
-func logStats(s *stats.Stats, statsChan chan udp.SendStats) {
-    for stats := range statsChan {
-        if showStats {
-            log.Println(stats)
-        }
-
-        s.SendGauge("rate-config", stats.ConfigRate)
-        s.SendGaugef("rate", stats.Rate())
-        s.SendGaugef("rate-error", stats.RateError())
-        s.SendGaugef("rate-util", stats.RateUtil())
-        s.SendCounter("rate-underruns", stats.RateUnderruns)
-
-        s.SendCounter("send-packets", stats.Send.Packets)
-        s.SendCounter("send-bytes", stats.Send.Bytes)
-        s.SendCounter("send-errors", stats.Send.Errors)
-    }
 }
 
 func main() {
@@ -71,15 +51,16 @@ func main() {
         sendConfig.DestAddr = destAddr
     }
 
+    // stats
     if statsConfig.Instance == "" {
         statsConfig.Instance = sendConfig.DestAddr
     }
 
-    s, err := stats.New(statsConfig)
+    statsWriter, err := stats.NewWriter(statsConfig)
     if err != nil {
-        log.Fatalf("stats.New %v: %v\n", statsConfig, err)
+        log.Fatalf("stats.NewWriter %v: %v\n", statsConfig, err)
     } else {
-        log.Printf("stats.New %v: %v\n", statsConfig, s)
+        log.Printf("stats.NewWriter %v: %v\n", statsConfig, statsWriter)
     }
 
     udpSend, err := udp.NewSend(sendConfig)
@@ -89,10 +70,7 @@ func main() {
         log.Printf("udp.NewSend %v: %+v\n", sendConfig, udpSend)
     }
 
-    // stats
-    if showStats {
-        go logStats(s, udpSend.GiveStats(s.Interval))
-    }
+    statsWriter.WriteFrom(udpSend)
 
     // run
     log.Printf("Run...\n")

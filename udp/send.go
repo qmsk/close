@@ -3,6 +3,7 @@ package udp
 import (
     "fmt"
     "net"
+    "close/stats"
     "time"
 )
 
@@ -32,6 +33,10 @@ type SendStats struct {
     Send            SockStats
 }
 
+func (self SendStats) StatsTime() time.Time {
+    return self.Time
+}
+
 func (self SendStats) Rate() float64 {
     return float64(self.RateCount) / self.Duration.Seconds()
 }
@@ -44,6 +49,22 @@ func (self SendStats) RateUtil() float64 {
 // Return the actual rate vs configured rate as a proportional error, with 1.0 being the most accurate
 func (self SendStats) RateError() float64 {
     return self.Rate() / float64(self.ConfigRate)
+}
+
+func (self SendStats) StatsFields() map[string]interface{} {
+    return map[string]interface{}{
+        // gauges
+        "rate_config": self.ConfigRate,
+        "rate": self.Rate(),
+        "rate_error": self.RateError(),
+        "rate_util": self.RateUtil(),
+
+        // counters
+        "rate_underruns": self.RateUnderruns,
+        "send_packets": self.Send.Packets,
+        "send_bytes": self.Send.Bytes,
+        "send_errors": self.Send.Errors,
+    }
 }
 
 func (self SendStats) String() string {
@@ -77,7 +98,7 @@ type Send struct {
     count       uint
 
     stats           SendStats
-    statsChan       chan SendStats
+    statsChan       chan stats.Stats
     statsInterval   time.Duration
 }
 
@@ -169,8 +190,8 @@ func (self *Send) initIP(config SendConfig) error {
     return nil
 }
 
-func (self *Send) GiveStats(interval time.Duration) chan SendStats {
-    self.statsChan = make(chan SendStats)
+func (self *Send) GiveStats(interval time.Duration) chan stats.Stats {
+    self.statsChan = make(chan stats.Stats)
     self.statsInterval = interval
 
     return self.statsChan

@@ -3,6 +3,7 @@ package udp
 import (
     "fmt"
     "log"
+    "close/stats"
     "time"
 )
 
@@ -14,7 +15,7 @@ type Recv struct {
     sockRecv    SockRecv
 
     stats           RecvStats
-    statsChan       chan RecvStats
+    statsChan       chan stats.Stats
     statsInterval   time.Duration
 }
 
@@ -32,6 +33,10 @@ type RecvStats struct {
     Recv            SockStats
 }
 
+func (self RecvStats) StatsTime() time.Time {
+    return self.Time
+}
+
 // check if we have any received packets to report on
 func (self RecvStats) Valid() bool {
     return (self.PacketSeq > 0)
@@ -47,6 +52,26 @@ func (self RecvStats) PacketWin() float64 {
 // this ratio only applies when .Valid()
 func (self RecvStats) PacketLoss() float64 {
     return float64(self.PacketSkips) / float64(self.PacketSeq - self.PacketStart)
+}
+
+func (self RecvStats) StatsFields() map[string]interface{} {
+    fields := map[string]interface{} {
+        "recv_packets": self.Recv.Packets,
+        "recv_bytes": self.Recv.Bytes,
+        "recv_errors": self.Recv.Errors,
+
+        "packet_errors": self.PacketErrors,
+        "packets": self.PacketCount,
+        "packet_skips": self.PacketSkips,
+        "packet_dups": self.PacketDups,
+    }
+
+    if self.Valid() {
+        fields["packet_win"] = self.PacketWin()
+        fields["packet_loss"] = self.PacketLoss()
+    }
+
+    return fields
 }
 
 func (self RecvStats) String() string {
@@ -86,8 +111,8 @@ func (self *Recv) init(config RecvConfig) error {
     return nil
 }
 
-func (self *Recv) GiveStats(interval time.Duration) chan RecvStats {
-    self.statsChan = make(chan RecvStats)
+func (self *Recv) GiveStats(interval time.Duration) chan stats.Stats {
+    self.statsChan = make(chan stats.Stats)
     self.statsInterval = interval
 
     return self.statsChan
