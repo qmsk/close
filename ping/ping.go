@@ -3,11 +3,39 @@ package ping
 import (
     "golang.org/x/net/icmp"
     "golang.org/x/net/ipv4"
+    "close/stats"
     "os"
     "log"
+    "fmt"
     "time"
     "net"
 )
+
+type PingConfig struct {
+    Target  string
+}
+
+type PingStats struct {
+    Time            time.Time       // ping response came in
+    RTT             time.Duration
+}
+
+func (self PingStats) StatsTime() time.Time {
+    return self.Time
+}
+
+func (self PingStats) StatsFields() map[string]interface{} {
+    return map[string]interface{}{
+        // timing
+        "rtt": self.RTT,
+    }
+}
+
+func (self PingStats) String() string {
+    return fmt.Sprintf("%.2f s round-trip time",
+        self.RTT,
+    )
+}
 
 func getAddr(dst string) (net.Addr, error) {
     if ips, err := net.LookupIP(dst); err != nil {
@@ -27,14 +55,16 @@ type Pinger struct {
     conn        *icmp.PacketConn
     seq         int
 
-    rttC        chan  time.Duration
+    statsInterval   time.Duration
+    rttC            chan  stats.Stats
+
     senderC     chan  bool
     receiverC   chan  pingResult
 
     startTimes  map[int]time.Time
 }
 
-func NewPinger(dst string) (*Pinger, error) {
+func NewPinger(config PingConfig) (*Pinger, error) {
     p := &Pinger {
         seq: 1,
     }
@@ -46,7 +76,7 @@ func NewPinger(dst string) (*Pinger, error) {
     }
     p.conn = conn
 
-    udpAddr, err := getAddr(dst)
+    udpAddr, err := getAddr(config.Target)
     if err != nil {
         log.Printf("Could not resolve remote address: %s\n", err)
         return nil, err
@@ -74,8 +104,9 @@ func (p *Pinger) Latency() {
     p.senderC <- true
 }
 
-func (p *Pinger) GiveStats() chan time.Duration {
-    p.rttC = make(chan time.Duration)
+func (p *Pinger) GiveStats(interval time.Duration) chan stats.Stats {
+    p.rttC = make(chan stats.Stats)
+    p.statsInterval = interval
 
     return p.rttC
 }
@@ -88,8 +119,16 @@ func (p *Pinger) manager() {
                 break
             }
             if start, ok := p.startTimes[result.Seq]; ok {
+                // TODO statsInterval
                 if p.rttC != nil {
-                    p.rttC <- result.Stop.Sub(start)
+
+                    // Could have takeStats interface...
+                    s := PingStats{
+                        Time: result.Stop,
+                        RTT: result.Stop.Sub(start),
+                    }
+
+                    p.rttC <- s
                 }
                 delete(p.startTimes, result.Seq)
             }

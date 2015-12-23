@@ -2,62 +2,40 @@ package main
 
 import (
     "close/ping"
-    "close/statsd"
-    "close/influxdb"
-    "fmt"
+    "close/stats"
     "time"
     "log"
     "flag"
     "os"
-    "strings"
 )
 
-type LatencyConfig struct {
-    Source  string
-    Target  string
-    Statsd  string
-    InfluxDB  string
-}
-
 var (
-    config    LatencyConfig
+    statsConfig   stats.Config
+    pingConfig    ping.PingConfig
 )
 
 func init() {
-    // TODO Some random value
-    var defaultSrc = "unknown"
-    if hostname, err := os.Hostname(); err == nil {
-        defaultSrc = hostname
-    }
+    statsConfig.Type = "icmp_latency"
 
-    flag.StringVar(&config.Statsd, "statsd", "statsd.docker.catcp:8125",
-        "URL to statsd daemon")
-    flag.StringVar(&config.InfluxDB, "influxdb", "http://influxdb.docker.catcp:8086",
-        "URL to influxdb")
+    flag.StringVar(&statsConfig.InfluxDB.Addr, "influxdb-addr", "http://influxdb:8086",
+        "influxdb http://... address")
+    flag.StringVar(&statsConfig.InfluxDBDatabase, "influxdb-database", stats.INFLUXDB_DATABASE,
+        "influxdb database name")
+    flag.StringVar(&statsConfig.Hostname, "stats-hostname", os.Getenv("STATS_HOSTNAME"),
+        "hostname to uniquely identify this source")
+    flag.StringVar(&statsConfig.Instance, "stats-instance", os.Getenv("STATS_INSTANCE"),
+        "instance to uniquely identify the target")
+    flag.Float64Var(&statsConfig.Interval, "stats-interval", stats.INTERVAL,
+        "stats interval")
+    flag.BoolVar(&statsConfig.Print, "stats-print", false,
+        "display stats on stdout")
+
     flag.StringVar(&config.Target, "ping", "8.8.8.8",
         "target host to send ICMP echos to")
-    flag.StringVar(&config.Source, "source", defaultSrc,
-        "source to use in the metric name to send ICMP echos from")
 }
 
-func collectLatency(config LatencyConfig, p *ping.Pinger, s *statsd.Client, i *influxdb.Client) {
-    statsC := p.GiveStats()
-    go func() {
-        for {
-            latency := <-statsC
-            latency_s := latency.Seconds()
-            targetName := strings.Replace(config.Target, ".", "_", -1)
-            metric := fmt.Sprintf("%s.latency.%s", config.Source, targetName)
-            s.SendTiming(metric, latency_s)
-
-            point := influxdb.CreatePoint("latency")
-            point.AddTag("source", config.Source)
-            point.AddTag("target", config.Target)
-            point.AddField("value", fmt.Sprintf("%.3f", latency_s) )
-
-            i.AddPoint(*point)
-        }
-    }()
+func collectLatency(p *ping.Pinger, w *stats.Writer) {
+    w.WriteFrom(p)
 
     ticker := time.NewTicker(time.Second)
     for {
@@ -69,25 +47,25 @@ func collectLatency(config LatencyConfig, p *ping.Pinger, s *statsd.Client, i *i
 func main() {
     flag.Parse()
 
-    statsdClient, err := statsd.NewClient(config.Statsd)
-    if err != nil {
-        log.Panicf("Could not connect to statsd server\n")
+    // stats
+    if statsConfig.Instance == "" {
+        statsConfig.Instance = pingConfig.Target
     }
-    defer statsdClient.Close()
 
-    influxClient, err := influxdb.NewClient(influxdb.Config{
-        Server: config.InfluxDB,
-    })
+    statsWriter, err := stats.NewWriter(statsConfig)
     if err != nil {
-        log.Panicf("Could not connect to statsd server\n")
+        log.Fatalf("stats.NewWriter %v: %v\n", statsConfig, err)
+    } else {
+        log.Printf("stats.NewWriter %v: %v\n", statsConfig, statsWriter)
     }
-    defer statsdClient.Close()
 
-    p, err := ping.NewPinger(config.Target)
+    p, err := ping.NewPinger(pingConfig)
     if err != nil {
-        log.Panicf("Could not create a new Pinger\n")
+        log.Panicf("ping.NewPinger %v: %v\n", pingConfig, err)
+    } else {
+        log.Printf("ping.NewPinger %v: %v\n", pingConfig, p)
     }
     defer p.Close()
 
-    collectLatency(config, p, statsdClient, influxClient)
+    collectLatency(p, statsWriter)
 }
