@@ -5,6 +5,7 @@ import (
 )
 
 type Stats interface {
+    StatsInstance() string
     StatsTime()     time.Time
     StatsFields()   map[string]interface{}
     String()        string

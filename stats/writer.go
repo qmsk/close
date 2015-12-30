@@ -60,10 +60,6 @@ func NewWriter(config Config) (*Writer, error) {
         panic("Invalid stats-type")
     }
 
-    if config.Instance == "" {
-        return nil, fmt.Errorf("Invalid stats-instance")
-    }
-
     if config.InfluxDB.UserAgent == "" {
         config.InfluxDB.UserAgent = INFLUXDB_USER_AGENT
     }
@@ -107,12 +103,16 @@ func (self *Writer) write() {
     }
 }
 
-func (self *Writer) Write(timestamp time.Time, fields map[string]interface{}) {
-    log.Printf("stats.Writer %v: write %v\n", self, fields)
+func (self *Writer) Write(instance string, timestamp time.Time, fields map[string]interface{}) {
+    log.Printf("stats.Writer %v: write %v@%v %v\n", self, instance, timestamp, fields)
+
+    if instance == "" {
+        instance = self.config.Instance
+    }
 
     tags := map[string]string{
         "hostname":   self.config.Hostname,
-        "instance":   self.config.Instance,
+        "instance":   instance,
     }
 
     if point, err := influxdb.NewPoint(self.config.Type, tags, fields, timestamp); err != nil {
@@ -126,7 +126,7 @@ func (self *Writer) WriteStats(stats Stats) {
     if self.config.Print {
         fmt.Printf("%v\n", stats)
     }
-    self.Write(stats.StatsTime(), stats.StatsFields())
+    self.Write(stats.StatsInstance(), stats.StatsTime(), stats.StatsFields())
 }
 
 func (self *Writer) writeFrom(statsChan chan Stats) {
