@@ -48,10 +48,6 @@ func main() {
     flag.Parse()
 
     // stats
-    if statsConfig.Instance == "" {
-        statsConfig.Instance = pingConfig.Target
-    }
-
     statsWriter, err := stats.NewWriter(statsConfig)
     if err != nil {
         log.Fatalf("stats.NewWriter %v: %v\n", statsConfig, err)

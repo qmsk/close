@@ -16,8 +16,13 @@ type PingConfig struct {
 }
 
 type PingStats struct {
+    Target          string
     Time            time.Time       // ping response came in
     RTT             time.Duration
+}
+
+func (self PingStats) StatsInstance() string {
+    return self.Target
 }
 
 func (self PingStats) StatsTime() time.Time {
@@ -51,6 +56,7 @@ type pingResult struct {
 }
 
 type Pinger struct {
+    target      string
     dst         net.Addr
     conn        *icmp.PacketConn
     seq         int
@@ -66,6 +72,7 @@ type Pinger struct {
 
 func NewPinger(config PingConfig) (*Pinger, error) {
     p := &Pinger {
+        target: config.Target,
         seq: 1,
     }
 
@@ -124,6 +131,7 @@ func (p *Pinger) manager() {
 
                     // Could have takeStats interface...
                     s := PingStats{
+                        Target: p.target,
                         Time: result.Stop,
                         RTT: result.Stop.Sub(start),
                     }
