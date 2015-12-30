@@ -44,10 +44,6 @@ func main() {
     }
 
     // stats
-    if statsConfig.Instance == "" {
-        statsConfig.Instance = receiverConfig.ListenAddr
-    }
-
     statsWriter, err := stats.NewWriter(statsConfig)
     if err != nil {
         log.Fatalf("stats.NewWriter %v: %v\n", statsConfig, err)

@@ -3,7 +3,9 @@ package udp
 import (
     "fmt"
     "net"
+    "math/rand"
     "close/stats"
+    "strconv"
     "time"
 )
 
@@ -16,11 +18,13 @@ type SendConfig struct {
     SourcePort      uint
     SourcePortBits  uint
 
+    ID              string  // 64-bit ID, or random
     Rate            uint    // 0 - unrated
     Size            uint    // target size of UDP payload
 }
 
 type SendStats struct {
+    ID              uint64          // send id, to correlated with RecvStats
     Time            time.Time       // stats were reset
     Duration        time.Duration   // stats were collected
 
@@ -49,6 +53,10 @@ func (self SendStats) RateUtil() float64 {
 // Return the actual rate vs configured rate as a proportional error, with 1.0 being the most accurate
 func (self SendStats) RateError() float64 {
     return self.Rate() / float64(self.ConfigRate)
+}
+
+func (self SendStats) StatsInstance() string {
+    return fmt.Sprintf("%016x", self.ID)
 }
 
 func (self SendStats) StatsFields() map[string]interface{} {
@@ -93,6 +101,7 @@ type Send struct {
 
     sockSend  SockSend
 
+    id          uint64
     rate        uint
     size        uint
     count       uint
@@ -152,6 +161,16 @@ func (self *Send) init(config SendConfig) error {
         self.srcPort.SetRandom(config.SourcePortBits)
     }
 
+    // id
+    if config.ID == "" {
+        // generate from dst
+        self.id = uint64(rand.Int63())
+    } else if id, err := strconv.ParseUint(config.ID, 16, 64); err != nil {
+        return fmt.Errorf("Parse ID %v: %v", config.ID, err)
+    } else {
+        self.id = id
+    }
+
     // config
     self.rate = config.Rate
     self.size = config.Size
@@ -203,12 +222,13 @@ func (self *Send) run(rate uint, size uint, count uint) error {
 
     // reset stats
     self.stats = SendStats{
+        ID:         self.id,
         Time:       startTime,
 
         ConfigRate: rate,
     }
     payload := Payload{
-        Start:  uint64(startTime.Unix()),
+        ID:     self.id,
         Seq:    0,
     }
 
@@ -260,6 +280,7 @@ func (self *Send) run(rate uint, size uint, count uint) error {
 
             // reset
             self.stats = SendStats{
+                ID:         self.id,
                 Time:       time.Now(),
 
                 ConfigRate: rate,

@@ -52,10 +52,6 @@ func main() {
     }
 
     // stats
-    if statsConfig.Instance == "" {
-        statsConfig.Instance = sendConfig.DestAddr
-    }
-
     statsWriter, err := stats.NewWriter(statsConfig)
     if err != nil {
         log.Fatalf("stats.NewWriter %v: %v\n", statsConfig, err)
