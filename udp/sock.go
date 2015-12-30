@@ -25,4 +25,5 @@ type SockRecv interface {
     takeStats() SockStats
 
     recv() (Packet, error)
+    recvChan() chan Packet
 }

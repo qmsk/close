@@ -70,6 +70,22 @@ func (self *SockUDP) recv() (Packet, error) {
     }
 }
 
+func (self *SockUDP) recvChan() chan Packet {
+    recvChan := make(chan Packet)
+
+    go func() {
+        for {
+            if packet, err := self.recv(); err != nil {
+                // XXX: wut
+            } else {
+                recvChan <- packet
+            }
+        }
+    }()
+
+    return recvChan
+}
+
 func (self *SockUDP) send(packet Packet) error {
     payload := packet.Payload.Pack(packet.PayloadSize)
 
