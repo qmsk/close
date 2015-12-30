@@ -36,6 +36,8 @@ func init() {
     flag.UintVar(&sendConfig.SourcePortBits, "source-port-bits", udp.SOURCE_PORT_BITS,
         "fixed bits of port")
 
+    flag.StringVar(&sendConfig.ID, "id", "",
+        "ID (hexadecimal uint64)")
     flag.UintVar(&sendConfig.Rate, "rate", 0,
         "rate /s")
     flag.UintVar(&sendConfig.Size, "size", 0,
