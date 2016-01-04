@@ -6,14 +6,33 @@ import (
     "log"
     "os"
     "gopkg.in/redis.v3"
+    "regexp"
     "time"
 )
 
 const SUB_TTL = 10 * time.Second
 
+var subRegexp = regexp.MustCompile(`^(\w+):(\w+)$`)
+
 type SubOptions struct {
     Module  string
     ID      string
+}
+
+func (self SubOptions) String() string {
+    return fmt.Sprintf("%s:%s", self.Module, self.ID)
+}
+
+// Parse the SubOptions.String() format into a SubOptions
+func ParseSub(str string) (self SubOptions, err error) {
+    if match := subRegexp.FindStringSubmatch(str); match == nil {
+        return self, fmt.Errorf("Invalid sub name: %s", str)
+    } else {
+        self.Module = match[1]
+        self.ID = match[2]
+
+        return
+    }
 }
 
 type Sub struct {
@@ -35,7 +54,7 @@ func (self *Sub) init(options SubOptions) error {
 }
 
 func (self *Sub) String() string {
-    return fmt.Sprintf("%v:%v", self.options.Module, self.options.ID)
+    return self.options.String()
 }
 
 // get as generic map[string]interface{}
@@ -170,4 +189,20 @@ func (self *Sub) Start(config Config) (chan Config, error) {
 
     // running
     return configChan, nil
+}
+
+// update (partial) params for sub
+// return an error if there is no active sub
+func (self *Sub) Push(config Config) error {
+    if jsonBuf, err := json.Marshal(config); err != nil {
+        return err
+    } else if count, err := self.redis.redisClient.Publish(self.path, string(jsonBuf)).Result(); err != nil {
+        return err
+    } else if count == 0 {
+        // redis did not have anything SUBSCRIBE'd to this path
+        return fmt.Errorf("Publish to empty Sub: %v", self.path)
+    } else {
+        self.log.Printf("Push: %v\n", config)
+        return nil
+    }
 }
