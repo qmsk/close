@@ -1,8 +1,11 @@
 package udp
 
 import (
+    "close/config"
     "fmt"
+    "log"
     "net"
+    "os"
     "math/rand"
     "close/stats"
     "strconv"
@@ -18,8 +21,9 @@ type SendConfig struct {
     SourcePort      uint
     SourcePortBits  uint
 
-    ID              string  // 64-bit ID, or random
+    ID              uint    // 64-bit ID, or random
     Rate            uint    // 0 - unrated
+    Count           uint    // 0 - infinite
     Size            uint    // target size of UDP payload
 }
 
@@ -28,7 +32,7 @@ type SendStats struct {
     Time            time.Time       // stats were reset
     Duration        time.Duration   // stats were collected
 
-    ConfigRate      uint
+    Config          SendConfig
     Rate            RateStats
 
     // Send.Bytes includes IP+UDP+Payload
@@ -50,7 +54,7 @@ func (self SendStats) RateUtil() float64 {
 
 // Return the actual rate vs configured rate as a proportional error, with 1.0 being the most accurate
 func (self SendStats) RateError() float64 {
-    return self.CalcRate() / float64(self.ConfigRate)
+    return self.CalcRate() / float64(self.Config.Rate)
 }
 
 func (self SendStats) StatsInstance() string {
@@ -60,7 +64,7 @@ func (self SendStats) StatsInstance() string {
 func (self SendStats) StatsFields() map[string]interface{} {
     return map[string]interface{}{
         // gauges
-        "rate_config": self.ConfigRate,
+        "rate_config": self.Config.Rate,
         "rate": self.CalcRate(),
         "rate_error": self.RateError(),
         "rate_util": self.RateUtil(),
@@ -99,18 +103,18 @@ type Send struct {
 
     sockSend  SockSend
 
-    id          uint64
-    rate        uint
-    size        uint
-    count       uint
+    config      SendConfig
+    configChan  chan SendConfig
 
     statsChan       chan stats.Stats
     statsInterval   time.Duration
+
+    log         *log.Logger
 }
 
 func NewSend(config SendConfig) (*Send, error) {
     sender := &Send{
-
+        log:    log.New(os.Stderr, "udp.Send: ", 0),
     }
 
     if err := sender.init(config); err != nil {
@@ -158,19 +162,13 @@ func (self *Send) init(config SendConfig) error {
         self.srcPort.SetRandom(config.SourcePortBits)
     }
 
-    // id
-    if config.ID == "" {
+    // config
+    if config.ID == 0 {
         // generate from dst
-        self.id = uint64(rand.Int63())
-    } else if id, err := strconv.ParseUint(config.ID, 16, 64); err != nil {
-        return fmt.Errorf("Parse ID %v: %v", config.ID, err)
-    } else {
-        self.id = id
+        config.ID = uint(rand.Int63())
     }
 
-    // config
-    self.rate = config.Rate
-    self.size = config.Size
+    self.config = config
 
     return nil
 }
@@ -207,7 +205,7 @@ func (self *Send) initIP(config SendConfig) error {
 }
 
 func (self *Send) ID() string {
-    return fmt.Sprintf("%016x", self.id)
+    return fmt.Sprintf("%016x", self.config.ID)
 }
 
 func (self *Send) GiveStats(interval time.Duration) chan stats.Stats {
@@ -217,14 +215,80 @@ func (self *Send) GiveStats(interval time.Duration) chan stats.Stats {
     return self.statsChan
 }
 
+func (self *SendConfig) update(configMap map[string]string) error {
+    for key, value := range configMap {
+        switch key {
+        case "id":
+            continue
+        case "rate":
+            if rate, err := strconv.ParseUint(value, 10, 32); err != nil {
+                return err
+            } else {
+                self.Rate = uint(rate)
+            }
+        case "count":
+            if count, err := strconv.ParseUint(value, 10, 32); err != nil {
+                return err
+            } else {
+                self.Count = uint(count)
+            }
+        case "size":
+            if size, err := strconv.ParseUint(value, 10, 32); err != nil {
+                return err
+            } else {
+                self.Size = uint(size)
+            }
+        default:
+            return fmt.Errorf("Unknown field: %v", key)
+        }
+    }
+
+    return nil
+}
+
+func (self *Send) configFrom(readChan chan map[string]string) {
+    config := self.config
+
+    for configMap := range readChan {
+        if err := config.update(configMap); err != nil {
+            self.log.Printf("config update %v: %v", configMap, err)
+        } else {
+            self.log.Printf("config update %v", configMap)
+            self.configChan <- config
+        }
+    }
+}
+
+func (self *Send) ConfigFrom(configRedis *config.Redis) (*config.Sub, error) {
+    configMap := config.Config{
+        "rate":     fmt.Sprintf("%v", self.config.Rate),
+        "count":    fmt.Sprintf("%v", self.config.Count),
+        "size":     fmt.Sprintf("%v", self.config.Size),
+    }
+
+    if configSub, err := configRedis.Sub(config.SubOptions{"udp_send", self.ID()}, configMap); err != nil {
+        return nil, err
+    } else if readChan, err := configSub.Read(); err != nil {
+        return nil, err
+    } else {
+        self.configChan = make(chan SendConfig)
+
+        go self.configFrom(readChan)
+
+        return configSub, nil
+    }
+}
+
 // Generate a sequence of *Packet
-func (self *Send) run(rate uint, size uint, count uint) error {
+//
+// Returns once complete, or error
+func (self *Send) Run() error {
     var rateClock RateClock
 
-    rateTick := rateClock.Run(rate, count)
+    rateTick := rateClock.Start(self.config.Rate, self.config.Count)
 
     payload := Payload{
-        ID:     self.id,
+        ID:     uint64(self.config.ID),
         Seq:    0,
     }
 
@@ -234,7 +298,12 @@ func (self *Send) run(rate uint, size uint, count uint) error {
 
     for {
         select {
-        case <-rateTick:
+        case sendTime := <-rateTick:
+            if sendTime.IsZero() {
+                // channel closed
+                break
+            }
+
             // send
             packet := Packet{
                 SrcIP:      self.srcAddr,
@@ -243,7 +312,7 @@ func (self *Send) run(rate uint, size uint, count uint) error {
                 DstPort:    self.dstPort,
 
                 Payload:        payload,
-                PayloadSize:    size,
+                PayloadSize:    self.config.Size,
             }
 
             if err := self.sockSend.send(packet); err != nil {
@@ -254,24 +323,35 @@ func (self *Send) run(rate uint, size uint, count uint) error {
 
         case statsTime := <-statsTick:
             self.statsChan <- SendStats{
-                ID:         self.id,
+                ID:         payload.ID,
                 Time:       statsTime,
                 Duration:   statsTime.Sub(statsStart),
 
-                ConfigRate: rate,
+                Config:     self.config,
 
                 Rate:       rateClock.takeStats(),
                 Send:       self.sockSend.takeStats(),
             }
 
             statsStart = statsTime
+
+        case config := <-self.configChan:
+            if config.Rate != self.config.Rate || config.Count != self.config.Count {
+                self.log.Printf("config rate=%d count=%d\n", config.Rate, config.Count)
+
+                rateClock.Set(config.Rate, config.Count)
+
+                self.config.Rate = config.Rate
+                self.config.Count = config.Count
+            }
+
+            if config.Size != self.config.Size {
+                self.log.Printf("config size=%d\n", config.Size)
+
+                self.config.Size = config.Size
+            }
         }
     }
 
     return nil
-}
-
-func (self *Send) Run() error {
-    // TODO: reconfigure
-    return self.run(self.rate, self.size, self.count)
 }

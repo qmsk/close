@@ -1,6 +1,7 @@
 package main
 
 import (
+    "close/config"
     "flag"
     "log"
     "os"
@@ -11,6 +12,7 @@ import (
 var (
     statsConfig     stats.Config
     sendConfig      udp.SendConfig
+    configOptions   config.Options
 )
 
 func init() {
@@ -36,7 +38,14 @@ func init() {
     flag.UintVar(&sendConfig.SourcePortBits, "source-port-bits", udp.SOURCE_PORT_BITS,
         "fixed bits of port")
 
-    flag.StringVar(&sendConfig.ID, "id", "",
+    flag.StringVar(&configOptions.Redis.Addr, "config-redis-addr", "",
+        "host:port")
+    flag.Int64Var(&configOptions.Redis.DB, "config-redis-db", 0,
+        "Database to select")
+    flag.StringVar(&configOptions.Prefix, "config-prefix", "close",
+        "Redis key prefix")
+
+    flag.UintVar(&sendConfig.ID, "id", 0,
         "ID (hexadecimal uint64)")
     flag.UintVar(&sendConfig.Rate, "rate", 0,
         "rate /s")
@@ -53,14 +62,6 @@ func main() {
         sendConfig.DestAddr = destAddr
     }
 
-    // stats
-    statsWriter, err := stats.NewWriter(statsConfig)
-    if err != nil {
-        log.Fatalf("stats.NewWriter %v: %v\n", statsConfig, err)
-    } else {
-        log.Printf("stats.NewWriter %v: %v\n", statsConfig, statsWriter)
-    }
-
     udpSend, err := udp.NewSend(sendConfig)
     if err != nil {
         log.Fatalf("udp.NewSend %v: %v\n", sendConfig, err)
@@ -68,7 +69,26 @@ func main() {
         log.Printf("udp.NewSend %v: %+v\n", sendConfig, udpSend)
     }
 
-    statsWriter.WriteFrom(udpSend)
+    // config?
+    if configOptions.Redis.Addr == "" {
+
+    } else if configRedis, err := config.NewRedis(configOptions); err != nil {
+        log.Fatalf("config.NewRedis %v: %v\n", configOptions, err)
+    } else if configSub, err := udpSend.ConfigFrom(configRedis); err != nil {
+        log.Fatalf("udp.Send.ConfigFrom %v: %v\n", configRedis, err)
+    } else {
+        log.Printf("udp.Send.ConfigFrom: %v\n", configSub)
+    }
+
+    // stats
+    statsWriter, err := stats.NewWriter(statsConfig)
+    if err != nil {
+        log.Fatalf("stats.NewWriter %v: %v\n", statsConfig, err)
+    } else {
+        log.Printf("stats.NewWriter %v: %v\n", statsConfig, statsWriter)
+
+        statsWriter.WriteFrom(udpSend)
+    }
 
     // run
     log.Printf("Run...\n")
