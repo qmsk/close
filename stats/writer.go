@@ -104,7 +104,7 @@ func (self *Writer) write() {
 }
 
 func (self *Writer) Write(instance string, timestamp time.Time, fields map[string]interface{}) {
-    log.Printf("stats.Writer %v: write %v@%v %v\n", self, instance, timestamp, fields)
+    // log.Printf("stats.Writer %v: write %v@%v %v\n", self, instance, timestamp, fields)
 
     if instance == "" {
         instance = self.config.Instance
