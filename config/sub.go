@@ -155,12 +155,19 @@ func (self *Sub) read(pubsub *redis.PubSub, configChan chan Config, config Confi
         } else {
             configChan <- config
         }
+
+        // update stored config
+        if err := self.set(config); err != nil {
+            self.log.Printf("read -> set: %v\n", err)
+            continue
+        }
     }
 }
 
 // Register ourselves in redis, storing or updating the given Config
 // Read updates from redis, storing them into the given Config
 // Each updated Config is delivered on the given chan
+// Once the config has been sent, it is updated into redis
 func (self *Sub) Start(config Config) (chan Config, error) {
     // sync object
     if err := self.sync(config); err != nil {
