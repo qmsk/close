@@ -42,14 +42,13 @@ func (self *Redis) path(parts...string) string {
     return self.prefix + "/" + strings.Join(parts, "/")
 }
 
-// 
-func (self *Redis) Sub(options SubOptions, config Config) (*Sub, error) {
+// Return a new Sub for the given name
+func (self *Redis) Sub(options SubOptions) (*Sub, error) {
     sub := &Sub{redis: self}
-    sub.init(options)
 
-    if err := sub.start(config); err != nil {
+    if err := sub.init(options); err != nil {
         return nil, err
-    } else {
-        return sub, nil
     }
+
+    return sub, nil
 }

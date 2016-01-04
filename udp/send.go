@@ -8,7 +8,6 @@ import (
     "os"
     "math/rand"
     "close/stats"
-    "strconv"
     "time"
 )
 
@@ -21,10 +20,10 @@ type SendConfig struct {
     SourcePort      uint
     SourcePortBits  uint
 
-    ID              uint    // 64-bit ID, or random
-    Rate            uint    // 0 - unrated
-    Count           uint    // 0 - infinite
-    Size            uint    // target size of UDP payload
+    ID              uint    `json:"id"`     // 64-bit ID, or random
+    Rate            uint    `json:"rate"`   // 0 - unrated
+    Count           uint    `json:"count"`  // 0 - infinite
+    Size            uint    `json:"size"`   // target size of UDP payload
 }
 
 type SendStats struct {
@@ -104,7 +103,7 @@ type Send struct {
     sockSend  SockSend
 
     config      SendConfig
-    configChan  chan SendConfig
+    configChan  chan config.Config
 
     statsChan       chan stats.Stats
     statsInterval   time.Duration
@@ -215,65 +214,17 @@ func (self *Send) GiveStats(interval time.Duration) chan stats.Stats {
     return self.statsChan
 }
 
-func (self *SendConfig) update(configMap map[string]string) error {
-    for key, value := range configMap {
-        switch key {
-        case "id":
-            continue
-        case "rate":
-            if rate, err := strconv.ParseUint(value, 10, 32); err != nil {
-                return err
-            } else {
-                self.Rate = uint(rate)
-            }
-        case "count":
-            if count, err := strconv.ParseUint(value, 10, 32); err != nil {
-                return err
-            } else {
-                self.Count = uint(count)
-            }
-        case "size":
-            if size, err := strconv.ParseUint(value, 10, 32); err != nil {
-                return err
-            } else {
-                self.Size = uint(size)
-            }
-        default:
-            return fmt.Errorf("Unknown field: %v", key)
-        }
-    }
-
-    return nil
-}
-
-func (self *Send) configFrom(readChan chan map[string]string) {
-    config := self.config
-
-    for configMap := range readChan {
-        if err := config.update(configMap); err != nil {
-            self.log.Printf("config update %v: %v", configMap, err)
-        } else {
-            self.log.Printf("config update %v", configMap)
-            self.configChan <- config
-        }
-    }
-}
-
+// pull runtime configuration from config source
 func (self *Send) ConfigFrom(configRedis *config.Redis) (*config.Sub, error) {
-    configMap := config.Config{
-        "rate":     fmt.Sprintf("%v", self.config.Rate),
-        "count":    fmt.Sprintf("%v", self.config.Count),
-        "size":     fmt.Sprintf("%v", self.config.Size),
-    }
+    // copy for updates
+    updateConfig := self.config
 
-    if configSub, err := configRedis.Sub(config.SubOptions{"udp_send", self.ID()}, configMap); err != nil {
+    if configSub, err := configRedis.Sub(config.SubOptions{"udp_send", self.ID()}); err != nil {
         return nil, err
-    } else if readChan, err := configSub.Read(); err != nil {
+    } else if configChan, err := configSub.Start(&updateConfig); err != nil {
         return nil, err
     } else {
-        self.configChan = make(chan SendConfig)
-
-        go self.configFrom(readChan)
+        self.configChan = configChan
 
         return configSub, nil
     }
@@ -335,7 +286,11 @@ func (self *Send) Run() error {
 
             statsStart = statsTime
 
-        case config := <-self.configChan:
+        case configConfig := <-self.configChan:
+            config := configConfig.(*SendConfig)
+
+            self.log.Printf("config: %v\n", config)
+
             if config.Rate != self.config.Rate || config.Count != self.config.Count {
                 self.log.Printf("config rate=%d count=%d\n", config.Rate, config.Count)
 

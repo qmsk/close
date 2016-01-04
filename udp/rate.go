@@ -21,6 +21,8 @@ type RateClock struct {
 }
 
 func (self *RateClock) run() {
+    defer close(self.rateChan)
+
     for ; self.stop == 0 || self.offset < self.stop; self.offset++ {
         if self.rate != 0 {
             // scheduled time for next packet

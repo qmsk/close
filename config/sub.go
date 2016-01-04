@@ -1,6 +1,10 @@
 package config
 
 import (
+    "fmt"
+    "encoding/json"
+    "log"
+    "os"
     "gopkg.in/redis.v3"
     "time"
 )
@@ -16,104 +20,135 @@ type Sub struct {
     redis   *Redis
     options SubOptions
     path    string
+    log     *log.Logger
 
+    expire      time.Time
     stopChan    chan bool
 }
 
-func (self *Sub) init(options SubOptions) {
+func (self *Sub) init(options SubOptions) error {
     self.options = options
     self.path = self.redis.path(options.Module, options.ID)
-}
-
-// register in redis
-func (self *Sub) start(config Config) error {
-    self.stopChan = make(chan bool)
-
-    if err := self.set(config); err != nil {
-        return err
-    }
-
-    go self.keepalive()
+    self.log = log.New(os.Stderr, fmt.Sprintf("config.Sub %v: ", self.path), 0)
 
     return nil
+}
+
+// update config from redis
+func (self *Sub) get(config Config) error {
+    if jsonBuf, err := self.redis.redisClient.Get(self.path).Bytes(); err != nil {
+        return nil
+    } else if err := json.Unmarshal(jsonBuf, config); err != nil {
+        return err
+    } else {
+        self.log.Printf("get: %v\n", config)
+        return nil
+    }
 }
 
 // update config in redis
 func (self *Sub) set(config Config) error {
-    // XXX: HMSet() is dumb and needs the first pair as separate arguments
-    var firstField, firstValue string
-    var pairs []string
-
-    for key, value := range config {
-        if firstField == "" {
-            firstField = key
-            firstValue = value
-        } else {
-            pairs = append(pairs, key, value)
-        }
-    }
-
-    if res := self.redis.redisClient.HMSet(self.path, firstField, firstValue, pairs...); res.Err() != nil {
+    if jsonBuf, err := json.Marshal(config); err != nil {
+        return err
+    } else if res := self.redis.redisClient.Set(self.path, jsonBuf, 0); res.Err() != nil {
         return res.Err()
+    } else {
+        self.log.Printf("set: %v\n", config)
+        return nil
     }
-
-    return nil
 }
 
-func (self *Sub) keepalive() {
+// get an existing redis config, or set it
+func (self *Sub) sync(config Config) error {
+    if exists, err := self.redis.redisClient.Exists(self.path).Result(); err != nil {
+        return err
+    } else if exists {
+        return self.get(config)
+    } else {
+        return self.set(config)
+    }
+}
+
+// register config in redis, maintaining both the ZSet and the object expiry keepalive under TTL
+func (self *Sub) register() {
+    // registration set's path, vs self.path for our object
     path := self.redis.path(self.options.Module, "")
+
     expire := time.Now().Add(TTL)
     refreshTimer := time.Tick(TTL / 2)
 
     for {
-        // XXX: errors
-        self.redis.redisClient.ZAdd(path, redis.Z{Score: float64(expire.Unix()), Member: self.path})
-        self.redis.redisClient.ExpireAt(self.path, expire)
+        if res := self.redis.redisClient.ExpireAt(self.path, expire); res.Err() != nil {
+            self.log.Printf("refresh ExpireAt %v: %v\n", expire, res.Err())
+
+        } else if res := self.redis.redisClient.ZAdd(path, redis.Z{Score: float64(expire.Unix()), Member: self.path}); res.Err() != nil {
+            self.log.Printf("refresh ZAdd %v: %v\n", path, res.Err())
+        }
 
         select {
         case t := <-refreshTimer:
+            // update expiry for next iteration
             expire = t.Add(TTL)
 
         case <-self.stopChan:
+            // unregister
             self.redis.redisClient.ZRem(path, self.path)
             break
         }
     }
 }
 
-func (self *Sub) read(pubsub *redis.PubSub, readChan chan map[string]string) {
-    defer close(readChan)
+// Stop refreshing the config in redis, and remove it
+func (self *Sub) Stop() error {
+    self.stopChan <- true
+
+    if res := self.redis.redisClient.Del(self.path); res.Err() != nil {
+        return res.Err()
+    }
+
+    return nil
+}
+
+func (self *Sub) read(pubsub *redis.PubSub, configChan chan Config, config Config) {
+    defer close(configChan)
 
     for {
-        if _, err := pubsub.ReceiveMessage(); err != nil {
+        if msg, err := pubsub.ReceiveMessage(); err != nil {
+            self.log.Printf("read: %v\n", err)
             break
-        }
-
-        if res := self.redis.redisClient.HGetAllMap(self.path); res.Err() != nil {
-            break
+        } else if err := json.Unmarshal([]byte(msg.Payload), config); err != nil {
+            self.log.Printf("read JSON: %v\n", err)
+            continue
         } else {
-            readChan <- res.Val()
+            configChan <- config
         }
     }
 }
 
-func (self *Sub) Read() (chan map[string]string, error) {
+// Register ourselves in redis, storing or updating the given Config
+// Read updates from redis, storing them into the given Config
+// Each updated Config is delivered on the given chan
+func (self *Sub) Start(config Config) (chan Config, error) {
+    // sync object
+    if err := self.sync(config); err != nil {
+        return nil, err
+    }
+
+    // register the object
+    self.stopChan = make(chan bool)
+
+    go self.register()
+
+    // subscribe for updates
     pubsub, err := self.redis.redisClient.Subscribe(self.path)
     if err != nil {
         return nil, err
     }
 
-    readChan := make(chan map[string]string)
+    configChan := make(chan Config)
 
-    go self.read(pubsub, readChan)
+    go self.read(pubsub, configChan, config)
 
-    return readChan, nil
-}
-
-func (self *Sub) Stop() error {
-    self.stopChan <- true
-
-    self.redis.redisClient.Del(self.path) // XXX
-
-    return nil
+    // running
+    return configChan, nil
 }

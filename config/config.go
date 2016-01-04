@@ -1,4 +1,4 @@
 package config
 
-// config object, redis hash
-type Config map[string]string
+// JSON-serializeable config objec
+type Config interface{}
