@@ -219,7 +219,7 @@ func (self *Send) ConfigFrom(configRedis *config.Redis) (*config.Sub, error) {
     // copy for updates
     updateConfig := self.config
 
-    if configSub, err := configRedis.Sub(config.SubOptions{"udp_send", self.ID()}); err != nil {
+    if configSub, err := configRedis.Sub(config.SubOptions{"udp", self.ID()}); err != nil {
         return nil, err
     } else if configChan, err := configSub.Start(&updateConfig); err != nil {
         return nil, err
