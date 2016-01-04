@@ -9,7 +9,7 @@ import (
     "time"
 )
 
-const TTL = 10 * time.Second
+const SUB_TTL = 10 * time.Second
 
 type SubOptions struct {
     Module  string
@@ -34,6 +34,21 @@ func (self *Sub) init(options SubOptions) error {
     return nil
 }
 
+func (self *Sub) String() string {
+    return fmt.Sprintf("%v:%v", self.options.Module, self.options.ID)
+}
+
+// get as generic map[string]interface{}
+func (self *Sub) Get() (Config, error) {
+    config := make(map[string]interface{})
+
+    if err := self.get(&config); err != nil {
+        return nil, err
+    } else {
+        return config, nil
+    }
+}
+
 // update config from redis
 func (self *Sub) get(config Config) error {
     if jsonBuf, err := self.redis.redisClient.Get(self.path).Bytes(); err != nil {
@@ -41,7 +56,6 @@ func (self *Sub) get(config Config) error {
     } else if err := json.Unmarshal(jsonBuf, config); err != nil {
         return err
     } else {
-        self.log.Printf("get: %v\n", config)
         return nil
     }
 }
@@ -74,8 +88,8 @@ func (self *Sub) register() {
     // registration set's path, vs self.path for our object
     path := self.redis.path(self.options.Module, "")
 
-    expire := time.Now().Add(TTL)
-    refreshTimer := time.Tick(TTL / 2)
+    expire := time.Now().Add(SUB_TTL)
+    refreshTimer := time.Tick(SUB_TTL / 2)
 
     for {
         if res := self.redis.redisClient.ExpireAt(self.path, expire); res.Err() != nil {
@@ -88,7 +102,7 @@ func (self *Sub) register() {
         select {
         case t := <-refreshTimer:
             // update expiry for next iteration
-            expire = t.Add(TTL)
+            expire = t.Add(SUB_TTL)
 
         case <-self.stopChan:
             // unregister
@@ -131,6 +145,11 @@ func (self *Sub) read(pubsub *redis.PubSub, configChan chan Config, config Confi
 func (self *Sub) Start(config Config) (chan Config, error) {
     // sync object
     if err := self.sync(config); err != nil {
+        return nil, err
+    }
+
+    // register top-level module
+    if err := self.redis.registerModule(self.options.Module); err != nil {
         return nil, err
     }
 
