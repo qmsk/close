@@ -1,0 +1,24 @@
+<div class="page-header"> 
+    <h2>Worker Status</h2>
+</div>
+
+<table class="table workers">
+    <thead>
+        <tr>
+            <th>Module</td>
+            <th>ID</th>
+            <th>Rate</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr ng-repeat="(id, worker) in workers">
+            <td>{{worker._module}}</td>
+            <td>{{worker._id}}</td>
+            <td>{{worker.rate}}</td>
+            <td>
+                <a href="#/workers/{{id}}"><span class="glyphicon glyphicon-zoom-in"></span></a>
+            </td>
+        </tr>
+    </tbody>
+</table>

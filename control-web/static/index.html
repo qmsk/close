@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" ng-app>
+<html lang="en" ng-app="closeApp">
     <head>
         <meta charset="utf-8">
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -20,6 +20,11 @@
 
         <!-- AngularJS -->
         <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.0-rc.0/angular.min.js"></script>
+        <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.0-rc.0/angular-route.min.js"></script>
+
+        <!-- App -->
+        <link rel="stylesheet" href="/close/app.css">
+        <script src="/close/app.js"></script>
     </head>
     <body>
         <!-- Fixed navbar -->
@@ -30,19 +35,13 @@
                 </div>
                 <div id="navbar" class="navbar-collapse collapse">
                     <ul class="nav navbar-nav">
-                        <li class="active"><a href="#">Home</a></li>
-                        <li><a href="#about">About</a></li>
-                        <li><a href="#contact">Contact</a></li>
+                        <li class="active"><a href="#/workers">Workers</a></li>
                     </ul>
                 </div>
             </div>
         </nav>
 
-        <div class="container">
-            <div class="page-header"> 
-                <h1>Hello, world {{'!'}}</h1>
-            </div>
-        </div>
+        <div class="container" ng-view></div>
 
         <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>

@@ -1,0 +1,20 @@
+<div class="page-header"> 
+    <h2>Worker Status: {{workerId}}</h2>
+</div>
+
+<div>
+    <table class="table worker-config">
+        <thead>
+            <tr>
+                <th>Key</th>
+                <th>Value</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr ng-repeat="(key, value) in workerConfig">
+                <th>{{key}}</th>
+                <td>{{value}}</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
