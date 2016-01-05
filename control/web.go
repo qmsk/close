@@ -2,6 +2,7 @@ package control
 
 import (
     "github.com/ant0ine/go-json-rest/rest"
+    "close/stats"
 )
 
 func (self *Manager) GetWorkers(w rest.ResponseWriter, req *rest.Request) {
@@ -36,10 +37,24 @@ func (self *Manager) PostWorker(w rest.ResponseWriter, req *rest.Request) {
     }
 }
 
+func (self *Manager) GetStats(w rest.ResponseWriter, req *rest.Request) {
+    // XXX: sanitize type, vulernable to InfluxQL injection...
+    filter := stats.SeriesMeta{Type: req.PathParam("type")}
+
+    if list, err := self.statsReader.ListSeries(filter); err != nil {
+        rest.Error(w, err.Error(), 500)
+    } else {
+        w.WriteJson(list)
+    }
+}
+
 func (self *Manager) RestApp() (rest.App, error) {
     return rest.MakeRouter(
         rest.Get("/workers/", self.GetWorkers),
         rest.Get("/workers/:worker", self.GetWorker),
         rest.Post("/workers/:worker", self.PostWorker),
+
+        rest.Get("/stats/", self.GetStats),
+        rest.Get("/stats/:type", self.GetStats),
     )
 }
