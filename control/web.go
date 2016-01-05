@@ -3,6 +3,7 @@ package control
 import (
     "github.com/ant0ine/go-json-rest/rest"
     "close/stats"
+    "time"
 )
 
 func (self *Manager) GetWorkers(w rest.ResponseWriter, req *rest.Request) {
@@ -83,6 +84,23 @@ func (self *Manager) GetStatsList(w rest.ResponseWriter, req *rest.Request) {
     }
 }
 
+func (self *Manager) GetStats(w rest.ResponseWriter, req *rest.Request) {
+    // XXX: sanitize type, vulernable to InfluxQL injection...
+    key := stats.SeriesKey{
+        Type:       req.PathParam("type"),
+        Hostname:   req.FormValue("hostname"),
+        Instance:   req.FormValue("instance"),
+    }
+    field := req.PathParam("field")
+    duration := 10 * time.Second
+
+    if result, err := self.statsReader.GetSeries(key, field, duration); err != nil {
+        rest.Error(w, err.Error(), 500)
+    } else {
+        w.WriteJson(result)
+    }
+}
+
 func (self *Manager) RestApp() (rest.App, error) {
     return rest.MakeRouter(
         rest.Get("/workers/", self.GetWorkers),
@@ -92,5 +110,6 @@ func (self *Manager) RestApp() (rest.App, error) {
         rest.Get("/stats", self.GetStatsTypes),
         rest.Get("/stats/", self.GetStatsList),
         rest.Get("/stats/:type", self.GetStatsList),
+        rest.Get("/stats/:type/:field", self.GetStats),
     )
 }
