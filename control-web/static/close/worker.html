@@ -3,18 +3,24 @@
 </div>
 
 <div>
-    <table class="table worker-config">
-        <thead>
-            <tr>
-                <th>Key</th>
-                <th>Value</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr ng-repeat="(key, value) in workerConfig">
-                <th>{{key}}</th>
-                <td>{{value}}</td>
-            </tr>
-        </tbody>
-    </table>
+    <form name="configForm" ng-submit="submitConfig()">
+        <table class="table worker-config">
+            <thead>
+                <tr>
+                    <th>Key</th>
+                    <th>Value</th>
+                    <th><button type="submit">Submit</button></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr ng-repeat="(key, value) in workerConfig">
+                    <th>{{key}}</th>
+                    <td>{{value}}</td>
+                    <td>
+                        <input ng-model="postConfig[key]" type="{{ isNaN(parseInt(value)) ? 'text' : 'number'}}" placeholder="{{value}}">
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </form>
 </div>

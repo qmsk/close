@@ -31,4 +31,14 @@ closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams) {
     $http.get('/api/workers/' + $routeParams.workerId).success(function(data){
         $scope.workerConfig = data;
     });
+
+    // writable config fields for <form>
+    $scope.postConfig = {};
+
+    $scope.submitConfig = function() {
+        // only changed fields
+        $http.post('/api/workers/' + $routeParams.workerId, $scope.postConfig, {
+            headers: { 'Content-Type': 'application/json' },
+        });
+    };
 });
