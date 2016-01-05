@@ -1,7 +1,6 @@
 package main
 
 import (
-    "close/config"
     "close/control"
     "flag"
     "net/http"
@@ -11,24 +10,24 @@ import (
 )
 
 var (
-    statsConfig     stats.Config
-    configOptions   config.Options
+    controlOptions   control.Options
+
     httpDevel       bool
     httpListen      string
     staticPath      string
 )
 
 func init() {
-    flag.StringVar(&statsConfig.InfluxDB.Addr, "influxdb-addr", "http://influxdb:8086",
+    flag.StringVar(&controlOptions.StatsReader.InfluxDB.Addr, "influxdb-addr", "http://influxdb:8086",
         "influxdb http://... address")
-    flag.StringVar(&statsConfig.InfluxDBDatabase, "influxdb-database", stats.INFLUXDB_DATABASE,
+    flag.StringVar(&controlOptions.StatsReader.Database, "influxdb-database", stats.INFLUXDB_DATABASE,
         "influxdb database name")
 
-    flag.StringVar(&configOptions.Redis.Addr, "config-redis-addr", "",
+    flag.StringVar(&controlOptions.Config.Redis.Addr, "config-redis-addr", "",
         "host:port")
-    flag.Int64Var(&configOptions.Redis.DB, "config-redis-db", 0,
+    flag.Int64Var(&controlOptions.Config.Redis.DB, "config-redis-db", 0,
         "Database to select")
-    flag.StringVar(&configOptions.Prefix, "config-prefix", "close",
+    flag.StringVar(&controlOptions.Config.Prefix, "config-prefix", "close",
         "Redis key prefix")
 
     flag.BoolVar(&httpDevel, "http-devel", false,
@@ -40,19 +39,11 @@ func init() {
 }
 
 func main() {
-    var manager *control.Manager
-
     flag.Parse()
 
-    // config?
-    if configOptions.Redis.Addr == "" {
-        log.Fatalf("missing --config-redis-addr")
-    } else if configRedis, err := config.NewRedis(configOptions); err != nil {
-        log.Fatalf("config.NewRedis %v: %v\n", configOptions, err)
-    } else {
-        log.Printf("config.Redis %v\n", configRedis)
-
-        manager = control.New(configRedis)
+    manager, err := control.New(controlOptions)
+    if err != nil {
+        log.Fatal(err)
     }
 
     // run
