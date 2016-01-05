@@ -51,8 +51,18 @@ func (self *Reader) String() string {
 }
 
 // List types
-func (self *Reader) ListTypes() (types []string, err error) {
-    response, err := self.influxdbClient.Query(influxdb.NewQuery("SHOW MEASUREMENTS", self.config.Database, ""))
+type SeriesMeta struct {
+    Type    string      `json:"type"`
+    Fields  []string    `json:"fields"`
+}
+
+func (self *Reader) ListTypes() (metas []SeriesMeta, err error) {
+    query := influxdb.Query{
+        Database: self.config.Database,
+        Command:  fmt.Sprintf("SHOW FIELD KEYS"),
+    }
+
+    response, err := self.influxdbClient.Query(query)
     if err != nil {
         return nil, err
     }
@@ -62,38 +72,38 @@ func (self *Reader) ListTypes() (types []string, err error) {
 
     for _, result := range response.Results {
         for _, row := range result.Series {
-            if row.Name != "measurements" {
-                continue
+            meta := SeriesMeta{
+                Type:   row.Name,
             }
-            for colIndex, colName := range row.Columns {
-                if colName != "name" {
-                    continue
-                }
 
-                for _, rowValues := range row.Values {
-                    rowValue := rowValues[colIndex]
+            for _, rowValues := range row.Values {
+                for colIndex, colName := range row.Columns {
+                    fieldValue := rowValues[colIndex]
+                    stringValue, _ := fieldValue.(string)
 
-                    switch value := rowValue.(type) {
-                    case string:
-                        types = append(types, value)
-                    default:
-                         return nil, fmt.Errorf("Invalid value for measurements name: %#v", rowValue)
-                     }
+                    if colName == "fieldKey" {
+                        meta.Fields = append(meta.Fields, stringValue)
+                    } else {
+                        // ignore
+                        continue
+                    }
                 }
             }
+
+            metas = append(metas, meta)
         }
     }
 
-    return types, nil
+    return metas, nil
 }
 
-type SeriesMeta struct {
+type SeriesKey struct {
     Type        string  `json:"type"`
     Hostname    string  `json:"hostname"`
     Instance    string  `json:"instance"`
 }
 
-func (self *Reader) ListSeries(filter SeriesMeta) (seriesList []SeriesMeta, err error) {
+func (self *Reader) ListSeries(filter SeriesKey) (seriesList []SeriesKey, err error) {
     query := influxdb.Query{Database: self.config.Database}
 
     query.Command = "SHOW SERIES"
@@ -127,7 +137,7 @@ func (self *Reader) ListSeries(filter SeriesMeta) (seriesList []SeriesMeta, err 
     for _, result := range response.Results {
         for _, row := range result.Series {
             for _, rowValues := range row.Values {
-                series := SeriesMeta{Type: row.Name}
+                series := SeriesKey{Type: row.Name}
 
                 for colIndex, colName := range row.Columns {
                     fieldValue := rowValues[colIndex]
@@ -151,3 +161,4 @@ func (self *Reader) ListSeries(filter SeriesMeta) (seriesList []SeriesMeta, err 
 
     return seriesList, nil
 }
+
