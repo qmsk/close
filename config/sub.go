@@ -58,8 +58,12 @@ func (self *Sub) String() string {
 }
 
 // get as generic map[string]interface{}
+// includes additional _fields for SubOptions
 func (self *Sub) Get() (Config, error) {
-    config := make(map[string]interface{})
+    config := map[string]interface{}{
+        "_module": self.options.Module,
+        "_id": self.options.ID,
+    }
 
     if err := self.get(&config); err != nil {
         return nil, err
