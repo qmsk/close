@@ -32,9 +32,21 @@ closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams) {
         $scope.workerConfig = data;
     });
 
-    // writable config fields for <form>
+    // shadow copy of workerConfig, used as the <input ng-model> to POST any changed fields
     $scope.postConfig = {};
 
+    // The config is POST'd as JSON, so the type of the value must match - we cannot POST a number value as a string
+    // Angular can preserve the <input ng-model> value's type, as long as we use the right <input type>
+    $scope.inputType = function(value) {
+        switch (typeof value) {
+            case "string":  return "text";
+            case "number":  return "number";
+            case "boolean": return "checkbox";
+            default:        return false;
+        }
+    }
+
+    // POST any changed config <form> fields to the server for the worker to apply
     $scope.submitConfig = function() {
         // only changed fields
         $http.post('/api/workers/' + $routeParams.workerId, $scope.postConfig, {

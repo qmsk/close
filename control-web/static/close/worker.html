@@ -17,7 +17,7 @@
                     <th>{{key}}</th>
                     <td>{{value}}</td>
                     <td>
-                        <input ng-model="postConfig[key]" type="{{ isNaN(parseInt(value)) ? 'text' : 'number'}}" placeholder="{{value}}">
+                        <input ng-model="postConfig[key]" type="{{inputType(value)}}" placeholder="{{value}}">
                     </td>
                 </tr>
             </tbody>
