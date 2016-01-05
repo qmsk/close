@@ -11,10 +11,11 @@ import (
 )
 
 var (
-    httpDevel       bool
-    httpListen      string
     statsConfig     stats.Config
     configOptions   config.Options
+    httpDevel       bool
+    httpListen      string
+    staticPath      string
 )
 
 func init() {
@@ -34,6 +35,8 @@ func init() {
         "Development mode for HTTP")
     flag.StringVar(&httpListen, "http-listen", ":8282",
         "host:port for HTTP API")
+    flag.StringVar(&staticPath, "static-path", "",
+        "Path to /static files")
 }
 
 func main() {
@@ -65,7 +68,12 @@ func main() {
         api.SetApp(app)
     }
 
-    if err := http.ListenAndServe(httpListen, api.MakeHandler()); err != nil {
+    staticHandler := http.FileServer(http.Dir(staticPath))
+
+    http.Handle("/api/", http.StripPrefix("/api", api.MakeHandler()))
+    http.Handle("/", staticHandler)
+
+    if err := http.ListenAndServe(httpListen, nil); err != nil {
         log.Fatalf("http.ListenAndServe %v: %v\n", httpListen, err)
     }
 }
