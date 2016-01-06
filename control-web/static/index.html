@@ -28,19 +28,19 @@
     </head>
     <body>
         <!-- Fixed navbar -->
-        <nav class="navbar navbar-inverse">
+        <div class="navbar navbar-inverse" ng-controller="HeaderController">
             <div class="container">
                 <div class="navbar-header">
                     <a class="navbar-brand" href="/">CloSe Ctrl</a>
                 </div>
                 <div id="navbar" class="navbar-collapse collapse">
                     <ul class="nav navbar-nav">
-                        <li class="active"><a href="#/workers">Workers</a></li>
-                        <li class="active"><a href="#/stats">Stats</a></li>
+                        <li ng-class="{active: navActive('/workers')}"><a href="#/workers">Workers</a></li>
+                        <li ng-class="{active: navActive('/stats')}"><a href="#/stats">Stats</a></li>
                     </ul>
                 </div>
             </div>
-        </nav>
+        </div>
 
         <div class="container" ng-view></div>
 

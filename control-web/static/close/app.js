@@ -30,6 +30,12 @@ function mapStatsData(series) {
     });
 }
 
+closeApp.controller('HeaderController', function($scope, $location) {
+    $scope.navActive = function(prefix) {
+        return $location.path().startsWith(prefix);
+    };
+});
+
 closeApp.controller('StatsCtrl', function($scope, $http) {
     $http.get('/api/stats').success(function(data){
         // [ {type: field:} ]
