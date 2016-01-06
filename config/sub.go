@@ -60,6 +60,11 @@ func (self *Sub) Options() SubOptions {
     return self.options
 }
 
+// Check if this sub still exists, and return remaining TTL
+func (self *Sub) Check() (time.Duration, error) {
+    return self.redis.redisClient.PTTL(self.path).Result()
+}
+
 // get as generic map[string]interface{}
 // includes additional _fields for SubOptions
 func (self *Sub) Get() (ConfigMap, error) {
