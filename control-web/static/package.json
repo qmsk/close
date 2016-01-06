@@ -1,0 +1,7 @@
+{
+    "name": "close",
+    "version": "0.0.0",
+    "dependencies": {
+        "angular-flot": "0.0.15"
+    }
+}
