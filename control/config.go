@@ -6,37 +6,50 @@ import (
     "log"
 )
 
-func (self *Manager) ConfigList() (map[string]config.Config, error) {
-    list := make(map[string]config.Config)
+type ConfigItem struct {
+    config.SubOptions
 
-    modules, err := self.configRedis.ListModules()
-    if err != nil {
-        return list, fmt.Errorf("config.Redis %v: ListModules: %v", self.configRedis, err)
+    Config      config.ConfigMap  `json:"config"`
+}
+
+func (self *Manager) ConfigList(filter config.SubOptions) (configs []ConfigItem, err error) {
+    var modules []string
+
+    if filter.Module == "" {
+        if listModules, err := self.configRedis.ListModules(); err != nil {
+            return nil, fmt.Errorf("config.Redis %v: ListModules: %v", self.configRedis, err)
+        } else {
+            modules = listModules
+        }
+    } else {
+        modules = []string{filter.Module}
     }
 
     for _, module := range modules {
         subs, err := self.configRedis.List(module)
         if err != nil {
-            return list, fmt.Errorf("config.Redis %v: List %v: %v", self.configRedis, module, err)
+            return nil, fmt.Errorf("config.Redis %v: List %v: %v", self.configRedis, module, err)
         }
 
         for _, configSub := range subs {
-            if subConfig, err := configSub.Get(); err != nil {
+            configItem := ConfigItem{SubOptions:configSub.Options()}
+
+            if configMap, err := configSub.Get(); err != nil {
                 log.Printf("Manager.List Sub.Get %v: %v\n", configSub, err)
                 continue
             } else {
-                list[configSub.String()] = subConfig
+                configItem.Config = configMap
             }
+
+            configs = append(configs, configItem)
         }
     }
 
-    return list, nil
+    return configs, nil
 }
 
-func (self *Manager) ConfigGet(sub string) (config.Config, error) {
-    if subOptions, err := config.ParseSub(sub); err != nil {
-        return nil, fmt.Errorf("config.ParseSub %v: %v", sub, err)
-    } else if configSub, err := self.configRedis.Sub(subOptions); err != nil {
+func (self *Manager) ConfigGet(subOptions config.SubOptions) (config.Config, error) {
+    if configSub, err := self.configRedis.Sub(subOptions); err != nil {
         return nil, fmt.Errorf("config.Redis %v: Sub %v: %v", self.configRedis, subOptions, err)
     } else if subConfig, err := configSub.Get(); err != nil {
         return nil, fmt.Errorf("config.Sub %v: Get: %v", configSub, err)
@@ -47,10 +60,8 @@ func (self *Manager) ConfigGet(sub string) (config.Config, error) {
     }
 }
 
-func (self *Manager) ConfigPush(sub string, pushConfig config.Config) error {
-    if subOptions, err := config.ParseSub(sub); err != nil {
-        return fmt.Errorf("config.ParseSub %v: %v", sub, err)
-    } else if configSub, err := self.configRedis.Sub(subOptions); err != nil {
+func (self *Manager) ConfigPush(subOptions config.SubOptions, pushConfig config.Config) error {
+    if configSub, err := self.configRedis.Sub(subOptions); err != nil {
         return fmt.Errorf("config.Redis %v: Sub %v: %v", self.configRedis, subOptions, err)
     } else if err := configSub.Push(pushConfig); err != nil {
         return fmt.Errorf("config.Sub %v: Push %v: %v", configSub, pushConfig, err)

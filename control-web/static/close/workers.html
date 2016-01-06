@@ -12,12 +12,12 @@
         </tr>
     </thead>
     <tbody>
-        <tr ng-repeat="(id, worker) in workers">
-            <td>{{worker._module}}</td>
-            <td>{{worker._id}}</td>
-            <td>{{worker.rate}}</td>
+        <tr ng-repeat="workerConfig in configWorkers">
+            <td>{{workerConfig.module}}</td>
+            <td>{{workerConfig.id}}</td>
+            <td>{{workerConfig.config.rate}}</td>
             <td>
-                <a href="#/workers/{{id}}"><span class="glyphicon glyphicon-zoom-in"></span></a>
+                <a href="#/workers/{{workerConfig.module}}/{{workerConfig.id}}"><span class="glyphicon glyphicon-zoom-in"></span></a>
             </td>
         </tr>
     </tbody>

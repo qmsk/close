@@ -1,28 +1,34 @@
 package control
 
 import (
+    "close/config"
     "github.com/ant0ine/go-json-rest/rest"
     "close/stats"
     "time"
 )
 
-func (self *Manager) GetWorkers(w rest.ResponseWriter, req *rest.Request) {
-    if list, err := self.ConfigList(); err != nil {
+func (self *Manager) GetConfigList(w rest.ResponseWriter, req *rest.Request) {
+    subFilter := config.SubOptions{Module: req.PathParam("module")}
+
+    if list, err := self.ConfigList(subFilter); err != nil {
         rest.Error(w, err.Error(), 500)
     } else {
         w.WriteJson(list)
     }
 }
 
-func (self *Manager) GetWorker(w rest.ResponseWriter, req *rest.Request) {
-    if config, err := self.ConfigGet(req.PathParam("worker")); err != nil {
+func (self *Manager) GetConfig(w rest.ResponseWriter, req *rest.Request) {
+    subOptions := config.SubOptions{Module: req.PathParam("module"), ID: req.PathParam("id")}
+
+    if config, err := self.ConfigGet(subOptions); err != nil {
         rest.Error(w, err.Error(), 500)
     } else {
         w.WriteJson(config)
     }
 }
 
-func (self *Manager) PostWorker(w rest.ResponseWriter, req *rest.Request) {
+func (self *Manager) PostConfig(w rest.ResponseWriter, req *rest.Request) {
+    subOptions := config.SubOptions{Module: req.PathParam("module"), ID: req.PathParam("id")}
     config := make(map[string]interface{})
 
     if err := req.DecodeJsonPayload(&config); err != nil {
@@ -30,7 +36,7 @@ func (self *Manager) PostWorker(w rest.ResponseWriter, req *rest.Request) {
         return
     }
 
-    if err := self.ConfigPush(req.PathParam("worker"), config); err != nil {
+    if err := self.ConfigPush(subOptions, config); err != nil {
         rest.Error(w, err.Error(), 500)
     } else {
         // TODO: redirect to GET?
@@ -118,9 +124,10 @@ func (self *Manager) GetStats(w rest.ResponseWriter, req *rest.Request) {
 
 func (self *Manager) RestApp() (rest.App, error) {
     return rest.MakeRouter(
-        rest.Get("/workers/", self.GetWorkers),
-        rest.Get("/workers/:worker", self.GetWorker),
-        rest.Post("/workers/:worker", self.PostWorker),
+        rest.Get("/config/", self.GetConfigList),
+        rest.Get("/config/:module", self.GetConfigList),
+        rest.Get("/config/:module/:id", self.GetConfig),
+        rest.Post("/config/:module/:id", self.PostConfig),
 
         rest.Get("/stats", self.GetStatsTypes),
         rest.Get("/stats/", self.GetStatsList),

@@ -9,7 +9,7 @@ closeApp.config(function($routeProvider){
             templateUrl: '/close/workers.html',
             controller: 'WorkersCtrl',
         })
-        .when('/workers/:workerId', {
+        .when('/workers/:type/:id', {
             templateUrl: '/close/worker.html',
             controller: 'WorkerCtrl',
         })
@@ -51,18 +51,49 @@ closeApp.controller('StatsCtrl', function($scope, $http) {
 });
 
 closeApp.controller('WorkersCtrl', function($scope, $http) {
-    $scope.workers = {};
+    $scope.configWorkers = {};
     
-    $http.get('/api/workers/').success(function(data){
-        $scope.workers = data;
+    $http.get('/api/config/').success(function(data){
+        $scope.configWorkers = data;
     });
 });
 
+function mapStatsData(series) {
+    return series.points.map(function(point){
+        var date = new Date(point.time);
+
+        return [date.getTime(), point.value];
+    });
+}
+
 closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams) {
-    $scope.workerId = $routeParams.workerId
+    $scope.closeType = $routeParams.type;
+    $scope.closeInstance = $routeParams.id;
+
+    var statsType = $routeParams.type;
+    var statsInstance = $routeParams.id;
+
+    switch ($scope.closeType) {
+    case "udp":
+        statsType = "udp_send";
+    }
     
-    $http.get('/api/workers/' + $routeParams.workerId).success(function(data){
+    $http.get('/api/config/' + $routeParams.type + '/' + $routeParams.id).success(function(data){
         $scope.workerConfig = data;
+    });
+
+    $scope.chartOptions = {
+        xaxis: { mode: "time" },
+    };
+    $http.get('/api/stats/' + statsType + '/', {params:{instance: statsInstance}}).success(function(data){
+        if (data) {
+            $scope.statsData = data.map(function(series){
+                return [{
+                    label: series.field,
+                    data: mapStatsData(series)
+                }];
+            });
+        }
     });
 
     // shadow copy of workerConfig, used as the <input ng-model> to POST any changed fields
@@ -82,7 +113,7 @@ closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams) {
     // POST any changed config <form> fields to the server for the worker to apply
     $scope.submitConfig = function() {
         // only changed fields
-        $http.post('/api/workers/' + $routeParams.workerId, $scope.postConfig, {
+        $http.post('/api/config/' + $routeParams.type + '/' + $routeParams.id, $scope.postConfig, {
             headers: { 'Content-Type': 'application/json' },
         });
     };

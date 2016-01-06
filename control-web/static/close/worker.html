@@ -1,8 +1,9 @@
 <div class="page-header"> 
-    <h2>Worker Status: {{workerId}}</h2>
+    <h1>Worker: {{workerId}}</h2>
 </div>
 
 <div>
+    <h2>Config</h2>
     <form name="configForm" ng-submit="submitConfig()">
         <table class="table worker-config">
             <thead>
@@ -23,4 +24,11 @@
             </tbody>
         </table>
     </form>
+</div>
+
+<div>
+    <h2>Stats</h2>
+    <div ng-repeat="data in statsData">
+        <flot dataset="data" options="chartOptions" width="400px" height="100px"></flot>
+    </div>
 </div>
