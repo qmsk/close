@@ -51,6 +51,10 @@ closeApp.controller('StatsCtrl', function($scope, $location, $routeParams, $http
         });
     });
 
+    $scope.statsActive = function(fieldMeta) {
+        return fieldMeta.type == $scope.type && fieldMeta.field == $scope.field;
+    }
+
     /*
      * Select given {type: field:} for viewing
      */
