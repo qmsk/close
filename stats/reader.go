@@ -254,15 +254,15 @@ func (self *Reader) GetStats(series SeriesKey, field string, duration time.Durat
 }
 
 type SeriesPoint struct {
-    Time        time.Time
-    Value       float64
+    Time        time.Time   `json:"time"`
+    Value       float64     `json:"value"`
 }
 
 type SeriesData struct {
     SeriesKey
-    Field       string      `json:"field"`
+    Field       string          `json:"field"`
 
-    Points      []SeriesPoint
+    Points      []SeriesPoint   `json:"points"`
 }
 
 // Get full time-series data for given series's fields over given duration
