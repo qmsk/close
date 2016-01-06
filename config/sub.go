@@ -15,8 +15,8 @@ const SUB_TTL = 10 * time.Second
 var subRegexp = regexp.MustCompile(`^(\w+):(\w+)$`)
 
 type SubOptions struct {
-    Module  string
-    ID      string
+    Module  string  `json:"module"`
+    ID      string  `json:"id"`
 }
 
 func (self SubOptions) String() string {
@@ -56,14 +56,14 @@ func (self *Sub) init(options SubOptions) error {
 func (self *Sub) String() string {
     return self.options.String()
 }
+func (self *Sub) Options() SubOptions {
+    return self.options
+}
 
 // get as generic map[string]interface{}
 // includes additional _fields for SubOptions
-func (self *Sub) Get() (Config, error) {
-    config := map[string]interface{}{
-        "_module": self.options.Module,
-        "_id": self.options.ID,
-    }
+func (self *Sub) Get() (ConfigMap, error) {
+    config := ConfigMap{}
 
     if err := self.get(&config); err != nil {
         return nil, err
