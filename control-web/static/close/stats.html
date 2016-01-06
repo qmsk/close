@@ -13,7 +13,7 @@
                 </tr>
             </thead>
             <tbody>
-                <tr ng-repeat="meta in statsMeta">
+                <tr ng-repeat="meta in statsMeta" ng-class="{active: fieldMeta == meta}">
                     <td>{{meta.type}}</td>
                     <td>{{meta.field}}</td>
                     <td>
@@ -27,6 +27,10 @@
     </div>
     <div class="col-md-6 chart">
         <h2 ng-if="fieldMeta">{{fieldMeta.type}}.{{fieldMeta.field}}</h2>
+
+        <div ng-if="chartAlert" class="alert alert-warning">
+            {{chartAlert}}
+        </div>
 
         <flot dataset="chartData" options="chartOptions" width="100%" height="400px"></flot>
 

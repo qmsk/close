@@ -47,8 +47,11 @@ closeApp.controller('StatsCtrl', function($scope, $http) {
     $scope.select = function(fieldMeta) {
         if (fieldMeta) {
             $scope.fieldMeta = fieldMeta;
-        } else {
+        } else if ($scope.fieldMeta){
             fieldMeta = $scope.fieldMeta;
+        } else {
+            // if duration changed without any field selected
+            return;
         }
 
         var statsURL = '/api/stats/' + fieldMeta.type + '/' + fieldMeta.field;
@@ -56,28 +59,36 @@ closeApp.controller('StatsCtrl', function($scope, $http) {
 
         console.log("get stats: " + statsURL + "?" + statsParams);
 
-        $http.get(statsURL, {params: statsParams}).success(function(data){
-            if (!data) {
-                console.log("empty stats: " + fieldMeta);
-                return;
-            }
+        $scope.chartData = [];
+        $scope.chartAlert = null;
 
-            $scope.chartOptions = {
-                xaxis: { mode: "time" },
-            };
-            $scope.chartData = data.map(function(series){
-                var label = series.type + "." + series.field + "@" + series.hostname + ":" + series.instance;
+        $http.get(statsURL, {params: statsParams}).then(
+            function success(r){
+                if (!r.data || r.data.length == 0) {
+                    $scope.chartAlert = "No Data";
+                    return;
+                }
 
-                console.log("stats: " + label);
-
-                return {
-                    label: label,
-                    data: mapStatsData(series)
+                $scope.chartOptions = {
+                    xaxis: { mode: "time" },
                 };
-            });
-                
-            console.log("stats length=" + $scope.chartData.length);
-        });
+                $scope.chartData = r.data.map(function(series){
+                    var label = series.type + "." + series.field + "@" + series.hostname + ":" + series.instance;
+
+                    console.log("stats: " + label);
+
+                    return {
+                        label: label,
+                        data: mapStatsData(series)
+                    };
+                });
+                    
+                console.log("stats length=" + $scope.chartData.length);
+            },
+            function error(response){
+                $scope.chartAlert = r.data;
+            }
+        );
     }
 });
 
