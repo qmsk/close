@@ -85,16 +85,31 @@ func (self *Manager) GetStatsList(w rest.ResponseWriter, req *rest.Request) {
 }
 
 func (self *Manager) GetStats(w rest.ResponseWriter, req *rest.Request) {
+    var fields []string
+    var duration time.Duration
+
+    if req.PathParam("field") != "" {
+        // TODO: figureout some syntax
+        fields = []string{req.PathParam("field")}
+    }
+
     // XXX: sanitize type, vulernable to InfluxQL injection...
-    key := stats.SeriesKey{
+    seriesKey := stats.SeriesKey{
         Type:       req.PathParam("type"),
         Hostname:   req.FormValue("hostname"),
         Instance:   req.FormValue("instance"),
     }
-    field := req.PathParam("field")
-    duration := 10 * time.Second
 
-    if result, err := self.statsReader.GetSeries(key, field, duration); err != nil {
+    if req.FormValue("duration") == "" {
+        duration = 10 * time.Second
+    } else if parseDuration, err := time.ParseDuration(req.FormValue("duration")); err != nil {
+        rest.Error(w, err.Error(), 400)
+    } else {
+        duration = parseDuration
+    }
+
+    // apply
+    if result, err := self.statsReader.GetSeries(seriesKey, fields, duration); err != nil {
         rest.Error(w, err.Error(), 500)
     } else {
         w.WriteJson(result)
@@ -110,6 +125,7 @@ func (self *Manager) RestApp() (rest.App, error) {
         rest.Get("/stats", self.GetStatsTypes),
         rest.Get("/stats/", self.GetStatsList),
         rest.Get("/stats/:type", self.GetStatsList),
+        rest.Get("/stats/:type/", self.GetStats),
         rest.Get("/stats/:type/:field", self.GetStats),
     )
 }

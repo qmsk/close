@@ -6,6 +6,7 @@ import (
     "encoding/json"
     "log"
     "os"
+    "strings"
     "time"
 )
 
@@ -180,7 +181,7 @@ type SeriesStats struct {
     Last        float64     `json:"last"`
 }
 
-func (self *Reader) GetSeries(series SeriesKey, field string, duration time.Duration) (stats SeriesStats, err error) {
+func (self *Reader) GetStats(series SeriesKey, field string, duration time.Duration) (stats SeriesStats, err error) {
     query := influxdb.Query{
         Database: self.config.Database,
         Command:  fmt.Sprintf("SELECT MEAN(\"%s\") AS mean, MIN(\"%s\") AS min, MAX(\"%s\") AS max, LAST(\"%s\") AS last FROM \"%s\" WHERE time > now() - %v AND hostname='%s' AND instance='%s'", field, field, field, field, series.Type, duration, series.Hostname, series.Instance),
@@ -237,7 +238,7 @@ func (self *Reader) GetSeries(series SeriesKey, field string, duration time.Dura
                         case "max":
                             stats.Max = value
                         case "last":
-                            stats.Last = value 
+                            stats.Last = value
                         }
                     }
                 }
@@ -250,4 +251,90 @@ func (self *Reader) GetSeries(series SeriesKey, field string, duration time.Dura
 
     // XXX
     return stats, fmt.Errorf("Not found: %v", series)
+}
+
+type SeriesPoint struct {
+    Time        time.Time
+    Value       float64
+}
+
+type SeriesData struct {
+    SeriesKey
+    Field       string      `json:"field"`
+
+    Points      []SeriesPoint
+}
+
+// Get full time-series data for given series's fields over given duration
+func (self *Reader) GetSeries(series SeriesKey, fields []string, duration time.Duration) (dataList []SeriesData, err error) {
+    var queryFields string
+
+    if fields == nil || len(fields) == 0 {
+        queryFields = "*"
+    } else {
+        queryFields = strings.Join(fields, ", ")
+    }
+
+    query := influxdb.Query{
+        Database: self.config.Database,
+        Command:  fmt.Sprintf("SELECT %s FROM \"%s\" WHERE time > now() - %vs", queryFields, series.Type, duration.Seconds()),
+    }
+
+    if series.Hostname != "" {
+        query.Command += fmt.Sprintf(" AND hostname='%s'", series.Hostname)
+    }
+    if series.Instance != "" {
+        query.Command += fmt.Sprintf(" AND instance='%s'", series.Instance)
+    }
+
+    query.Command += " GROUP BY hostname, instance"
+
+    self.log.Printf("%v\n", query.Command)
+
+    response, err := self.influxdbClient.Query(query)
+    if err != nil {
+        return nil, err
+    }
+    if response.Error() != nil {
+        return nil, response.Error()
+    }
+
+    for _, result := range response.Results {
+        for _, series := range result.Series {
+            for colIndex, colName := range series.Columns[1:] {
+                seriesData := SeriesData{
+                    SeriesKey: SeriesKey{Type: series.Name, Hostname: series.Tags["hostname"], Instance: series.Tags["instance"]},
+                    Field:     colName,
+                }
+
+                for _, rowValues := range series.Values {
+                    fieldValue := rowValues[1+colIndex]
+
+                    point := SeriesPoint{}
+
+                    if stringValue, ok := rowValues[0].(string); !ok {
+                        return nil, fmt.Errorf("invalid time value: %#v", rowValues[0])
+                    } else if timeValue, err := time.Parse(time.RFC3339, stringValue); err != nil {
+                        return nil, fmt.Errorf("invalid time value %v: %v", stringValue, err)
+                    } else {
+                        point.Time = timeValue
+                    }
+
+                    if jsonValue, ok := fieldValue.(json.Number); !ok {
+                        return nil, fmt.Errorf("invalid value for %v(%v.%v): %#v", colName, series.Name, colName, fieldValue)
+                    } else if floatValue, err := jsonValue.Float64(); err != nil {
+                        return nil, err
+                    } else {
+                        point.Value = floatValue
+                    }
+
+                    seriesData.Points = append(seriesData.Points, point)
+                }
+
+                dataList = append(dataList, seriesData)
+            }
+        }
+    }
+
+    return dataList, nil
 }
