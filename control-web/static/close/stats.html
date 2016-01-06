@@ -6,18 +6,16 @@
     <thead>
         <tr>
             <th>Type</td>
-            <th>Hostname</th>
-            <th>Instance</th>
+            <th>Field</th>
             <th></th>
         </tr>
     </thead>
     <tbody>
-        <tr ng-repeat="series in statsSeries">
-            <td>{{series.type}}</td>
-            <td>{{series.hostname}}</td>
-            <td>{{series.instance}}</td>
+        <tr ng-repeat="meta in statsMeta">
+            <td>{{meta.type}}</td>
+            <td>{{meta.field}}</td>
             <td>
-                <button ng-click="select(series)">
+                <button ng-click="select(meta)">
                     <span class="glyphicon glyphicon-zoom-in"></span>
                 </button>
             </td>
@@ -25,8 +23,8 @@
     </tbody>
 </table>
 
-<h2 ng-if="statsInfo">{{statsInfo.type}}@{{statsInfo.hostname}}:{{statsInfo.instance}}</h2>
+<div ng-if="fieldMeta">
+    <h2>{{fieldMeta.type}}.{{fieldMeta.field}}</h2>
 
-<div ng-repeat="data in statsData">
-    <flot dataset="data" options="chartOptions" width="400px" height="100px"></flot>
+    <flot dataset="$parent.chartData" options="$parent.chartOptions" width="100%" height="400px"></flot>
 </div>

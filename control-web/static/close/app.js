@@ -22,30 +22,51 @@ closeApp.config(function($routeProvider){
         });
 });
 
+function mapStatsData(series) {
+    return series.points.map(function(point){
+        var date = new Date(point.time);
+
+        return [date.getTime(), point.value];
+    });
+}
+
 closeApp.controller('StatsCtrl', function($scope, $http) {
-    $http.get('/api/stats/').success(function(data){
-        $scope.statsSeries = data;
+    $http.get('/api/stats').success(function(data){
+        // [ {type: field:} ]
+        $scope.statsMeta = $.map(data, function(meta){
+            return meta.fields.map(function(field){
+                return {type: meta.type, field: field};
+            });
+        });
     });
 
-    $scope.chartOptions = {
-        xaxis: { mode: "time" },
-    };
-    $scope.select = function(statsInfo) {
-        $scope.statsInfo = statsInfo;
+    /*
+     * Select given {type: field:} for viewing
+     */
+    $scope.select = function(fieldMeta) {
+        $scope.fieldMeta = fieldMeta;
 
-        $http.get('/api/stats/' + statsInfo.type + '/', {params:{hostname: statsInfo.hostname, instance: statsInfo.instance}}).success(function(data){
-            $scope.statsData = data.map(function(series){
-                var dataPoints = series.points.map(function(point){
-                    var date = new Date(point.time);
+        $http.get('/api/stats/' + fieldMeta.type + '/' + fieldMeta.field).success(function(data){
+            if (!data) {
+                console.log("empty stats: " + fieldMeta);
+                return;
+            }
 
-                    return [date.getTime(), point.value];
-                });
+            $scope.chartOptions = {
+                xaxis: { mode: "time" },
+            };
+            $scope.chartData = data.map(function(series){
+                var label = series.type + "." + series.field + "@" + series.hostname + ":" + series.instance;
 
-                return [{
-                    label: series.field,
-                    data: dataPoints
-                }];
+                console.log("stats: " + label);
+
+                return {
+                    label: label,
+                    data: mapStatsData(series)
+                };
             });
+                
+            console.log("stats length=" + $scope.chartData.length);
         });
     }
 });
@@ -57,14 +78,6 @@ closeApp.controller('WorkersCtrl', function($scope, $http) {
         $scope.configWorkers = data;
     });
 });
-
-function mapStatsData(series) {
-    return series.points.map(function(point){
-        var date = new Date(point.time);
-
-        return [date.getTime(), point.value];
-    });
-}
 
 closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams) {
     $scope.closeType = $routeParams.type;
