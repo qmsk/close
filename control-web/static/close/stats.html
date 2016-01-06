@@ -1,0 +1,32 @@
+<div class="page-header"> 
+    <h2>Stats</h2>
+</div>
+
+<table class="table stats">
+    <thead>
+        <tr>
+            <th>Type</td>
+            <th>Hostname</th>
+            <th>Instance</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr ng-repeat="series in statsSeries">
+            <td>{{series.type}}</td>
+            <td>{{series.hostname}}</td>
+            <td>{{series.instance}}</td>
+            <td>
+                <button ng-click="select(series)">
+                    <span class="glyphicon glyphicon-zoom-in"></span>
+                </button>
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<h2 ng-if="statsInfo">{{statsInfo.type}}@{{statsInfo.hostname}}:{{statsInfo.instance}}</h2>
+
+<div ng-repeat="data in statsData">
+    <flot dataset="data" options="chartOptions" width="400px" height="100px"></flot>
+</div>

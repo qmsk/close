@@ -21,7 +21,7 @@
         <!-- AngularJS -->
         <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.0-rc.0/angular.min.js"></script>
         <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.0-rc.0/angular-route.min.js"></script>
-
+        
         <!-- App -->
         <link rel="stylesheet" href="/close/app.css">
         <script src="/close/app.js"></script>
@@ -36,6 +36,7 @@
                 <div id="navbar" class="navbar-collapse collapse">
                     <ul class="nav navbar-nav">
                         <li class="active"><a href="#/workers">Workers</a></li>
+                        <li class="active"><a href="#/stats">Stats</a></li>
                     </ul>
                 </div>
             </div>
@@ -43,10 +44,15 @@
 
         <div class="container" ng-view></div>
 
-        <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+        <!-- jQuery -->
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
 
-        <!-- Include all compiled plugins (below), or include individual files as needed -->
+        <!-- Bootstrap -->
         <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+
+        <!-- Flot -->
+        <script src="http://cdnjs.cloudflare.com/ajax/libs/flot/0.8.3/jquery.flot.min.js"></script>
+        <script src="http://cdnjs.cloudflare.com/ajax/libs/flot/0.8.3/jquery.flot.time.min.js"></script>
+        <script src="/node_modules/angular-flot/angular-flot.js"></script>
     </body>
 </html> 
