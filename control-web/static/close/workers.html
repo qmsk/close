@@ -7,7 +7,7 @@
         <tr>
             <th>Module</td>
             <th>ID</th>
-            <th>Rate</th>
+            <th>TTL</th>
             <th></th>
         </tr>
     </thead>
@@ -15,7 +15,7 @@
         <tr ng-repeat="workerConfig in configWorkers">
             <td>{{workerConfig.module}}</td>
             <td>{{workerConfig.id}}</td>
-            <td>{{workerConfig.config.rate}}</td>
+            <td>{{workerConfig.ttl}}</td>
             <td>
                 <a href="#/workers/{{workerConfig.module}}/{{workerConfig.id}}"><span class="glyphicon glyphicon-zoom-in"></span></a>
             </td>

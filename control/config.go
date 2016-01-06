@@ -9,7 +9,7 @@ import (
 type ConfigItem struct {
     config.SubOptions
 
-    Config      config.ConfigMap  `json:"config"`
+    TTL     float64 `json:"ttl"` // seconds
 }
 
 func (self *Manager) ConfigList(filter config.SubOptions) (configs []ConfigItem, err error) {
@@ -34,11 +34,11 @@ func (self *Manager) ConfigList(filter config.SubOptions) (configs []ConfigItem,
         for _, configSub := range subs {
             configItem := ConfigItem{SubOptions:configSub.Options()}
 
-            if configMap, err := configSub.Get(); err != nil {
+            if ttl, err := configSub.Check(); err != nil {
                 log.Printf("Manager.List Sub.Get %v: %v\n", configSub, err)
                 continue
             } else {
-                configItem.Config = configMap
+                configItem.TTL = ttl.Seconds()
             }
 
             configs = append(configs, configItem)

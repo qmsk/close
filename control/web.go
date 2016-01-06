@@ -124,15 +124,31 @@ func (self *Manager) GetStats(w rest.ResponseWriter, req *rest.Request) {
 
 func (self *Manager) RestApp() (rest.App, error) {
     return rest.MakeRouter(
+        // list active config items, with TTL
         rest.Get("/config/", self.GetConfigList),
         rest.Get("/config/:module", self.GetConfigList),
+
+        // get full config
         rest.Get("/config/:module/:id", self.GetConfig),
+
+        // publish config change to worker
         rest.Post("/config/:module/:id", self.PostConfig),
 
+        // static information about available stats types/fields
         rest.Get("/stats", self.GetStatsTypes),
+
+        // dynamic information about avilable stats series (hostname/instance)
         rest.Get("/stats/", self.GetStatsList),
+
+        // ..filtered by type
         rest.Get("/stats/:type", self.GetStatsList),
+
+        // data type's fields
+        // may include multiple series, filtered by ?hostname=&instance=
         rest.Get("/stats/:type/", self.GetStats),
+
+        // data for type's specific field
+        // may include multiple series, filtered by ?hostname=&instance=
         rest.Get("/stats/:type/:field", self.GetStats),
     )
 }
