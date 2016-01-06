@@ -43,10 +43,20 @@ closeApp.controller('StatsCtrl', function($scope, $http) {
     /*
      * Select given {type: field:} for viewing
      */
+    $scope.duration = "10s";
     $scope.select = function(fieldMeta) {
-        $scope.fieldMeta = fieldMeta;
+        if (fieldMeta) {
+            $scope.fieldMeta = fieldMeta;
+        } else {
+            fieldMeta = $scope.fieldMeta;
+        }
 
-        $http.get('/api/stats/' + fieldMeta.type + '/' + fieldMeta.field).success(function(data){
+        var statsURL = '/api/stats/' + fieldMeta.type + '/' + fieldMeta.field;
+        var statsParams = {duration: $scope.duration};
+
+        console.log("get stats: " + statsURL + "?" + statsParams);
+
+        $http.get(statsURL, {params: statsParams}).success(function(data){
             if (!data) {
                 console.log("empty stats: " + fieldMeta);
                 return;

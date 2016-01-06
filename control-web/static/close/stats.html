@@ -2,29 +2,51 @@
     <h2>Stats</h2>
 </div>
 
-<table class="table stats">
-    <thead>
-        <tr>
-            <th>Type</td>
-            <th>Field</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr ng-repeat="meta in statsMeta">
-            <td>{{meta.type}}</td>
-            <td>{{meta.field}}</td>
-            <td>
-                <button ng-click="select(meta)">
-                    <span class="glyphicon glyphicon-zoom-in"></span>
-                </button>
-            </td>
-        </tr>
-    </tbody>
-</table>
+<div class="row">
+    <div class="col-md-6">
+        <table class="table stats">
+            <thead>
+                <tr>
+                    <th>Type</td>
+                    <th>Field</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr ng-repeat="meta in statsMeta">
+                    <td>{{meta.type}}</td>
+                    <td>{{meta.field}}</td>
+                    <td>
+                        <button ng-click="select(meta)">
+                            <span class="glyphicon glyphicon-zoom-in"></span>
+                        </button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="col-md-6 chart">
+        <h2 ng-if="fieldMeta">{{fieldMeta.type}}.{{fieldMeta.field}}</h2>
 
-<div ng-if="fieldMeta">
-    <h2>{{fieldMeta.type}}.{{fieldMeta.field}}</h2>
+        <flot dataset="chartData" options="chartOptions" width="100%" height="400px"></flot>
 
-    <flot dataset="$parent.chartData" options="$parent.chartOptions" width="100%" height="400px"></flot>
+        <div>
+            <label>
+                <input type="radio" name="duration" ng-model="duration" ng-change="select()" value="10s">
+                10 seconds
+            </label>
+            <label>
+                <input type="radio" name="duration" ng-model="duration" ng-change="select()" value="1m">
+                1 minute
+            </label>
+            <label>
+                <input type="radio" name="duration" ng-model="duration" ng-change="select()" value="15m">
+                15 minutes
+            </label>
+            <label>
+                <input type="radio" name="duration" ng-model="duration" ng-change="select()" value="1h">
+                1 hour
+            </label>
+        <div>
+    </div>
 </div>
