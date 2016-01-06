@@ -7,18 +7,19 @@ closeApp.config(function($routeProvider){
     $routeProvider
         .when('/workers', {
             templateUrl: '/close/workers.html',
-            controller: 'WorkersCtrl',
+            controller: 'WorkersCtrl'
         })
         .when('/workers/:type/:id', {
             templateUrl: '/close/worker.html',
-            controller: 'WorkerCtrl',
+            controller: 'WorkerCtrl'
         })
         .when('/stats', {
             templateUrl: '/close/stats.html',
             controller: 'StatsCtrl',
+            reloadOnSearch: false
         })
         .otherwise({
-            redirectTo: '/workers',
+            redirectTo: '/workers'
         });
 });
 
@@ -36,7 +37,11 @@ closeApp.controller('HeaderController', function($scope, $location) {
     };
 });
 
-closeApp.controller('StatsCtrl', function($scope, $http) {
+closeApp.controller('StatsCtrl', function($scope, $location, $routeParams, $http) {
+    $scope.type = $routeParams.type;
+    $scope.field = $routeParams.field;
+    $scope.duration = $routeParams.duration || "10s";
+
     $http.get('/api/stats').success(function(data){
         // [ {type: field:} ]
         $scope.statsMeta = $.map(data, function(meta){
@@ -49,18 +54,24 @@ closeApp.controller('StatsCtrl', function($scope, $http) {
     /*
      * Select given {type: field:} for viewing
      */
-    $scope.duration = "10s";
     $scope.select = function(fieldMeta) {
         if (fieldMeta) {
-            $scope.fieldMeta = fieldMeta;
-        } else if ($scope.fieldMeta){
-            fieldMeta = $scope.fieldMeta;
+            $scope.type = fieldMeta.type;
+            $scope.field = fieldMeta.field;
+        } else if ($scope.type && $scope.field){
+
         } else {
             // if duration changed without any field selected
             return;
         }
 
-        var statsURL = '/api/stats/' + fieldMeta.type + '/' + fieldMeta.field;
+        // update view state
+        $location.search('type', $scope.type);
+        $location.search('field', $scope.field);
+        $location.search('duration', $scope.duration);
+
+        // update
+        var statsURL = '/api/stats/' + $scope.type + '/' + $scope.field;
         var statsParams = {duration: $scope.duration};
 
         console.log("get stats: " + statsURL + "?" + statsParams);
@@ -96,6 +107,9 @@ closeApp.controller('StatsCtrl', function($scope, $http) {
             }
         );
     }
+
+    // init
+    $scope.select();
 });
 
 closeApp.controller('WorkersCtrl', function($scope, $http) {
