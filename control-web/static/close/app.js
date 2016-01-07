@@ -13,6 +13,14 @@ closeApp.config(function($routeProvider){
             templateUrl: '/close/worker.html',
             controller: 'WorkerCtrl'
         })
+        .when('/docker', {
+            templateUrl: '/close/docker-index.html',
+            controller: 'DockerIndexCtrl',
+        })
+        .when('/docker/:id', {
+            templateUrl: '/close/docker.html',
+            controller: 'DockerCtrl',
+        })
         .when('/stats', {
             templateUrl: '/close/stats.html',
             controller: 'StatsCtrl',
@@ -123,6 +131,24 @@ closeApp.controller('WorkersCtrl', function($scope, $http) {
         $scope.configWorkers = data;
     });
 });
+
+closeApp.controller('DockerIndexCtrl', function($scope, $http) {
+    $http.get('/api/docker/').success(function(data){
+        $scope.dockerContainers = data;
+    });
+});
+
+closeApp.controller('DockerCtrl', function($scope, $routeParams, $http) {
+    $scope.dockerID = $routeParams.id;
+
+    $http.get('/api/docker/' + $scope.dockerID).success(function(data){
+        $scope.dockerContainer = data;
+    });
+    $http.get('/api/docker/' + $scope.dockerID + '/logs').success(function(data){
+        $scope.dockerLogs = data;
+    });
+});
+
 
 closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams) {
     $scope.closeType = $routeParams.type;

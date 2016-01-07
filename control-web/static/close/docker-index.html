@@ -1,0 +1,26 @@
+<div class="page-header"> 
+    <h2>Docker</h2>
+</div>
+
+<table class="table docker">
+    <thead>
+        <tr>
+            <th>Type</td>
+            <th>ID</th>
+            <th>Node</th>
+            <th>Status</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr ng-repeat="dockerContainer in dockerContainers">
+            <td>{{dockerContainer.worker_type}}</td>
+            <td>{{dockerContainer.worker_id}}</td>
+            <td>{{dockerContainer.node}}</td>
+            <td>{{dockerContainer.status}}</td>
+            <td>
+                <a href="#/docker/{{dockerContainer.id}}"><span class="glyphicon glyphicon-zoom-in"></span></a>
+            </td>
+        </tr>
+    </tbody>
+</table>

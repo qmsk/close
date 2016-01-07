@@ -7,6 +7,30 @@ import (
     "time"
 )
 
+func (self *Manager) GetDockerList(w rest.ResponseWriter, req *rest.Request) {
+    if list, err := self.DockerList(); err != nil {
+        rest.Error(w, err.Error(), 500)
+    } else {
+        w.WriteJson(list)
+    }
+}
+
+func (self *Manager) GetDocker(w rest.ResponseWriter, req *rest.Request) {
+    if list, err := self.DockerGet(req.PathParam("id")); err != nil {
+        rest.Error(w, err.Error(), 500)
+    } else {
+        w.WriteJson(list)
+    }
+}
+
+func (self *Manager) GetDockerLogs(w rest.ResponseWriter, req *rest.Request) {
+    if list, err := self.DockerLogs(req.PathParam("id")); err != nil {
+        rest.Error(w, err.Error(), 500)
+    } else {
+        w.WriteJson(list)
+    }
+}
+
 func (self *Manager) GetConfigList(w rest.ResponseWriter, req *rest.Request) {
     subFilter := config.SubOptions{Type: req.PathParam("type")}
 
@@ -125,6 +149,11 @@ func (self *Manager) GetStats(w rest.ResponseWriter, req *rest.Request) {
 
 func (self *Manager) RestApp() (rest.App, error) {
     return rest.MakeRouter(
+        // list active containers
+        rest.Get("/docker/", self.GetDockerList),
+        rest.Get("/docker/:id", self.GetDocker),
+        rest.Get("/docker/:id/logs", self.GetDockerLogs),
+
         // list active config items, with TTL
         rest.Get("/config/", self.GetConfigList),
         rest.Get("/config/:type", self.GetConfigList),

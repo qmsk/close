@@ -19,10 +19,13 @@ type Manager struct {
     configRedis     *config.Redis
     statsReader     *stats.Reader
     dockerClient    *docker.Client
+    dockerName      string
 }
 
 func New(options Options) (*Manager, error) {
-    self := &Manager{}
+    self := &Manager{
+        options:    options,
+    }
 
     if err := self.init(options); err != nil {
         return nil, err
@@ -58,6 +61,12 @@ func (self *Manager) init(options Options) error {
         } else {
             self.dockerClient = dockerClient
         }
+    }
+
+    if dockerInfo, err := self.dockerClient.Info(); err != nil {
+        return fmt.Errorf("dockerClient.Info: %v", err)
+    } else {
+        self.dockerName = dockerInfo.Get("name")
     }
 
     return nil
