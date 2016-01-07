@@ -4,6 +4,7 @@ import (
     "golang.org/x/net/icmp"
     "golang.org/x/net/ipv4"
     "close/stats"
+    "close/config"
     "os"
     "log"
     "fmt"
@@ -61,6 +62,9 @@ type Pinger struct {
     conn        *icmp.PacketConn
     seq         int
 
+    config   PingConfig
+    configC  chan config.Config
+
     statsInterval   time.Duration
     rttC            chan  stats.Stats
 
@@ -68,25 +72,36 @@ type Pinger struct {
     receiverC   chan  pingResult
 
     startTimes  map[int]time.Time
+
+    log         *log.Logger
 }
 
 func NewPinger(config PingConfig) (*Pinger, error) {
     p := &Pinger {
         target: config.Target,
         seq: 1,
+        log:    log.New(os.Stderr, "ping: ", 0),
     }
 
+    if err := p.init(config); err != nil {
+        return nil, err
+    } else {
+        return p, nil
+    }
+}
+
+func (p *Pinger) init(config PingConfig) error {
     conn, err := icmp.ListenPacket("udp4", "0.0.0.0")
     if err != nil {
-        log.Printf("Could not start listening: %s\n", err)
-        return nil, err
+        p.log.Printf("Could not start listening: %s\n", err)
+        return err
     }
     p.conn = conn
 
     udpAddr, err := getAddr(config.Target)
     if err != nil {
-        log.Printf("Could not resolve remote address: %s\n", err)
-        return nil, err
+        p.log.Printf("Could not resolve remote address: %s\n", err)
+        return err
     }
 
     p.dst = udpAddr
@@ -94,10 +109,12 @@ func NewPinger(config PingConfig) (*Pinger, error) {
     p.receiverC = make(chan pingResult)
     p.startTimes = make(map[int]time.Time)
 
+    p.config = config
+
     go p.receiver()
     go p.manager()
 
-    return p, nil
+    return nil
 }
 
 func (p *Pinger) Close() {
@@ -118,9 +135,27 @@ func (p *Pinger) GiveStats(interval time.Duration) chan stats.Stats {
     return p.rttC
 }
 
+func (p *Pinger) ConfigFrom(configRedis *config.Redis) (*config.Sub, error) {
+    // copy for updates
+    updateConfig := p.config
+
+    if configSub, err := configRedis.Sub(config.SubOptions{"ping", p.target}); err != nil {
+        return nil, err
+    } else if configChan, err := configSub.Start(&updateConfig); err != nil {
+        return nil, err
+    } else {
+        p.configC = configChan
+
+        return configSub, nil
+    }
+}
+
 func (p *Pinger) manager() {
     for {
         select {
+        case <-p.senderC:
+            p.ping()
+
         case result, ok := <-p.receiverC:
             if !ok {
                 break
@@ -140,8 +175,11 @@ func (p *Pinger) manager() {
                 }
                 delete(p.startTimes, result.Seq)
             }
-        case <-p.senderC:
-            p.ping()
+
+        case configConfig := <-p.configC:
+            config := configConfig.(*PingConfig)
+
+            p.log.Printf("config: %v\n", config)
 //      case <-expiryTicker.C:
         }
     }
@@ -163,14 +201,14 @@ func (p *Pinger) ping() {
 
     wb, err := wm.Marshal(nil)
     if err != nil {
-        log.Printf("Could not marshal ICMP message: %s\n", err)
+        p.log.Printf("Could not marshal ICMP message: %s\n", err)
     }
 
     p.startTimes[seq] = time.Now()
 
     n, err := p.conn.WriteTo(wb, p.dst)
     if n != len(wb) || err != nil {
-        log.Printf("Could not send the packet: %s\n", err)
+        p.log.Printf("Could not send the packet: %s\n", err)
         delete(p.startTimes, seq)
     }
 }
@@ -179,7 +217,7 @@ func (p *Pinger) receiver() {
     // If the receiver channel was closed then trying to send on it will panic
     defer func() {
         if r := recover(); r != nil {
-            log.Println("Recovered in Pinger.receiver()", r)
+            p.log.Println("Recovered in Pinger.receiver()", r)
         }
     }()
     for {
@@ -187,7 +225,7 @@ func (p *Pinger) receiver() {
         n, _, err := p.conn.ReadFrom(rb)
         // TODO If the connection is closed quit the loop
         if err != nil {
-            log.Printf("Could not read the ICMP reply: %s\n", err)
+            p.log.Printf("Could not read the ICMP reply: %s\n", err)
             continue
         }
 
@@ -196,7 +234,7 @@ func (p *Pinger) receiver() {
         // IANA ICMP v4 protocol is 1
         rm, err := icmp.ParseMessage(1, rb[:n])
         if err != nil {
-            log.Printf("Could not parse the ICMP reply: %s\n", err)
+            p.log.Printf("Could not parse the ICMP reply: %s\n", err)
             continue
         }
 

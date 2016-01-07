@@ -3,6 +3,7 @@ package main
 import (
     "close/ping"
     "close/stats"
+    "close/config"
     "time"
     "log"
     "flag"
@@ -10,8 +11,9 @@ import (
 )
 
 var (
-    statsConfig   stats.Config
-    pingConfig    ping.PingConfig
+    statsConfig     stats.Config
+    pingConfig      ping.PingConfig
+    configOptions   config.Options
 )
 
 func init() {
@@ -21,6 +23,7 @@ func init() {
         "influxdb http://... address")
     flag.StringVar(&statsConfig.InfluxDBDatabase, "influxdb-database", stats.INFLUXDB_DATABASE,
         "influxdb database name")
+
     flag.StringVar(&statsConfig.Hostname, "stats-hostname", os.Getenv("STATS_HOSTNAME"),
         "hostname to uniquely identify this source")
     flag.StringVar(&statsConfig.Instance, "stats-instance", os.Getenv("STATS_INSTANCE"),
@@ -30,13 +33,18 @@ func init() {
     flag.BoolVar(&statsConfig.Print, "stats-print", false,
         "display stats on stdout")
 
-    flag.StringVar(&config.Target, "ping", "8.8.8.8",
+    flag.StringVar(&configOptions.Redis.Addr, "config-redis-addr", "",
+        "host:port")
+    flag.Int64Var(&configOptions.Redis.DB, "config-redis-db", 0,
+        "Database to select")
+    flag.StringVar(&configOptions.Prefix, "config-prefix", "close",
+        "Redis key prefix")
+
+    flag.StringVar(&pingConfig.Target, "ping", "8.8.8.8",
         "target host to send ICMP echos to")
 }
 
-func collectLatency(p *ping.Pinger, w *stats.Writer) {
-    w.WriteFrom(p)
-
+func collectLatency(p *ping.Pinger) {
     ticker := time.NewTicker(time.Second)
     for {
         <-ticker.C
@@ -47,14 +55,6 @@ func collectLatency(p *ping.Pinger, w *stats.Writer) {
 func main() {
     flag.Parse()
 
-    // stats
-    statsWriter, err := stats.NewWriter(statsConfig)
-    if err != nil {
-        log.Fatalf("stats.NewWriter %v: %v\n", statsConfig, err)
-    } else {
-        log.Printf("stats.NewWriter %v: %v\n", statsConfig, statsWriter)
-    }
-
     p, err := ping.NewPinger(pingConfig)
     if err != nil {
         log.Panicf("ping.NewPinger %v: %v\n", pingConfig, err)
@@ -63,5 +63,27 @@ func main() {
     }
     defer p.Close()
 
-    collectLatency(p, statsWriter)
+    // config
+    if configOptions.Redis.Addr == "" {
+
+    } else if configRedis, err := config.NewRedis(configOptions); err != nil {
+        log.Fatalf("config.NewRedis %v: %v\n", configOptions, err)
+    } else if configSub, err := p.ConfigFrom(configRedis); err != nil {
+        log.Fatalf("ping.ConfigFrom %v: %v\n", configRedis, err)
+    } else {
+        log.Printf("ping.ConfigFrom: %v\n", configSub)
+    }
+
+    // stats
+    statsWriter, err := stats.NewWriter(statsConfig)
+    if err != nil {
+        log.Fatalf("stats.NewWriter %v: %v\n", statsConfig, err)
+    } else {
+        log.Printf("stats.NewWriter %v: %v\n", statsConfig, statsWriter)
+
+        statsWriter.WriteFrom(p)
+    }
+
+
+    collectLatency(p)
 }
