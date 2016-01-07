@@ -5,42 +5,158 @@ import (
     "github.com/fsouza/go-dockerclient"
     "fmt"
     "log"
+    "sort"
     "strings"
 )
 
-const DOCKER_LABEL="net.qmsk.close.worker"
+const DOCKER_STOP_TIMEOUT = 10 // seconds
 
-type DockerContainer struct {
-    Name        string          `json:"name"`
+type DockerID struct {
+    WorkerType  string          `json:"worker_type"`
+    WorkerID    uint            `json:"worker_id"`
+}
+
+// Docker name
+func (self DockerID) String() string {
+    return fmt.Sprintf("close_%s_%d", self.WorkerType, self.WorkerID)
+}
+
+func (self DockerID) labels() map[string]string {
+    return map[string]string{
+        "close.worker":     self.WorkerType,
+        "close.worker-id":  fmt.Sprintf("%d", self.WorkerID),
+    }
+}
+
+func (self *DockerID) parseID(name string, labels map[string]string) error {
+    // docker swarm "/node/name"
+    // docker "/name"
+    namePath := strings.Split(name, "/")
+    name = namePath[len(namePath) - 1]
+
+    if worker := labels["close.worker"]; worker == "" {
+        return fmt.Errorf("missing close.worker=")
+    } else {
+        self.WorkerType = worker
+    }
+
+    if workerID := labels["close.worker-id"]; workerID == "" {
+        return fmt.Errorf("missing close.worker-id=")
+    } else if _, err := fmt.Sscan(workerID, &self.WorkerID); err != nil {
+        return fmt.Errorf("invalid close.worker-id=%v: %v", workerID, err)
+    }
+
+    if name != self.String() {
+        return fmt.Errorf("name mismatch %v: %v", name, self)
+    }
+
+    return nil
+}
+
+// configuration for container
+// read-only; requires remove/create to change
+type DockerConfig struct {
     Image       string          `json:"image"`
     Command     string          `json:"command"`
     Args        []string        `json:"args"`
     Env         []string        `json:"env"`
+}
 
-    WorkerType  string          `json:"worker_type"`
-    WorkerID    uint            `json:"worker_id"`
+func configFromDocker(dockerContainer *docker.Container) DockerConfig {
+    return DockerConfig{
+        Image:          dockerContainer.Config.Image,
+        Command:        dockerContainer.Config.Cmd[0],
+        Args:           dockerContainer.Config.Cmd[1:],
+        Env:            dockerContainer.Config.Env,
+    }
+}
+
+func (self *DockerConfig) normalize() {
+    sort.Strings(self.Env)
+}
+
+// Compare config against running config for compatibility
+// The running config will include additional stuff from the image..
+func (self DockerConfig) Equals(other DockerConfig) bool {
+    if other.Image != self.Image {
+        return false
+    }
+    if other.Command != self.Command {
+        return false
+    }
+
+    // args must match exactly
+    if len(self.Args) != len(other.Args) {
+        return false
+    }
+    for i := 0; i < len(self.Args) && i < len(other.Args); i++ {
+        if self.Args[i] != other.Args[i] {
+            return false
+        }
+    }
+
+    // env needs to be a subset
+checkEnv:
+    for i, j := 0, 0; i < len(self.Env); i++ {
+        for ; j < len(other.Env); j++ {
+            if self.Env[i] == other.Env[j] {
+                continue checkEnv // next self.Env[i++]
+            }
+        }
+
+        // inner for loop went to end of other.Env[j]
+        return false
+    }
+
+    return true
+}
+
+// Running docker container
+type DockerContainer struct {
+    DockerID
+
+    // Config
+    Config      DockerConfig    `json:"config"`
 
     // Status
-    Node        string          `json:"node"`
     ID          string          `json:"id"`
+    Node        string          `json:"node"`
+    Name        string          `json:"name"`
     Status      string          `json:"status"`
     Running     bool            `json:"running"`
 }
 
-func (self *DockerContainer) AddFlag(name string, value interface{}) {
+func (self *DockerConfig) AddFlag(name string, value interface{}) {
     arg := fmt.Sprintf("-%s=%v", name, value)
 
     self.Args = append(self.Args, arg)
 }
 
-func (self *DockerContainer) AddArg(arg string) {
+func (self *DockerConfig) AddArg(arg string) {
     self.Args = append(self.Args, arg)
 }
 
-func (self *DockerContainer) AddEnv(name string, value interface{}) {
+func (self *DockerConfig) AddEnv(name string, value interface{}) {
     env := fmt.Sprintf("%s=%v", name, value)
 
     self.Env = append(self.Env, env)
+}
+
+func (self *DockerContainer) updateStatus(dockerContainer *docker.Container) {
+    // docker swarm "/node/name"
+    // docker "/name"
+    namePath := strings.Split(dockerContainer.Name, "/")
+    name := namePath[len(namePath) - 1]
+
+    self.ID = dockerContainer.ID
+    self.Name = name
+
+    if dockerContainer.Node != nil {
+        self.Node = dockerContainer.Node.Name
+    }
+
+    self.Status = dockerContainer.State.String()
+    self.Running = dockerContainer.State.Running
 }
 
 func (self *Manager) DockerList() (containers []DockerContainer, err error) {
@@ -74,42 +190,17 @@ func (self *Manager) DockerGet(id string) (DockerContainer, error) {
     }
 
     container := DockerContainer{
-        ID:             dockerContainer.ID,
-        Image:          dockerContainer.Config.Image,
-        Command:        dockerContainer.Config.Cmd[0],
-        Args:           dockerContainer.Config.Cmd[1:],
-        Env:            dockerContainer.Config.Env,
-
-        WorkerType:     dockerContainer.Config.Labels["close.worker"],
-
-        Status:         dockerContainer.State.String(),
-        Running:        dockerContainer.State.Running,
+        Config: configFromDocker(dockerContainer),
     }
 
-    // parse name
-    nameParts := strings.Split(dockerContainer.Name, "/")
+    container.Config.normalize()
 
-    if len(nameParts) == 3 {
-        // docker swarm "/node/name" style
-        container.Node = nameParts[1]
-        container.Name = nameParts[2]
-    } else if len(nameParts) == 2 {
-        // normal docker "/name"
-        container.Node = self.dockerName
-        container.Name = nameParts[1]
-    } else {
-        return container, fmt.Errorf("invalid name=%v\n", dockerContainer.Name)
+    // ID
+    if err := container.parseID(dockerContainer.Name, dockerContainer.Config.Labels); err != nil {
+        return container, err
     }
 
-    if dockerContainer.Node != nil {
-        container.Node = dockerContainer.Node.Name
-    } else {
-        container.Node = self.dockerName
-    }
-
-    if _, err := fmt.Sscan(dockerContainer.Config.Labels["close.worker-id"], &container.WorkerID); err != nil {
-        return container, fmt.Errorf("invalid close.worker-index=%v: %v", dockerContainer.Config.Labels["close.worker-id"], err)
-    }
+    container.updateStatus(dockerContainer)
 
     return container, nil
 }
@@ -132,57 +223,70 @@ func (self *Manager) DockerLogs(id string) (string, error) {
     return buf.String(), nil
 }
 
-func (self *Manager) DockerUp(container DockerContainer) (DockerContainer, error) {
-    // TODO: check existing?
-    // TODO Node: Env constraint:node==
-    opts := docker.CreateContainerOptions{
-        Name:   container.Name,
-        Config: &docker.Config{
-            Hostname:   container.Name,
-            Env:        container.Env,
-            Cmd:        append([]string{container.Command}, container.Args...),
-            Image:      container.Image,
-            Labels:     map[string]string{
-                "close.worker": container.WorkerType,
-                "close.worker-id":  fmt.Sprintf("%d", container.WorkerID),
-            },
-        },
-        HostConfig: &docker.HostConfig{
+func (self *Manager) DockerUp(id DockerID, config DockerConfig) (DockerContainer, error) {
+    config.normalize()
 
-        },
-    }
+    // check
+    container, err := self.DockerGet(id.String())
 
-    // create or get
-    dockerContainer, err := self.dockerClient.CreateContainer(opts)
-    if err == nil {
-        log.Printf("Manager.DockerUp %v: created\n", container.Name)
-    } else if err == docker.ErrContainerAlreadyExists {
-        log.Printf("Manager.DockerUp %v: exists\n", container.Name)
-        dockerContainer, err = self.dockerClient.InspectContainer(container.Name)
-    }
+    if _, ok := err.(*docker.NoSuchContainer); ok {
+        // create
+        container = DockerContainer{DockerID:id, Config: config}
 
-    if err != nil {
+    } else if err != nil {
         return container, err
-    }
 
-    // info
-    container.ID = dockerContainer.ID
+    } else if config.Equals(container.Config) {
+        log.Printf("Manager.DockerUp %v: exists\n", container)
 
-    if dockerContainer.Node != nil {
-        container.Node = dockerContainer.Node.Name
     } else {
-        container.Node = self.dockerName
+        log.Printf("Manager.DockerUp %v: old-config %v\n", container, container.Config)
+        log.Printf("Manager.DockerUp %v: new-config %v\n", container, config)
+
+        // cleanup to replace with our config
+        log.Printf("Manager.DockerUp %v: destroy %v...\n", container, container.ID)
+
+        if err := self.dockerClient.RemoveContainer(docker.RemoveContainerOptions{ID: container.ID, Force: true}); err != nil {
+            return container, fmt.Errorf("dockerClient.RemoveContainer %v: %v", container.ID, err)
+        }
+
+        // create
+        container = DockerContainer{DockerID:id, Config: config}
     }
-    container.Running = dockerContainer.State.Running
-    container.Status = dockerContainer.State.String()
+
+    if container.ID == "" {
+        // does not exist; create
+        createOptions := docker.CreateContainerOptions{
+            Name:   container.String(),
+            Config: &docker.Config{
+                Hostname:   container.String(),
+                Env:        container.Config.Env,
+                Cmd:        append([]string{container.Config.Command}, container.Config.Args...),
+                Image:      container.Config.Image,
+                Labels:     container.labels(),
+            },
+            HostConfig: &docker.HostConfig{
+
+            },
+        }
+
+        log.Printf("Manager.DockerUp %v: create...\n", container)
+
+        if dockerContainer, err := self.dockerClient.CreateContainer(createOptions); err != nil {
+            return container, err
+        } else {
+            // status
+            container.updateStatus(dockerContainer)
+        }
+    }
 
     // running
     if container.Running {
-        log.Printf("Manager.DockerUp %v: running\n", container.Name)
+        log.Printf("Manager.DockerUp %v: running\n", container)
     } else if err := self.dockerClient.StartContainer(container.ID, nil); err != nil {
         return container, fmt.Errorf("dockerClient.StartContainer %v: %v", container.ID, err)
     } else {
-        log.Printf("Manager.DockerUp %v: started\n", container.Name)
+        log.Printf("Manager.DockerUp %v: started\n", container)
 
         container.Running = true
     }
