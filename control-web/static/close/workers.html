@@ -5,7 +5,7 @@
 <table class="table workers">
     <thead>
         <tr>
-            <th>Module</td>
+            <th>Type</td>
             <th>ID</th>
             <th>TTL</th>
             <th></th>
@@ -13,11 +13,11 @@
     </thead>
     <tbody>
         <tr ng-repeat="workerConfig in configWorkers">
-            <td>{{workerConfig.module}}</td>
+            <td>{{workerConfig.type}}</td>
             <td>{{workerConfig.id}}</td>
             <td>{{workerConfig.ttl}}</td>
             <td>
-                <a href="#/workers/{{workerConfig.module}}/{{workerConfig.id}}"><span class="glyphicon glyphicon-zoom-in"></span></a>
+                <a href="#/workers/{{workerConfig.type}}/{{workerConfig.id}}"><span class="glyphicon glyphicon-zoom-in"></span></a>
             </td>
         </tr>
     </tbody>

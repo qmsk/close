@@ -13,22 +13,22 @@ type ConfigItem struct {
 }
 
 func (self *Manager) ConfigList(filter config.SubOptions) (configs []ConfigItem, err error) {
-    var modules []string
+    var types []string
 
-    if filter.Module == "" {
-        if listModules, err := self.configRedis.ListModules(); err != nil {
-            return nil, fmt.Errorf("config.Redis %v: ListModules: %v", self.configRedis, err)
+    if filter.Type == "" {
+        if listTypes, err := self.configRedis.ListTypes(); err != nil {
+            return nil, fmt.Errorf("config.Redis %v: ListTypes: %v", self.configRedis, err)
         } else {
-            modules = listModules
+            types = listTypes
         }
     } else {
-        modules = []string{filter.Module}
+        types = []string{filter.Type}
     }
 
-    for _, module := range modules {
-        subs, err := self.configRedis.List(module)
+    for _, subType := range types {
+        subs, err := self.configRedis.List(subType)
         if err != nil {
-            return nil, fmt.Errorf("config.Redis %v: List %v: %v", self.configRedis, module, err)
+            return nil, fmt.Errorf("config.Redis %v: List %v: %v", self.configRedis, subType, err)
         }
 
         for _, configSub := range subs {

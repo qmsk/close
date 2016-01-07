@@ -8,7 +8,7 @@ import (
 )
 
 func (self *Manager) GetConfigList(w rest.ResponseWriter, req *rest.Request) {
-    subFilter := config.SubOptions{Module: req.PathParam("module")}
+    subFilter := config.SubOptions{Type: req.PathParam("type")}
 
     if list, err := self.ConfigList(subFilter); err != nil {
         rest.Error(w, err.Error(), 500)
@@ -18,9 +18,9 @@ func (self *Manager) GetConfigList(w rest.ResponseWriter, req *rest.Request) {
 }
 
 func (self *Manager) GetConfig(w rest.ResponseWriter, req *rest.Request) {
-    subOptions := config.SubOptions{Module: req.PathParam("module"), ID: req.PathParam("id")}
-
-    if config, err := self.ConfigGet(subOptions); err != nil {
+    if subOptions, err := config.ParseSub(req.PathParam("type"), req.PathParam("id")); err != nil {
+        rest.Error(w, err.Error(), 400)
+    } else if config, err := self.ConfigGet(subOptions); err != nil {
         rest.Error(w, err.Error(), 500)
     } else {
         w.WriteJson(config)
@@ -28,15 +28,16 @@ func (self *Manager) GetConfig(w rest.ResponseWriter, req *rest.Request) {
 }
 
 func (self *Manager) PostConfig(w rest.ResponseWriter, req *rest.Request) {
-    subOptions := config.SubOptions{Module: req.PathParam("module"), ID: req.PathParam("id")}
-    config := make(map[string]interface{})
+    configMap := make(config.ConfigMap)
 
-    if err := req.DecodeJsonPayload(&config); err != nil {
+    if err := req.DecodeJsonPayload(&configMap); err != nil {
         rest.Error(w, err.Error(), 400)
         return
     }
 
-    if err := self.ConfigPush(subOptions, config); err != nil {
+    if subOptions, err := config.ParseSub(req.PathParam("type"), req.PathParam("id")); err != nil {
+        rest.Error(w, err.Error(), 400)
+    } else if err := self.ConfigPush(subOptions, configMap); err != nil {
         rest.Error(w, err.Error(), 500)
     } else {
         // TODO: redirect to GET?
@@ -126,13 +127,13 @@ func (self *Manager) RestApp() (rest.App, error) {
     return rest.MakeRouter(
         // list active config items, with TTL
         rest.Get("/config/", self.GetConfigList),
-        rest.Get("/config/:module", self.GetConfigList),
+        rest.Get("/config/:type", self.GetConfigList),
 
         // get full config
-        rest.Get("/config/:module/:id", self.GetConfig),
+        rest.Get("/config/:type/:id", self.GetConfig),
 
         // publish config change to worker
-        rest.Post("/config/:module/:id", self.PostConfig),
+        rest.Post("/config/:type/:id", self.PostConfig),
 
         // static information about available stats types/fields
         rest.Get("/stats", self.GetStatsTypes),
