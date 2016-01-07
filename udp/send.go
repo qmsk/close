@@ -57,7 +57,7 @@ func (self SendStats) RateError() float64 {
 }
 
 func (self SendStats) StatsInstance() string {
-    return fmt.Sprintf("%016x", self.ID)
+    return fmt.Sprintf("%d", self.ID)
 }
 
 func (self SendStats) StatsFields() map[string]interface{} {
@@ -204,7 +204,7 @@ func (self *Send) initIP(config SendConfig) error {
 }
 
 func (self *Send) ID() string {
-    return fmt.Sprintf("%016x", self.config.ID)
+    return fmt.Sprintf("%d", self.config.ID)
 }
 
 func (self *Send) GiveStats(interval time.Duration) chan stats.Stats {
