@@ -7,6 +7,31 @@ import (
     "time"
 )
 
+type APIGet struct {
+    WorkerConfig        string          `json:"worker_config"`
+    Workers             []WorkerStatus  `json:"workers"`
+}
+
+func (self *Manager) Get(w rest.ResponseWriter, req *rest.Request) {
+    out := APIGet{}
+
+    if workerConfig, err := self.WorkerConfig(); err != nil {
+        rest.Error(w, err.Error(), 500)
+        return
+    } else {
+        out.WorkerConfig = workerConfig
+    }
+
+    if listWorkers, err := self.ListWorkers(); err != nil {
+        rest.Error(w, err.Error(), 500)
+        return
+    } else {
+        out.Workers = listWorkers
+    }
+
+    w.WriteJson(out)
+}
+
 func (self *Manager) GetDockerList(w rest.ResponseWriter, req *rest.Request) {
     if list, err := self.DockerList(); err != nil {
         rest.Error(w, err.Error(), 500)
@@ -149,6 +174,8 @@ func (self *Manager) GetStats(w rest.ResponseWriter, req *rest.Request) {
 
 func (self *Manager) RestApp() (rest.App, error) {
     return rest.MakeRouter(
+        rest.Get("/", self.Get),
+
         // list active containers
         rest.Get("/docker/", self.GetDockerList),
         rest.Get("/docker/:id", self.GetDocker),

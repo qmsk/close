@@ -45,6 +45,83 @@ closeApp.controller('HeaderController', function($scope, $location) {
     };
 });
 
+closeApp.controller('WorkersCtrl', function($scope, $http) {
+    $http.get('/api/').success(function(data){
+        $scope.workerConfig = data.worker_config;
+        $scope.workers = data.workers;
+    });
+});
+
+closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams) {
+    $scope.closeType = $routeParams.type;
+    $scope.closeInstance = $routeParams.id;
+
+    var statsType = $routeParams.type;
+    var statsInstance = $routeParams.id;
+
+    switch ($scope.closeType) {
+    case "udp":
+        statsType = "udp_send";
+    }
+    
+    $http.get('/api/config/' + $routeParams.type + '/' + $routeParams.id).success(function(data){
+        $scope.workerConfig = data;
+    });
+
+    $scope.chartOptions = {
+        xaxis: { mode: "time" },
+    };
+    $http.get('/api/stats/' + statsType + '/', {params:{instance: statsInstance}}).success(function(data){
+        if (data) {
+            $scope.statsData = data.map(function(series){
+                return [{
+                    label: series.field,
+                    data: mapStatsData(series)
+                }];
+            });
+        }
+    });
+
+    // shadow copy of workerConfig, used as the <input ng-model> to POST any changed fields
+    $scope.postConfig = {};
+
+    // The config is POST'd as JSON, so the type of the value must match - we cannot POST a number value as a string
+    // Angular can preserve the <input ng-model> value's type, as long as we use the right <input type>
+    $scope.inputType = function(value) {
+        switch (typeof value) {
+            case "string":  return "text";
+            case "number":  return "number";
+            case "boolean": return "checkbox";
+            default:        return false;
+        }
+    }
+
+    // POST any changed config <form> fields to the server for the worker to apply
+    $scope.submitConfig = function() {
+        // only changed fields
+        $http.post('/api/config/' + $routeParams.type + '/' + $routeParams.id, $scope.postConfig, {
+            headers: { 'Content-Type': 'application/json' },
+        });
+    };
+});
+
+closeApp.controller('DockerIndexCtrl', function($scope, $http) {
+    $http.get('/api/docker/').success(function(data){
+        $scope.dockerContainers = data;
+    });
+});
+
+closeApp.controller('DockerCtrl', function($scope, $routeParams, $http) {
+    $scope.dockerID = $routeParams.id;
+
+    $http.get('/api/docker/' + $scope.dockerID).success(function(data){
+        $scope.dockerContainer = data;
+    });
+    $http.get('/api/docker/' + $scope.dockerID + '/logs').success(function(data){
+        $scope.dockerLogs = data;
+    });
+});
+
 closeApp.controller('StatsCtrl', function($scope, $location, $routeParams, $http) {
     $scope.type = $routeParams.type;
     $scope.field = $routeParams.field;
@@ -124,81 +201,4 @@ closeApp.controller('StatsCtrl', function($scope, $location, $routeParams, $http
     $scope.select();
 });
 
-closeApp.controller('WorkersCtrl', function($scope, $http) {
-    $scope.configWorkers = {};
-    
-    $http.get('/api/config/').success(function(data){
-        $scope.configWorkers = data;
-    });
-});
 
-closeApp.controller('DockerIndexCtrl', function($scope, $http) {
-    $http.get('/api/docker/').success(function(data){
-        $scope.dockerContainers = data;
-    });
-});
-
-closeApp.controller('DockerCtrl', function($scope, $routeParams, $http) {
-    $scope.dockerID = $routeParams.id;
-
-    $http.get('/api/docker/' + $scope.dockerID).success(function(data){
-        $scope.dockerContainer = data;
-    });
-    $http.get('/api/docker/' + $scope.dockerID + '/logs').success(function(data){
-        $scope.dockerLogs = data;
-    });
-});
-
-
-closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams) {
-    $scope.closeType = $routeParams.type;
-    $scope.closeInstance = $routeParams.id;
-
-    var statsType = $routeParams.type;
-    var statsInstance = $routeParams.id;
-
-    switch ($scope.closeType) {
-    case "udp":
-        statsType = "udp_send";
-    }
-    
-    $http.get('/api/config/' + $routeParams.type + '/' + $routeParams.id).success(function(data){
-        $scope.workerConfig = data;
-    });
-
-    $scope.chartOptions = {
-        xaxis: { mode: "time" },
-    };
-    $http.get('/api/stats/' + statsType + '/', {params:{instance: statsInstance}}).success(function(data){
-        if (data) {
-            $scope.statsData = data.map(function(series){
-                return [{
-                    label: series.field,
-                    data: mapStatsData(series)
-                }];
-            });
-        }
-    });
-
-    // shadow copy of workerConfig, used as the <input ng-model> to POST any changed fields
-    $scope.postConfig = {};
-
-    // The config is POST'd as JSON, so the type of the value must match - we cannot POST a number value as a string
-    // Angular can preserve the <input ng-model> value's type, as long as we use the right <input type>
-    $scope.inputType = function(value) {
-        switch (typeof value) {
-            case "string":  return "text";
-            case "number":  return "number";
-            case "boolean": return "checkbox";
-            default:        return false;
-        }
-    }
-
-    // POST any changed config <form> fields to the server for the worker to apply
-    $scope.submitConfig = function() {
-        // only changed fields
-        $http.post('/api/config/' + $routeParams.type + '/' + $routeParams.id, $scope.postConfig, {
-            headers: { 'Content-Type': 'application/json' },
-        });
-    };
-});

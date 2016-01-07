@@ -12,6 +12,8 @@ import (
 var (
     controlOptions   control.Options
 
+    configPath      string
+
     httpDevel       bool
     httpListen      string
     staticPath      string
@@ -36,6 +38,9 @@ func init() {
         "host:port for HTTP API")
     flag.StringVar(&staticPath, "static-path", "",
         "Path to /static files")
+
+    flag.StringVar(&configPath, "config-path", "",
+        "Path to .toml config")
 }
 
 func main() {
@@ -44,6 +49,16 @@ func main() {
     manager, err := control.New(controlOptions)
     if err != nil {
         log.Fatal(err)
+    }
+
+    if configPath != "" {
+        if workerConfig, err := manager.LoadConfig(configPath); err != nil {
+            log.Fatalf("manager.LoadConfig %v: %v\n", configPath, err)
+        } else if err := manager.StartWorkers(workerConfig); err != nil {
+            log.Fatalf("manager.StartWorkers %v: %v\n", workerConfig, err)
+        } else {
+            log.Printf("Started workers from %v...\n", configPath)
+        }
     }
 
     // run

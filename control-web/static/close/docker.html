@@ -9,9 +9,12 @@
         {{dockerContainer.status}}
     </div>
 
-    <h2>Command</h2>
-    <p class="command">{{dockerContainer.command}}</p>
-    <p ng-repeat="arg in dockerContainer.args">{{arg}}</p>
+    <h2>Config</h2>
+    <h3>Image</h3>
+    <p>{{dockerContainer.config.image}}</p>
+    <h3>Command</h3>
+    <p class="command">{{dockerContainer.config.command}}</p>
+    <p ng-repeat="arg in dockerContainer.config.args">{{arg}}</p>
 
     <h2>Logs</h2>
     <pre>{{dockerLogs}}</pre>

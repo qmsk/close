@@ -20,11 +20,16 @@ type Manager struct {
     statsReader     *stats.Reader
     dockerClient    *docker.Client
     dockerName      string
+
+    workerConfig    *WorkerConfig               `json:"worker_config"` // active
+    workers         map[string]*Worker          `json:"workers"`
 }
 
 func New(options Options) (*Manager, error) {
     self := &Manager{
         options:    options,
+
+        workers:        make(map[string]*Worker),
     }
 
     if err := self.init(options); err != nil {

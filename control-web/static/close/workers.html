@@ -1,24 +1,38 @@
 <div class="page-header"> 
-    <h2>Worker Status</h2>
+    <h1>Workers</h1>
 </div>
 
-<table class="table workers">
-    <thead>
-        <tr>
-            <th>Type</td>
-            <th>ID</th>
-            <th>TTL</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr ng-repeat="workerConfig in configWorkers">
-            <td>{{workerConfig.type}}</td>
-            <td>{{workerConfig.id}}</td>
-            <td>{{workerConfig.ttl}}</td>
-            <td>
-                <a href="#/workers/{{workerConfig.type}}/{{workerConfig.id}}"><span class="glyphicon glyphicon-zoom-in"></span></a>
-            </td>
-        </tr>
-    </tbody>
-</table>
+<div>
+    <h2>Worker Config</h2>
+    <pre>{{workerConfig}}</pre>
+</div>
+
+<div>
+    <h2>Worker Status</h2>
+    <table class="table workers">
+        <thead>
+            <tr>
+                <th>Type</td>
+                <th>ID</th>
+                <th>Docker</th>
+                <th>Config</th>
+                <th>Rate</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr ng-repeat="worker in workers">
+                <td>{{worker.type}}</td>
+                <td>{{worker.id}}</td>
+                <td>
+                    <a href="#/docker/{{worker.docker}}">{{worker.docker_status}}</a>
+                </td>
+                <td>TTL={{worker.config_ttl}}</td>
+                <td>{{worker.rate}}</td>
+                <td>
+                    <a href="#/workers/{{worker.type}}/{{worker.id}}"><span class="glyphicon glyphicon-zoom-in"></span></a>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
