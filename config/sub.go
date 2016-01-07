@@ -15,24 +15,16 @@ const SUB_TTL = 10 * time.Second
 var subRegexp = regexp.MustCompile(`^(\w+):(\w+)$`)
 
 type SubOptions struct {
-    Module  string  `json:"module"`
+    Type    string  `json:"type"`
     ID      string  `json:"id"`
 }
 
 func (self SubOptions) String() string {
-    return fmt.Sprintf("%s:%s", self.Module, self.ID)
+    return fmt.Sprintf("%s:%s", self.Type, self.ID)
 }
 
-// Parse the SubOptions.String() format into a SubOptions
-func ParseSub(str string) (self SubOptions, err error) {
-    if match := subRegexp.FindStringSubmatch(str); match == nil {
-        return self, fmt.Errorf("Invalid sub name: %s", str)
-    } else {
-        self.Module = match[1]
-        self.ID = match[2]
-
-        return
-    }
+func ParseSub(subType string, id string) (SubOptions, error) {
+    return SubOptions{subType, id}, nil
 }
 
 type Sub struct {
@@ -47,7 +39,7 @@ type Sub struct {
 
 func (self *Sub) init(options SubOptions) error {
     self.options = options
-    self.path = self.redis.path(options.Module, options.ID)
+    self.path = self.redis.path(options.Type, fmt.Sprintf("%v", options.ID))
     self.log = log.New(os.Stderr, fmt.Sprintf("config.Sub %v: ", self.path), 0)
 
     return nil
@@ -114,7 +106,7 @@ func (self *Sub) sync(config Config) error {
 // register config in redis, maintaining both the ZSet and the object expiry keepalive under TTL
 func (self *Sub) register() {
     // registration set's path, vs self.path for our object
-    path := self.redis.path(self.options.Module, "")
+    path := self.redis.path(self.options.Type, "")
 
     expire := time.Now().Add(SUB_TTL)
     refreshTimer := time.Tick(SUB_TTL / 2)
@@ -183,8 +175,8 @@ func (self *Sub) Start(config Config) (chan Config, error) {
         return nil, err
     }
 
-    // register top-level module
-    if err := self.redis.registerModule(self.options.Module); err != nil {
+    // register top-level type
+    if err := self.redis.registerType(self.options.Type); err != nil {
         return nil, err
     }
 

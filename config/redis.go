@@ -44,8 +44,8 @@ func (self *Redis) path(parts...string) string {
     return path.Join(append([]string{self.prefix}, parts...)...)
 }
 
-func (self *Redis) registerModule(module string) error {
-    if err := self.redisClient.SAdd(self.path(), module).Err(); err != nil {
+func (self *Redis) registerType(subType string) error {
+    if err := self.redisClient.SAdd(self.path(), subType).Err(); err != nil {
         return err
     }
 
@@ -63,22 +63,26 @@ func (self *Redis) Sub(options SubOptions) (*Sub, error) {
     return sub, nil
 }
 
-// List all modules
-func (self *Redis) ListModules() ([]string, error) {
+// List all types
+func (self *Redis) ListTypes() ([]string, error) {
     return self.redisClient.SMembers(self.path()).Result()
 }
 
-// List all Subs, for given module
-func (self *Redis) List(module string) (subs []*Sub, err error) {
+// List all Subs, for given type
+func (self *Redis) List(subType string) (subs []*Sub, err error) {
     start := time.Now().Add(-SUB_TTL)
 
-    members, err := self.redisClient.ZRangeByScore(self.path(module, ""), redis.ZRangeByScore{Min: fmt.Sprintf("%v", start.Unix()), Max: "+inf"}).Result()
+    members, err := self.redisClient.ZRangeByScore(self.path(subType, ""), redis.ZRangeByScore{Min: fmt.Sprintf("%v", start.Unix()), Max: "+inf"}).Result()
     if err != nil {
         return nil, err
     }
 
     for _, subPath := range members {
-        subOptions := SubOptions{Module: module, ID: path.Base(subPath)}
+        subOptions, err := ParseSub(subType, path.Base(subPath))
+        if err != nil {
+            // gets returned
+            continue
+        }
 
         sub := &Sub{redis: self}
         sub.init(subOptions)
