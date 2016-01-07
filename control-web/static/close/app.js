@@ -45,11 +45,57 @@ closeApp.controller('HeaderController', function($scope, $location) {
     };
 });
 
-closeApp.controller('WorkersCtrl', function($scope, $http) {
+closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $http) {
     $http.get('/api/').success(function(data){
-        $scope.workerConfig = data.worker_config;
+        $scope.config = data.config;
         $scope.workers = data.workers;
+
+        $scope.statsChart(data.worker_config.RateStats);
     });
+
+    // XXX: copy-pasta
+    $scope.statsDuration = $routeParams.duration || "10s";
+    $scope.statsChart = function(stats) {
+        if (stats) {
+            $scope.stats = stats;
+        } else {
+            stats = $scope.stats
+        }
+        // update view state
+        $location.search('duration', $scope.statsDuration);
+
+        // update
+        var statsParams = {duration: $scope.statsDuration};
+
+        $scope.chartData = [];
+        $scope.chartAlert = null;
+
+        $http.get('/api/stats/' + stats, {params: statsParams}).then(
+            function success(r){
+                if (!r.data || r.data.length == 0) {
+                    $scope.chartAlert = "No Data";
+                    return;
+                }
+
+                $scope.chartOptions = {
+                    xaxis: { mode: "time" },
+                };
+                $scope.chartData = r.data.map(function(series){
+                    var label = series.type + "." + series.field + "@" + series.hostname + ":" + series.instance;
+
+                    console.log("stats: " + label);
+
+                    return {
+                        label: label,
+                        data: mapStatsData(series)
+                    };
+                });
+            },
+            function error(response){
+                $scope.chartAlert = r.data;
+            }
+        );
+    }
 });
 
 closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams) {
@@ -123,10 +169,6 @@ closeApp.controller('DockerCtrl', function($scope, $routeParams, $http) {
 });
 
 closeApp.controller('StatsCtrl', function($scope, $location, $routeParams, $http) {
-    $scope.type = $routeParams.type;
-    $scope.field = $routeParams.field;
-    $scope.duration = $routeParams.duration || "10s";
-
     $http.get('/api/stats').success(function(data){
         // [ {type: field:} ]
         $scope.statsMeta = $.map(data, function(meta){
@@ -143,25 +185,26 @@ closeApp.controller('StatsCtrl', function($scope, $location, $routeParams, $http
     /*
      * Select given {type: field:} for viewing
      */
-    $scope.select = function(fieldMeta) {
+    $scope.statsChart = function(fieldMeta) {
         if (fieldMeta) {
             $scope.type = fieldMeta.type;
             $scope.field = fieldMeta.field;
         } else if ($scope.type && $scope.field){
 
         } else {
-            // if duration changed without any field selected
-            return;
+            $scope.type = $routeParams.type;
+            $scope.field = $routeParams.field;
+            $scope.statsDuration = $routeParams.duration || "10s";
         }
 
         // update view state
         $location.search('type', $scope.type);
         $location.search('field', $scope.field);
-        $location.search('duration', $scope.duration);
+        $location.search('duration', $scope.statsDuration);
 
         // update
         var statsURL = '/api/stats/' + $scope.type + '/' + $scope.field;
-        var statsParams = {duration: $scope.duration};
+        var statsParams = {duration: $scope.statsDuration};
 
         console.log("get stats: " + statsURL + "?" + statsParams);
 
@@ -198,7 +241,7 @@ closeApp.controller('StatsCtrl', function($scope, $location, $routeParams, $http
     }
 
     // init
-    $scope.select();
+    $scope.statsChart();
 });
 
 

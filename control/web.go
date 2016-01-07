@@ -8,7 +8,8 @@ import (
 )
 
 type APIGet struct {
-    WorkerConfig        string          `json:"worker_config"`
+    Config              string          `json:"config"`
+    WorkerConfig        *WorkerConfig   `json:"worker_config"`
     Workers             []WorkerStatus  `json:"workers"`
 }
 
@@ -19,7 +20,8 @@ func (self *Manager) Get(w rest.ResponseWriter, req *rest.Request) {
         rest.Error(w, err.Error(), 500)
         return
     } else {
-        out.WorkerConfig = workerConfig
+        out.Config = workerConfig
+        out.WorkerConfig = self.workerConfig
     }
 
     if listWorkers, err := self.ListWorkers(); err != nil {

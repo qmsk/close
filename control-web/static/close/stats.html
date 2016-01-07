@@ -17,7 +17,7 @@
                     <td>{{meta.type}}</td>
                     <td>{{meta.field}}</td>
                     <td>
-                        <button ng-click="select(meta)">
+                        <button ng-click="statsChart(meta)">
                             <span class="glyphicon glyphicon-zoom-in"></span>
                         </button>
                     </td>
@@ -28,33 +28,6 @@
     <div class="col-md-6 chart">
         <h2 ng-if="fieldMeta">{{fieldMeta.type}}.{{fieldMeta.field}}</h2>
 
-        <div ng-if="chartAlert" class="alert alert-warning">
-            {{chartAlert}}
-        </div>
-
-        <flot dataset="chartData" options="chartOptions" width="100%" height="400px"></flot>
-
-        <div>
-            <label>
-                <input type="radio" name="duration" ng-model="duration" ng-change="select()" value="10s">
-                10 seconds
-            </label>
-            <label>
-                <input type="radio" name="duration" ng-model="duration" ng-change="select()" value="1m">
-                1 minute
-            </label>
-            <label>
-                <input type="radio" name="duration" ng-model="duration" ng-change="select()" value="15m">
-                15 minutes
-            </label>
-            <label>
-                <input type="radio" name="duration" ng-model="duration" ng-change="select()" value="1h">
-                1 hour
-            </label>
-
-            <button ng-click="select()">
-                <span class="glyphicon glyphicon-refresh"></span>
-            </button>
-        <div>
+        <ng-include src="'/close/stats-chart.html'"></ng-include>
     </div>
 </div>

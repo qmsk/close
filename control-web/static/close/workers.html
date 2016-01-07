@@ -3,12 +3,12 @@
 </div>
 
 <div>
-    <h2>Worker Config</h2>
-    <pre>{{workerConfig}}</pre>
+    <h2>Config</h2>
+    <pre>{{config}}</pre>
 </div>
 
 <div>
-    <h2>Worker Status</h2>
+    <h2>Status</h2>
     <table class="table workers">
         <thead>
             <tr>
@@ -35,4 +35,10 @@
             </tr>
         </tbody>
     </table>
+</div>
+
+<div>
+    <h2>Stats</h2>
+
+    <ng-include src="'/close/stats-chart.html'"></ng-include>
 </div>
