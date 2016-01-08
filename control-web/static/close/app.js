@@ -46,12 +46,45 @@ closeApp.controller('HeaderController', function($scope, $location) {
 });
 
 closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $http) {
-    $http.get('/api/').success(function(data){
-        $scope.config = data.config;
-        $scope.workers = data.workers;
+    $scope.busy = true;
+    $scope.get = function(){
+        $http.get('/api/workers').success(function(data){
+            $scope.config = data.config;
+            $scope.workers = data.workers;
 
-        $scope.statsChart(data.worker_config.RateStats);
-    });
+            $scope.busy = false;
+
+            if (data.worker_config) {
+                $scope.statsChart(data.worker_config.RateStats);
+            }
+        });
+    };
+
+    $scope.postConfig = function(){
+        $scope.busy = true;
+        $http.post('/api/workers', $scope.config).then(
+            function success(r){
+                $scope.configAlert = "Config OK";
+                $scope.get();
+            },
+            function error(r){
+                $scope.configAlert = r.data;
+            }
+        );
+    }
+
+    $scope.stop = function(){
+        $scope.busy = true;
+        $http.delete('/api/workers').then(
+            function success(r){
+                $scope.configAlert = "Workers stopped";
+                $scope.get();
+            },
+            function error(r){
+                $scope.configAlert = r.data;
+            }
+        );
+    }
 
     // XXX: copy-pasta
     $scope.statsDuration = $routeParams.duration || "10s";
@@ -96,6 +129,8 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
             }
         );
     }
+
+    $scope.get();
 });
 
 closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams) {

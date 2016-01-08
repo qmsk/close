@@ -1,10 +1,24 @@
 <div class="page-header"> 
+    <button ng-click="get()" class="pull-right">
+        <span class="glyphicon glyphicon-refresh"></span>
+    </button>
+    <button ng-click="stop()" class="pull-right">
+        <span class="glyphicon glyphicon-off"></span>
+    </button>
+    
     <h1>Workers</h1>
 </div>
 
-<div>
+<div class="config">
     <h2>Config</h2>
-    <pre>{{config}}</pre>
+    <div ng-if="configAlert" class="alert alert-warning">
+        {{configAlert}}
+    </div>
+
+    <form ng-submit="postConfig()">
+        <textarea ng-model="config" ng-disabled="busy"></textarea>
+        <button type="submit">Run</button>
+    </form>
 </div>
 
 <div>

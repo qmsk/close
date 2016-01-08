@@ -53,9 +53,22 @@ func (self *Manager) LoadConfig(filePath string) (workerConfig WorkerConfig, err
     return workerConfig, nil
 }
 
+func (self *Manager) LoadConfigString(data string) (workerConfig WorkerConfig, err error) {
+    if _, err := toml.Decode(data, &workerConfig); err != nil {
+        return workerConfig, err
+    }
+
+    return workerConfig, nil
+}
+
 // Setup workers from config
 func (self *Manager) StartWorkers(workerConfig WorkerConfig) error {
     self.workerConfig = &workerConfig
+
+    // mark
+    for _, worker := range self.workers {
+        worker.Config = nil
+    }
 
     for index := uint(1); index <= workerConfig.Count; index++ {
         dockerID := DockerID{WorkerType: workerConfig.Type, WorkerID: index}
@@ -94,7 +107,7 @@ func (self *Manager) StartWorkers(workerConfig WorkerConfig) error {
         } else {
             log.Printf("DockerUP %v: %v\n", workerConfig, container)
 
-            worker.dockerContainer = &container
+            worker.dockerContainer = container
         }
 
         if configSub, err := self.configRedis.Sub(config.SubOptions{Type: workerConfig.Type, ID: fmt.Sprintf("%d", worker.ID)}); err != nil {
@@ -106,7 +119,37 @@ func (self *Manager) StartWorkers(workerConfig WorkerConfig) error {
         self.workers[worker.String()] = worker
     }
 
+    // sweep
+    for key, worker := range self.workers {
+        if worker.Config != nil {
+            continue
+        }
+
+        if err := self.DockerDown(worker.dockerContainer); err != nil {
+            log.Printf("DockerDown %v: %v", worker.dockerContainer, err)
+        }
+
+        delete(self.workers, key)
+    }
+
     return nil
+}
+
+// Stop all running workers
+func (self *Manager) StopWorkers() (retErr error) {
+    self.workerConfig = nil
+
+    // sweep
+    for key, worker := range self.workers {
+        if err := self.DockerDown(worker.dockerContainer); err != nil {
+            log.Printf("DockerDown %v: %v", worker.dockerContainer, err)
+            retErr = err
+        }
+
+        delete(self.workers, key)
+    }
+
+    return retErr
 }
 
 type WorkerStatus struct {
@@ -124,7 +167,9 @@ type WorkerStatus struct {
 func (self *Manager) WorkerConfig() (string, error) {
     var buf bytes.Buffer
 
-    if err := toml.NewEncoder(&buf).Encode(self.workerConfig); err != nil {
+    if self.workerConfig == nil {
+
+    } else if err := toml.NewEncoder(&buf).Encode(self.workerConfig); err != nil {
         return "", err
     }
 
@@ -160,6 +205,8 @@ func (self *Manager) ListWorkers() (workers []WorkerStatus, err error) {
             // XXX: why isn't this always just json.Number?
             case float64:
                 workerStatus.Rate = json.Number(fmt.Sprintf("%v", rateValue))
+            case nil:
+                // XXX: not yet set...
             default:
                 return nil, fmt.Errorf("invalid %s RateConfig=%v value type %T: %#v", worker.Config.Type, worker.Config.RateConfig, rateValue, rateValue)
             }

@@ -5,16 +5,17 @@ import (
     "github.com/ant0ine/go-json-rest/rest"
     "close/stats"
     "time"
+    "github.com/BurntSushi/toml"
 )
 
-type APIGet struct {
+type APIWorkers struct {
     Config              string          `json:"config"`
     WorkerConfig        *WorkerConfig   `json:"worker_config"`
     Workers             []WorkerStatus  `json:"workers"`
 }
 
-func (self *Manager) Get(w rest.ResponseWriter, req *rest.Request) {
-    out := APIGet{}
+func (self *Manager) GetWorkers(w rest.ResponseWriter, req *rest.Request) {
+    out := APIWorkers{}
 
     if workerConfig, err := self.WorkerConfig(); err != nil {
         rest.Error(w, err.Error(), 500)
@@ -34,6 +35,31 @@ func (self *Manager) Get(w rest.ResponseWriter, req *rest.Request) {
     w.WriteJson(out)
 }
 
+func (self *Manager) PostWorkers(w rest.ResponseWriter, req *rest.Request) {
+    var workerConfig WorkerConfig
+
+    if _, err := toml.DecodeReader(req.Body, &workerConfig); err != nil {
+        rest.Error(w, err.Error(), 400)
+        return
+    }
+
+    if err := self.StartWorkers(workerConfig); err != nil {
+        rest.Error(w, err.Error(), 500)
+        return
+    } else {
+        // TODO: redirect to GET?
+        w.WriteHeader(200)
+    }
+}
+
+func (self *Manager) DeleteWorkers(w rest.ResponseWriter, req *rest.Request) {
+    if err := self.StopWorkers(); err != nil {
+        rest.Error(w, err.Error(), 500)
+    } else {
+        w.WriteHeader(200)
+    }
+}
+
 func (self *Manager) GetDockerList(w rest.ResponseWriter, req *rest.Request) {
     if list, err := self.DockerList(); err != nil {
         rest.Error(w, err.Error(), 500)
@@ -45,6 +71,8 @@ func (self *Manager) GetDockerList(w rest.ResponseWriter, req *rest.Request) {
 func (self *Manager) GetDocker(w rest.ResponseWriter, req *rest.Request) {
     if list, err := self.DockerGet(req.PathParam("id")); err != nil {
         rest.Error(w, err.Error(), 500)
+    } else if list == nil {
+        rest.Error(w, "Not Found", 404)
     } else {
         w.WriteJson(list)
     }
@@ -176,7 +204,9 @@ func (self *Manager) GetStats(w rest.ResponseWriter, req *rest.Request) {
 
 func (self *Manager) RestApp() (rest.App, error) {
     return rest.MakeRouter(
-        rest.Get("/", self.Get),
+        rest.Get("/workers", self.GetWorkers),
+        rest.Post("/workers", self.PostWorkers),
+        rest.Delete("/workers", self.DeleteWorkers),
 
         // list active containers
         rest.Get("/docker/", self.GetDockerList),

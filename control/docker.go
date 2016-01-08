@@ -159,7 +159,7 @@ func (self *DockerContainer) updateStatus(dockerContainer *docker.Container) {
     self.Running = dockerContainer.State.Running
 }
 
-func (self *Manager) DockerList() (containers []DockerContainer, err error) {
+func (self *Manager) DockerList() (containers []*DockerContainer, err error) {
     opts := docker.ListContainersOptions{
         All:        true,
         Filters:    map[string][]string{
@@ -183,10 +183,13 @@ func (self *Manager) DockerList() (containers []DockerContainer, err error) {
     return containers, nil
 }
 
-func (self *Manager) DockerGet(id string) (DockerContainer, error) {
+func (self *Manager) DockerGet(id string) (*DockerContainer, error) {
     dockerContainer, err := self.dockerClient.InspectContainer(id)
-    if err != nil {
-        return DockerContainer{}, fmt.Errorf("dockerClient.InspectContainer %v: %v", id, err)
+    if _, ok := err.(*docker.NoSuchContainer); ok {
+        return nil, nil
+
+    } else if err != nil {
+        return nil, fmt.Errorf("dockerClient.InspectContainer %v: %v", id, err)
     }
 
     container := DockerContainer{
@@ -197,12 +200,12 @@ func (self *Manager) DockerGet(id string) (DockerContainer, error) {
 
     // ID
     if err := container.parseID(dockerContainer.Name, dockerContainer.Config.Labels); err != nil {
-        return container, err
+        return nil, err
     }
 
     container.updateStatus(dockerContainer)
 
-    return container, nil
+    return &container, nil
 }
 
 func (self *Manager) DockerLogs(id string) (string, error) {
@@ -223,18 +226,17 @@ func (self *Manager) DockerLogs(id string) (string, error) {
     return buf.String(), nil
 }
 
-func (self *Manager) DockerUp(id DockerID, config DockerConfig) (DockerContainer, error) {
+func (self *Manager) DockerUp(id DockerID, config DockerConfig) (*DockerContainer, error) {
     config.normalize()
 
     // check
     container, err := self.DockerGet(id.String())
 
-    if _, ok := err.(*docker.NoSuchContainer); ok {
-        // create
-        container = DockerContainer{DockerID:id, Config: config}
-
-    } else if err != nil {
+    if err != nil {
         return container, err
+    } else if container == nil {
+        // create
+        container = &DockerContainer{DockerID:id, Config: config}
 
     } else if config.Equals(container.Config) {
         log.Printf("Manager.DockerUp %v: exists\n", container)
@@ -251,7 +253,7 @@ func (self *Manager) DockerUp(id DockerID, config DockerConfig) (DockerContainer
         }
 
         // create
-        container = DockerContainer{DockerID:id, Config: config}
+        container = &DockerContainer{DockerID:id, Config: config}
     }
 
     if container.ID == "" {
@@ -273,7 +275,7 @@ func (self *Manager) DockerUp(id DockerID, config DockerConfig) (DockerContainer
         log.Printf("Manager.DockerUp %v: create...\n", container)
 
         if dockerContainer, err := self.dockerClient.CreateContainer(createOptions); err != nil {
-            return container, err
+            return nil, err
         } else {
             // status
             container.updateStatus(dockerContainer)
@@ -284,7 +286,7 @@ func (self *Manager) DockerUp(id DockerID, config DockerConfig) (DockerContainer
     if container.Running {
         log.Printf("Manager.DockerUp %v: running\n", container)
     } else if err := self.dockerClient.StartContainer(container.ID, nil); err != nil {
-        return container, fmt.Errorf("dockerClient.StartContainer %v: %v", container.ID, err)
+        return nil, fmt.Errorf("dockerClient.StartContainer %v: %v", container.ID, err)
     } else {
         log.Printf("Manager.DockerUp %v: started\n", container)
 
@@ -292,4 +294,14 @@ func (self *Manager) DockerUp(id DockerID, config DockerConfig) (DockerContainer
     }
 
     return container, nil
+}
+
+func (self *Manager) DockerDown(container *DockerContainer) error {
+    if err := self.dockerClient.StopContainer(container.ID, DOCKER_STOP_TIMEOUT); err != nil {
+        return err
+    }
+
+    container.Running = false
+
+    return nil
 }
