@@ -1,0 +1,29 @@
+<div ng-if="chartAlert" class="alert alert-warning">
+    {{chartAlert}}
+</div>
+
+<flot dataset="$parent.chartData" options="$parent.chartOptions" width="100%" height="400px"></flot>
+
+<div>
+    <label>
+        <input type="radio" name="statsDuration" ng-model="$parent.statsDuration" ng-change="statsChart()" value="10s">
+        10 seconds
+    </label>
+    <label>
+        <input type="radio" name="statsDuration" ng-model="$parent.statsDuration" ng-change="statsChart()" value="1m">
+        1 minute
+    </label>
+    <label>
+        <input type="radio" name="statsDuration" ng-model="$parent.statsDuration" ng-change="statsChart()" value="15m">
+        15 minutes
+    </label>
+    <label>
+        <input type="radio" name="statsDuration" ng-model="$parent.statsDuration" ng-change="statsChart()" value="1h">
+        1 hour
+    </label>
+
+    <button ng-click="statsChart()">
+        <span class="glyphicon glyphicon-refresh"></span>
+    </button>
+<div>
+
