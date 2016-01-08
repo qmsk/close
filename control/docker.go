@@ -305,3 +305,27 @@ func (self *Manager) DockerDown(container *DockerContainer) error {
 
     return nil
 }
+
+// Stop all and all running containers
+func (self *Manager) DockerPanic() (retErr error) {
+    opts := docker.ListContainersOptions{
+        Filters:    map[string][]string{
+            "label":    []string{"close.worker"},
+        },
+    }
+
+    if listContainers, err := self.dockerClient.ListContainers(opts); err != nil {
+        return err
+    } else {
+        for _, listContainer := range listContainers {
+            if err := self.dockerClient.KillContainer(docker.KillContainerOptions{ID: listContainer.ID, Signal: 9}); err != nil {
+                log.Printf("dockerClient.KillContainer %v: %v\n", listContainer.ID, err)
+                retErr = err
+            } else {
+                log.Printf("Manager.DockerPanic %v: killed\n", listContainer.Names[0])
+            }
+        }
+    }
+
+    return retErr
+}

@@ -202,6 +202,16 @@ func (self *Manager) GetStats(w rest.ResponseWriter, req *rest.Request) {
     }
 }
 
+func (self *Manager) Panic(w rest.ResponseWriter, req *rest.Request) {
+    if err := self.PanicWorkers(); err != nil {
+        rest.Error(w, err.Error(), 500)
+        return
+    }
+
+    w.Header().Add("Location", "/")
+    w.WriteHeader(302)
+}
+
 func (self *Manager) RestApp() (rest.App, error) {
     return rest.MakeRouter(
         rest.Get("/workers", self.GetWorkers),
@@ -239,5 +249,7 @@ func (self *Manager) RestApp() (rest.App, error) {
         // data for type's specific field
         // may include multiple series, filtered by ?hostname=&instance=
         rest.Get("/stats/:type/:field", self.GetStats),
+
+        rest.Post("/panic", self.Panic),
     )
 }

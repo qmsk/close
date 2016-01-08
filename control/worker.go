@@ -152,6 +152,16 @@ func (self *Manager) StopWorkers() (retErr error) {
     return retErr
 }
 
+// Kill any running workers and reset state
+func (self *Manager) PanicWorkers() (error) {
+    err := self.DockerPanic()
+
+    self.workerConfig = nil
+    self.workers = make(map[string]*Worker)
+
+    return err
+}
+
 type WorkerStatus struct {
     Type            string  `json:"type"`
     ID              uint    `json:"id"`
