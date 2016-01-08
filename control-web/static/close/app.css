@@ -27,3 +27,12 @@
     color: white;
     font-size: 100px;
 }
+
+.panic button:hover {
+    background-color: #fe2020;
+    color: #d8d8d8;
+}
+
+.panic button:active {
+    color: #fefefe;
+}
