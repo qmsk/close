@@ -12,19 +12,21 @@ import (
 const DOCKER_STOP_TIMEOUT = 10 // seconds
 
 type DockerID struct {
-    WorkerType  string          `json:"worker_type"`
-    WorkerID    uint            `json:"worker_id"`
+    Class       string          `json:"class"`
+    Type        string          `json:"type"`
+    Index       uint            `json:"index"`
 }
 
 // Docker name
 func (self DockerID) String() string {
-    return fmt.Sprintf("close_%s_%d", self.WorkerType, self.WorkerID)
+    return fmt.Sprintf("close-%s_%s_%d", self.Class, self.Type, self.Index)
 }
 
 func (self DockerID) labels() map[string]string {
     return map[string]string{
-        "close.worker":     self.WorkerType,
-        "close.worker-id":  fmt.Sprintf("%d", self.WorkerID),
+        "close":            self.Class,
+        "close.type":       self.Type,
+        "close.index":      fmt.Sprintf("%d", self.Index),
     }
 }
 
@@ -34,16 +36,22 @@ func (self *DockerID) parseID(name string, labels map[string]string) error {
     namePath := strings.Split(name, "/")
     name = namePath[len(namePath) - 1]
 
-    if worker := labels["close.worker"]; worker == "" {
-        return fmt.Errorf("missing close.worker=")
+    if class := labels["close"]; class== "" {
+        return fmt.Errorf("missing close.class=")
     } else {
-        self.WorkerType = worker
+        self.Class = class
     }
 
-    if workerID := labels["close.worker-id"]; workerID == "" {
-        return fmt.Errorf("missing close.worker-id=")
-    } else if _, err := fmt.Sscan(workerID, &self.WorkerID); err != nil {
-        return fmt.Errorf("invalid close.worker-id=%v: %v", workerID, err)
+    if typ := labels["close.type"]; typ == "" {
+        return fmt.Errorf("missing close.typ=")
+    } else {
+        self.Type = typ
+    }
+
+    if index := labels["close.index"]; index == "" {
+        return fmt.Errorf("missing close.index=")
+    } else if _, err := fmt.Sscan(index, &self.Index); err != nil {
+        return fmt.Errorf("invalid close.index=%v: %v", index, err)
     }
 
     if name != self.String() {
@@ -60,6 +68,52 @@ type DockerConfig struct {
     Command     string          `json:"command"`
     Args        []string        `json:"args"`
     Env         []string        `json:"env"`
+
+    Privileged      bool                `json:"privileged"`
+    Mounts          []docker.Mount      `json:"mounts"`
+    NetworkMode     string              `json:"net_container"`
+}
+
+func (self *DockerConfig) Argv() []string {
+    if self.Command == "" {
+        return nil
+    } else {
+        return append([]string{self.Command}, self.Args...)
+    }
+}
+
+func (self *DockerConfig) AddFlag(name string, value interface{}) {
+    arg := fmt.Sprintf("-%s=%v", name, value)
+
+    self.Args = append(self.Args, arg)
+}
+
+func (self *DockerConfig) AddArg(args ...string) {
+    self.Args = append(self.Args, args...)
+}
+
+func (self *DockerConfig) AddEnv(name string, value interface{}) {
+    env := fmt.Sprintf("%s=%v", name, value)
+
+    self.Env = append(self.Env, env)
+}
+
+func (self *DockerConfig) AddMount(name string, bind string, readonly bool) {
+    mount := docker.Mount{
+        Source:         bind,
+        Destination:    name,
+    }
+
+    if readonly {
+        mount.Mode = "ro"
+        mount.RW = false
+    }
+
+    self.Mounts = append(self.Mounts, mount)
+}
+
+func (self *DockerConfig) SetNetworkContainer(container *DockerContainer) {
+    self.NetworkMode = fmt.Sprintf("container:%s", container.String())
 }
 
 func configFromDocker(dockerContainer *docker.Container) DockerConfig {
@@ -68,6 +122,9 @@ func configFromDocker(dockerContainer *docker.Container) DockerConfig {
         Command:        dockerContainer.Config.Cmd[0],
         Args:           dockerContainer.Config.Cmd[1:],
         Env:            dockerContainer.Config.Env,
+        Privileged:     dockerContainer.HostConfig.Privileged,
+        Mounts:         dockerContainer.Mounts,
+        NetworkMode:    dockerContainer.HostConfig.NetworkMode,
     }
 }
 
@@ -81,17 +138,21 @@ func (self DockerConfig) Equals(other DockerConfig) bool {
     if other.Image != self.Image {
         return false
     }
-    if other.Command != self.Command {
-        return false
-    }
 
-    // args must match exactly
-    if len(self.Args) != len(other.Args) {
-        return false
-    }
-    for i := 0; i < len(self.Args) && i < len(other.Args); i++ {
-        if self.Args[i] != other.Args[i] {
+    // override command, or take from image?
+    if self.Command != "" {
+        if other.Command != self.Command {
             return false
+        }
+
+        // args must match exactly
+        if len(self.Args) != len(other.Args) {
+            return false
+        }
+        for i := 0; i < len(self.Args) && i < len(other.Args); i++ {
+            if self.Args[i] != other.Args[i] {
+                return false
+            }
         }
     }
 
@@ -105,6 +166,26 @@ checkEnv:
         }
 
         // inner for loop went to end of other.Env[j]
+        return false
+    }
+
+    if self.Privileged != other.Privileged {
+        return false
+    }
+
+    // args must match exactly
+    if len(self.Mounts) != len(other.Mounts) {
+        return false
+    }
+    for i := 0; i < len(self.Mounts) && i < len(other.Mounts); i++ {
+        if self.Mounts[i] != other.Mounts[i] {
+            return false
+        }
+    }
+
+    if self.NetworkMode == "" {
+
+    } else if other.NetworkMode != self.NetworkMode {
         return false
     }
 
@@ -124,22 +205,6 @@ type DockerContainer struct {
     Name        string          `json:"name"`
     Status      string          `json:"status"`
     Running     bool            `json:"running"`
-}
-
-func (self *DockerConfig) AddFlag(name string, value interface{}) {
-    arg := fmt.Sprintf("-%s=%v", name, value)
-
-    self.Args = append(self.Args, arg)
-}
-
-func (self *DockerConfig) AddArg(arg string) {
-    self.Args = append(self.Args, arg)
-}
-
-func (self *DockerConfig) AddEnv(name string, value interface{}) {
-    env := fmt.Sprintf("%s=%v", name, value)
-
-    self.Env = append(self.Env, env)
 }
 
 func (self *DockerContainer) updateStatus(dockerContainer *docker.Container) {
@@ -163,7 +228,7 @@ func (self *Manager) DockerList() (containers []*DockerContainer, err error) {
     opts := docker.ListContainersOptions{
         All:        true,
         Filters:    map[string][]string{
-            "label":    []string{"close.worker"},
+            "label":    []string{"close"},
         },
     }
 
@@ -236,14 +301,13 @@ func (self *Manager) DockerUp(id DockerID, config DockerConfig) (*DockerContaine
         return container, err
     } else if container == nil {
         // create
-        container = &DockerContainer{DockerID:id, Config: config}
 
     } else if config.Equals(container.Config) {
         log.Printf("Manager.DockerUp %v: exists\n", container)
 
     } else {
-        log.Printf("Manager.DockerUp %v: old-config %v\n", container, container.Config)
-        log.Printf("Manager.DockerUp %v: new-config %v\n", container, config)
+        log.Printf("Manager.DockerUp %v: old-config %#v\n", container, container.Config)
+        log.Printf("Manager.DockerUp %v: new-config %#v\n", container, config)
 
         // cleanup to replace with our config
         log.Printf("Manager.DockerUp %v: destroy %v...\n", container, container.ID)
@@ -253,23 +317,43 @@ func (self *Manager) DockerUp(id DockerID, config DockerConfig) (*DockerContaine
         }
 
         // create
-        container = &DockerContainer{DockerID:id, Config: config}
+        container = nil
     }
 
-    if container.ID == "" {
+    if container == nil {
+        container = &DockerContainer{DockerID:id, Config: config}
+
         // does not exist; create
         createOptions := docker.CreateContainerOptions{
             Name:   container.String(),
             Config: &docker.Config{
-                Hostname:   container.String(),
-                Env:        container.Config.Env,
-                Cmd:        append([]string{container.Config.Command}, container.Config.Args...),
-                Image:      container.Config.Image,
-                Labels:     container.labels(),
+                Env:        config.Env,
+                Cmd:        config.Argv(),
+                Image:      config.Image,
+                // Mounts:     config.Mounts,
+                Labels:     id.labels(),
             },
             HostConfig: &docker.HostConfig{
-
+                Privileged:     config.Privileged,
+                NetworkMode:    config.NetworkMode,
             },
+        }
+
+        if config.NetworkMode == "" {
+            // match hostname from container name, unless running with NetworkMode=container:*
+            createOptions.Config.Hostname = container.String()
+        }
+
+        // XXX: .Config.Mounts = ... doesn't work? fake it!
+        createOptions.Config.Volumes = make(map[string]struct{})
+        for _, mount := range config.Mounts {
+            createOptions.Config.Volumes[mount.Destination] = struct{}{}
+
+            if mount.Source != "" {
+                bind := fmt.Sprintf("%s:%s:%s", mount.Source, mount.Destination, mount.Mode)
+
+                createOptions.HostConfig.Binds = append(createOptions.HostConfig.Binds, bind)
+            }
         }
 
         log.Printf("Manager.DockerUp %v: create...\n", container)
@@ -310,7 +394,7 @@ func (self *Manager) DockerDown(container *DockerContainer) error {
 func (self *Manager) DockerPanic() (retErr error) {
     opts := docker.ListContainersOptions{
         Filters:    map[string][]string{
-            "label":    []string{"close.worker"},
+            "label":    []string{"close"},
         },
     }
 

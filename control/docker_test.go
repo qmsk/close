@@ -5,13 +5,24 @@ import (
 )
 
 func TestDockerConfigEquals(t *testing.T) {
+    config0 := DockerConfig{Image: "test"}
     config1 := DockerConfig{Image: "test", Command: "test", Args: []string{"-test"}, Env: []string{"TEST=test"}}
     config2 := config1
 
+    // self-equality
     if !config1.Equals(config1) {
         t.Errorf("equal: %#v %#v", config1, config1)
     }
 
+    // default command
+    if !config0.Equals(config1) {
+        t.Errorf("non-equal empty Command: %#v %#v", config0, config1)
+    }
+    if !config0.Equals(config2) {
+        t.Errorf("non-equal empty Command: %#v %#v", config0, config2)
+    }
+
+    // image/command
     config2 = config1
     config2.Image = "test:2"
     if config1.Equals(config2) {

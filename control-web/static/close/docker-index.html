@@ -5,8 +5,10 @@
 <table class="table docker">
     <thead>
         <tr>
+            <th>Class</td>
             <th>Type</td>
-            <th>ID</th>
+            <th>Index</td>
+            <th>Name</td>
             <th>Node</th>
             <th>Status</th>
             <th></th>
@@ -14,8 +16,10 @@
     </thead>
     <tbody>
         <tr ng-repeat="dockerContainer in dockerContainers">
-            <td>{{dockerContainer.worker_type}}</td>
-            <td>{{dockerContainer.worker_id}}</td>
+            <td>{{dockerContainer.class}}</td>
+            <td>{{dockerContainer.type}}</td>
+            <td>{{dockerContainer.index}}</td>
+            <td><span title="{{dockerContainer.id}}">{{dockerContainer.name}}</span></td>
             <td>{{dockerContainer.node}}</td>
             <td>{{dockerContainer.status}}</td>
             <td>
