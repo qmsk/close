@@ -11,6 +11,8 @@ import (
 type APIGet struct {
     Config              *Config         `json:"config"`
     ConfigText          string          `json:"config_text"`
+
+    Clients             []ClientStatus  `json:"clients"`
     Workers             []WorkerStatus  `json:"workers"`
 }
 
@@ -23,6 +25,13 @@ func (self *Manager) Get(w rest.ResponseWriter, req *rest.Request) {
     } else {
         out.Config = self.config
         out.ConfigText = configText
+    }
+
+    if listClients, err := self.ListClients(); err != nil {
+        rest.Error(w, err.Error(), 500)
+        return
+    } else {
+        out.Clients = listClients
     }
 
     if listWorkers, err := self.ListWorkers(); err != nil {

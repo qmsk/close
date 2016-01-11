@@ -109,3 +109,31 @@ func (self *Manager) GetClient(name string, index uint) (*Client, error) {
         return client, nil
     }
 }
+
+type ClientStatus struct {
+    Config          string  `json:"config"`
+    ID              uint    `json:"id"`
+
+    Docker          string  `json:"docker"`
+    DockerStatus    string  `json:"docker_status"`
+}
+
+func (self *Manager) ListClients() (clients []ClientStatus, err error) {
+    for _, client := range self.clients {
+        clientStatus := ClientStatus{
+            Config:         client.Config.Name,
+            ID:             client.ID,
+        }
+
+        if dockerContainer, err := self.DockerGet(client.dockerContainer.String()); err != nil {
+            return nil, err
+        } else {
+            clientStatus.Docker = dockerContainer.String()
+            clientStatus.DockerStatus = dockerContainer.Status
+        }
+
+        clients = append(clients, clientStatus)
+    }
+
+    return clients, nil
+}

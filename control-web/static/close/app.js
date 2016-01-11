@@ -50,6 +50,7 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
     $scope.get = function(){
         $http.get('/api/').success(function(data){
             $scope.config = data.config_text;
+            $scope.clients = data.clients;
             $scope.workers = data.workers;
 
             $scope.busy = false;

@@ -22,6 +22,32 @@
 </div>
 
 <div>
+    <h2>Client Status</h2>
+    <table class="table clients">
+        <thead>
+            <tr>
+                <th>Type</td>
+                <th>ID</th>
+                <th>Docker</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr ng-repeat="client in clients">
+                <td>{{client.config}}</td>
+                <td>{{client.id}}</td>
+                <td>
+                    <a href="#/docker/{{client.docker}}">{{client.docker_status}}</a>
+                </td>
+                <td>
+
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div>
     <h2>Worker Status</h2>
     <table class="table workers">
         <thead>
