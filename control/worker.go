@@ -1,16 +1,34 @@
 package control
 
 import (
-    "bytes"
     "close/config"
     "fmt"
     "encoding/json"
     "log"
-    "path"
-    "strings"
-    "github.com/BurntSushi/toml"
 )
 
+type WorkerConfig struct {
+    Name        string
+    Count       uint
+    Client      string // ClientConfig.Name
+
+    Image       string
+    Command     string
+    Args        []string
+
+    // worker 
+    Type        string
+    IDFlag      string
+
+    RateConfig  string
+    RateStats   string
+}
+
+func (self WorkerConfig) String() string {
+    return self.Name
+}
+
+// track state of managed workers
 type Worker struct {
     Type            string
     ID              uint
@@ -24,54 +42,22 @@ func (self Worker) String() string {
     return fmt.Sprintf("%s:%d", self.Type, self.ID)
 }
 
-type WorkerConfig struct {
-    Name        string
-    Type        string
-    Count       uint
-
-    Image       string
-    Command     string
-    Arg         string
-
-    IDFlag      string
-
-    RateConfig  string
-    RateStats   string
-}
-
-func (self WorkerConfig) String() string {
-    return self.Name
-}
-
-func (self *Manager) LoadConfig(filePath string) (workerConfig WorkerConfig, err error) {
-    workerConfig.Name = strings.Split(path.Base(filePath), ".")[0]
-
-    if _, err := toml.DecodeFile(filePath, &workerConfig); err != nil {
-        return workerConfig, err
-    }
-
-    return workerConfig, nil
-}
-
-func (self *Manager) LoadConfigString(data string) (workerConfig WorkerConfig, err error) {
-    if _, err := toml.Decode(data, &workerConfig); err != nil {
-        return workerConfig, err
-    }
-
-    return workerConfig, nil
-}
-
 // Setup workers from config
 func (self *Manager) StartWorkers(workerConfig WorkerConfig) error {
-    self.workerConfig = &workerConfig
-
     // mark
     for _, worker := range self.workers {
         worker.Config = nil
     }
 
     for index := uint(1); index <= workerConfig.Count; index++ {
-        dockerID := DockerID{WorkerType: workerConfig.Type, WorkerID: index}
+        worker := &Worker{
+            Type:   workerConfig.Type,
+            ID:     index,
+            Config: &workerConfig,
+        }
+
+        // docker
+        dockerID := DockerID{Class:"worker", Type: workerConfig.Type, Index: index}
 
         dockerConfig := DockerConfig{
             Image:      workerConfig.Image,
@@ -91,21 +77,20 @@ func (self *Manager) StartWorkers(workerConfig WorkerConfig) error {
             dockerConfig.AddFlag(workerConfig.IDFlag, index)
         }
 
-        if workerConfig.Arg != "" {
-            dockerConfig.AddArg(workerConfig.Arg)
-        }
+        dockerConfig.AddArg(workerConfig.Args...)
 
-        // up
-        worker := &Worker{
-            Type:   workerConfig.Type,
-            ID:     index,
-            Config: self.workerConfig,
+        if workerConfig.Client != "" {
+            if client, err := self.GetClient(workerConfig.Client, index); err != nil {
+                return fmt.Errorf("Worker %v GetClient: %v", worker, err)
+            } else {
+                dockerConfig.SetNetworkContainer(client.dockerContainer)
+            }
         }
 
         if container, err := self.DockerUp(dockerID, dockerConfig); err != nil {
             return fmt.Errorf("DockerUp %v: %v", dockerID, err)
         } else {
-            log.Printf("DockerUP %v: %v\n", workerConfig, container)
+            log.Printf("DockerUP worker %v: %v\n", workerConfig, container)
 
             worker.dockerContainer = container
         }
@@ -137,8 +122,6 @@ func (self *Manager) StartWorkers(workerConfig WorkerConfig) error {
 
 // Stop all running workers
 func (self *Manager) StopWorkers() (retErr error) {
-    self.workerConfig = nil
-
     // sweep
     for key, worker := range self.workers {
         if err := self.DockerDown(worker.dockerContainer); err != nil {
@@ -152,16 +135,6 @@ func (self *Manager) StopWorkers() (retErr error) {
     return retErr
 }
 
-// Kill any running workers and reset state
-func (self *Manager) PanicWorkers() (error) {
-    err := self.DockerPanic()
-
-    self.workerConfig = nil
-    self.workers = make(map[string]*Worker)
-
-    return err
-}
-
 type WorkerStatus struct {
     Type            string  `json:"type"`
     ID              uint    `json:"id"`
@@ -172,18 +145,6 @@ type WorkerStatus struct {
     ConfigTTL       float64 `json:"config_ttl"` // seconds
 
     Rate            json.Number `json:"rate"`   // config
-}
-
-func (self *Manager) WorkerConfig() (string, error) {
-    var buf bytes.Buffer
-
-    if self.workerConfig == nil {
-
-    } else if err := toml.NewEncoder(&buf).Encode(self.workerConfig); err != nil {
-        return "", err
-    }
-
-    return buf.String(), nil
 }
 
 func (self *Manager) ListWorkers() (workers []WorkerStatus, err error) {

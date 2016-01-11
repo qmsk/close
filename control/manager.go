@@ -1,16 +1,24 @@
 package control
 
 import (
+    "bytes"
     "close/config"
     "github.com/fsouza/go-dockerclient"
     "fmt"
     "close/stats"
+    "github.com/BurntSushi/toml"
 )
 
 type Options struct {
     StatsReader     stats.ReaderConfig
     Config          config.Options
     DockerEndpoint  string
+}
+
+// full-system configuration
+type Config struct {
+    Client          *ClientConfig
+    Worker          *WorkerConfig
 }
 
 type Manager struct {
@@ -21,14 +29,17 @@ type Manager struct {
     dockerClient    *docker.Client
     dockerName      string
 
-    workerConfig    *WorkerConfig               `json:"worker_config"` // active
-    workers         map[string]*Worker          `json:"workers"`
+    // state
+    config          *Config
+    clients         map[string]*Client
+    workers         map[string]*Worker
 }
 
 func New(options Options) (*Manager, error) {
     self := &Manager{
         options:    options,
 
+        clients:        make(map[string]*Client),
         workers:        make(map[string]*Worker),
     }
 
@@ -75,4 +86,63 @@ func (self *Manager) init(options Options) error {
     }
 
     return nil
+}
+
+func (self *Manager) LoadConfig(filePath string) (config Config, err error) {
+    if _, err := toml.DecodeFile(filePath, &config); err != nil {
+        return config, err
+    }
+
+    return config, nil
+}
+
+func (self *Manager) LoadConfigString(data string) (workerConfig WorkerConfig, err error) {
+    if _, err := toml.Decode(data, &workerConfig); err != nil {
+        return workerConfig, err
+    }
+
+    return workerConfig, nil
+}
+
+// Get running configuration
+func (self *Manager) DumpConfig() (string, error) {
+    var buf bytes.Buffer
+
+    if self.config == nil {
+
+    } else if err := toml.NewEncoder(&buf).Encode(self.config); err != nil {
+        return "", err
+    }
+
+    return buf.String(), nil
+}
+
+// Start new configuration
+func (self *Manager) Start(config Config) error {
+    self.config = &config
+
+    if config.Client == nil {
+
+    } else if err := self.StartClients(*config.Client); err != nil {
+        return err
+    }
+
+    if config.Worker == nil {
+
+    } else if err := self.StartWorkers(*config.Worker); err != nil {
+        return err
+    }
+
+    return nil
+}
+
+// Kill any running containers and reset state
+func (self *Manager) Panic() (error) {
+    err := self.DockerPanic()
+
+    self.config = nil
+    self.clients = make(map[string]*Client)
+    self.workers = make(map[string]*Worker)
+
+    return err
 }

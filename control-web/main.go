@@ -52,12 +52,12 @@ func main() {
     }
 
     if configPath != "" {
-        if workerConfig, err := manager.LoadConfig(configPath); err != nil {
+        if config, err := manager.LoadConfig(configPath); err != nil {
             log.Fatalf("manager.LoadConfig %v: %v\n", configPath, err)
-        } else if err := manager.StartWorkers(workerConfig); err != nil {
-            log.Fatalf("manager.StartWorkers %v: %v\n", workerConfig, err)
+        } else if err := manager.Start(config); err != nil {
+            log.Fatalf("manager.Start %v: %v\n", config, err)
         } else {
-            log.Printf("Started workers from %v...\n", configPath)
+            log.Printf("Started from %v...\n", configPath)
         }
     }
 

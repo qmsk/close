@@ -8,21 +8,21 @@ import (
     "github.com/BurntSushi/toml"
 )
 
-type APIWorkers struct {
-    Config              string          `json:"config"`
-    WorkerConfig        *WorkerConfig   `json:"worker_config"`
+type APIGet struct {
+    Config              *Config         `json:"config"`
+    ConfigText          string          `json:"config_text"`
     Workers             []WorkerStatus  `json:"workers"`
 }
 
-func (self *Manager) GetWorkers(w rest.ResponseWriter, req *rest.Request) {
-    out := APIWorkers{}
+func (self *Manager) Get(w rest.ResponseWriter, req *rest.Request) {
+    out := APIGet{}
 
-    if workerConfig, err := self.WorkerConfig(); err != nil {
+    if configText, err := self.DumpConfig(); err != nil {
         rest.Error(w, err.Error(), 500)
         return
     } else {
-        out.Config = workerConfig
-        out.WorkerConfig = self.workerConfig
+        out.Config = self.config
+        out.ConfigText = configText
     }
 
     if listWorkers, err := self.ListWorkers(); err != nil {
@@ -35,15 +35,15 @@ func (self *Manager) GetWorkers(w rest.ResponseWriter, req *rest.Request) {
     w.WriteJson(out)
 }
 
-func (self *Manager) PostWorkers(w rest.ResponseWriter, req *rest.Request) {
-    var workerConfig WorkerConfig
+func (self *Manager) Post(w rest.ResponseWriter, req *rest.Request) {
+    var config Config
 
-    if _, err := toml.DecodeReader(req.Body, &workerConfig); err != nil {
+    if _, err := toml.DecodeReader(req.Body, &config); err != nil {
         rest.Error(w, err.Error(), 400)
         return
     }
 
-    if err := self.StartWorkers(workerConfig); err != nil {
+    if err := self.Start(config); err != nil {
         rest.Error(w, err.Error(), 500)
         return
     } else {
@@ -202,8 +202,8 @@ func (self *Manager) GetStats(w rest.ResponseWriter, req *rest.Request) {
     }
 }
 
-func (self *Manager) Panic(w rest.ResponseWriter, req *rest.Request) {
-    if err := self.PanicWorkers(); err != nil {
+func (self *Manager) PostPanic(w rest.ResponseWriter, req *rest.Request) {
+    if err := self.Panic(); err != nil {
         rest.Error(w, err.Error(), 500)
         return
     }
@@ -214,8 +214,8 @@ func (self *Manager) Panic(w rest.ResponseWriter, req *rest.Request) {
 
 func (self *Manager) RestApp() (rest.App, error) {
     return rest.MakeRouter(
-        rest.Get("/workers", self.GetWorkers),
-        rest.Post("/workers", self.PostWorkers),
+        rest.Get("/",           self.Get),
+        rest.Post("/",          self.Post),
         rest.Delete("/workers", self.DeleteWorkers),
 
         // list active containers
@@ -250,6 +250,6 @@ func (self *Manager) RestApp() (rest.App, error) {
         // may include multiple series, filtered by ?hostname=&instance=
         rest.Get("/stats/:type/:field", self.GetStats),
 
-        rest.Post("/panic", self.Panic),
+        rest.Post("/panic", self.PostPanic),
     )
 }
