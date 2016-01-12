@@ -150,11 +150,15 @@ func (self *Manager) Start(config Config) error {
         return err
     }
 
+    self.log.Printf("Started\n");
+
     return nil
 }
 
 // Kill any running containers and reset state
 func (self *Manager) Panic() (error) {
+    self.log.Printf("Panic!\n");
+
     err := self.DockerPanic()
 
     self.config = nil
