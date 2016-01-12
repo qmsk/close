@@ -36,3 +36,33 @@
 .panic button:active {
     color: #fefefe;
 }
+
+#view {
+    margin-bottom: 10%;
+}
+
+#logs {
+    position: fixed;
+    bottom: 0px;
+    width: 100%;
+    height: 10%;
+
+    background-color: #222222;
+    color: #22ff00;
+
+    padding: 0.5em;
+    overflow: auto;
+}
+
+#logs p {
+    margin: 0 0;
+}
+
+#logs .status {
+    text-align: right;
+    color: #aaaaaa;
+}
+
+#logs .status .error {
+    color: #ff2200;
+}

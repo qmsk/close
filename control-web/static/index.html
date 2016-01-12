@@ -50,7 +50,16 @@
             </div>
         </div>
 
-        <div class="container" ng-view></div>
+        <div id="view" class="container" ng-view></div>
+
+        <div id="logs" ng-controller="LogsController" scroll-glue>
+            <p ng-repeat="msg in Logs.Messages" id="{{msg.id}}">{{msg.line}}</p>
+            
+            <div class="status">
+                <span>WebSocket {{Logs.status()}}</span>
+                <span class="error" ng-if="Logs.Error">({{Logs.Error}})</span>
+            </div>
+        </div>
 
         <!-- jQuery -->
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
@@ -62,5 +71,7 @@
         <script src="http://cdnjs.cloudflare.com/ajax/libs/flot/0.8.3/jquery.flot.min.js"></script>
         <script src="http://cdnjs.cloudflare.com/ajax/libs/flot/0.8.3/jquery.flot.time.min.js"></script>
         <script src="/node_modules/angular-flot/angular-flot.js"></script>
+        <script src="/node_modules/angular-websocket/angular-websocket.min.js"></script>
+        <script src="/node_modules/angularjs-scroll-glue/src/scrollglue.js"></script>
     </body>
 </html> 

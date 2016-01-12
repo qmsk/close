@@ -1,7 +1,9 @@
 {
-    "name": "close",
-    "version": "0.0.0",
-    "dependencies": {
-        "angular-flot": "0.0.15"
-    }
+  "name": "close",
+  "version": "0.0.0",
+  "dependencies": {
+    "angular-flot": "0.0.15",
+    "angular-websocket": "1.0.14",
+    "angularjs-scroll-glue": "^2.0.4"
+  }
 }
