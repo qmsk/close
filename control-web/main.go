@@ -77,6 +77,7 @@ func main() {
     staticHandler := http.FileServer(http.Dir(staticPath))
 
     http.Handle("/api/", http.StripPrefix("/api", api.MakeHandler()))
+    http.Handle("/logs", manager.LogsHandler())
     http.Handle("/", staticHandler)
 
     if err := http.ListenAndServe(httpListen, nil); err != nil {

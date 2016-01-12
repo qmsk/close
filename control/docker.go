@@ -4,7 +4,6 @@ import (
     "bytes"
     "github.com/fsouza/go-dockerclient"
     "fmt"
-    "log"
     "sort"
     "strings"
 )
@@ -237,8 +236,7 @@ func (self *Manager) DockerList() (containers []*DockerContainer, err error) {
     } else {
         for _, listContainer := range listContainers {
             if container, err := self.DockerGet(listContainer.ID); err != nil {
-                log.Printf("Manager.DockerList %v: %v\n", listContainer.ID, err)
-                continue
+                return nil, err
             } else {
                 containers = append(containers, container)
             }
@@ -303,14 +301,14 @@ func (self *Manager) DockerUp(id DockerID, config DockerConfig) (*DockerContaine
         // create
 
     } else if config.Equals(container.Config) {
-        log.Printf("Manager.DockerUp %v: exists\n", container)
+        self.log.Printf("DockerUp %v: exists\n", container)
 
     } else {
-        log.Printf("Manager.DockerUp %v: old-config %#v\n", container, container.Config)
-        log.Printf("Manager.DockerUp %v: new-config %#v\n", container, config)
+        self.log.Printf("DockerUp %v: old-config %#v\n", container, container.Config)
+        self.log.Printf("DockerUp %v: new-config %#v\n", container, config)
 
         // cleanup to replace with our config
-        log.Printf("Manager.DockerUp %v: destroy %v...\n", container, container.ID)
+        self.log.Printf("DockerUp %v: destroy %v...\n", container, container.ID)
 
         if err := self.dockerClient.RemoveContainer(docker.RemoveContainerOptions{ID: container.ID, Force: true}); err != nil {
             return container, fmt.Errorf("dockerClient.RemoveContainer %v: %v", container.ID, err)
@@ -356,7 +354,7 @@ func (self *Manager) DockerUp(id DockerID, config DockerConfig) (*DockerContaine
             }
         }
 
-        log.Printf("Manager.DockerUp %v: create...\n", container)
+        self.log.Printf("DockerUp %v: create...\n", container)
 
         if dockerContainer, err := self.dockerClient.CreateContainer(createOptions); err != nil {
             return nil, err
@@ -368,11 +366,11 @@ func (self *Manager) DockerUp(id DockerID, config DockerConfig) (*DockerContaine
 
     // running
     if container.Running {
-        log.Printf("Manager.DockerUp %v: running\n", container)
+        self.log.Printf("DockerUp %v: running\n", container)
     } else if err := self.dockerClient.StartContainer(container.ID, nil); err != nil {
         return nil, fmt.Errorf("dockerClient.StartContainer %v: %v", container.ID, err)
     } else {
-        log.Printf("Manager.DockerUp %v: started\n", container)
+        self.log.Printf("DockerUp %v: started\n", container)
 
         container.Running = true
     }
@@ -381,6 +379,8 @@ func (self *Manager) DockerUp(id DockerID, config DockerConfig) (*DockerContaine
 }
 
 func (self *Manager) DockerDown(container *DockerContainer) error {
+    self.log.Printf("DockerDown %v: stopping..\n", container)
+
     if err := self.dockerClient.StopContainer(container.ID, DOCKER_STOP_TIMEOUT); err != nil {
         return err
     }
@@ -403,10 +403,10 @@ func (self *Manager) DockerPanic() (retErr error) {
     } else {
         for _, listContainer := range listContainers {
             if err := self.dockerClient.KillContainer(docker.KillContainerOptions{ID: listContainer.ID, Signal: 9}); err != nil {
-                log.Printf("dockerClient.KillContainer %v: %v\n", listContainer.ID, err)
+                self.log.Printf("DockerPanic: dockerClient.KillContainer %v: %v\n", listContainer.ID, err)
                 retErr = err
             } else {
-                log.Printf("Manager.DockerPanic %v: killed\n", listContainer.Names[0])
+                self.log.Printf("DockerPanic %v: killed\n", listContainer.Names[0])
             }
         }
     }

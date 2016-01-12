@@ -5,7 +5,6 @@ package control
 
 import (
     "fmt"
-    "log"
 )
 
 type ClientConfig struct {
@@ -61,8 +60,6 @@ func (self *Manager) clientUp(config *ClientConfig, id uint) (*Client, error) {
     if container, err := self.DockerUp(dockerID, dockerConfig); err != nil {
         return nil, fmt.Errorf("DockerUp %v: %v", client, err)
     } else {
-        log.Printf("DockerUP client %v: %v\n", client, container)
-
         client.dockerContainer = container
     }
 
@@ -75,6 +72,8 @@ func (self *Manager) StartClients(config ClientConfig) error {
     for _, client := range self.clients {
         client.Config = nil
     }
+
+    self.log.Printf("Start %d %s clients...\n", config.Count, config.Name);
 
     for id := uint(1); id <= config.Count; id++ {
         if client, err := self.clientUp(&config, id); err != nil {
@@ -91,7 +90,7 @@ func (self *Manager) StartClients(config ClientConfig) error {
         }
 
         if err := self.DockerDown(client.dockerContainer); err != nil {
-            log.Printf("DockerDown %v: %v", client.dockerContainer, err)
+            self.log.Printf("DockerDown %v: %v", client.dockerContainer, err)
         }
 
         delete(self.clients, key)

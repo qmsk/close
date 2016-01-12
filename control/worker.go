@@ -4,7 +4,6 @@ import (
     "close/config"
     "fmt"
     "encoding/json"
-    "log"
 )
 
 type WorkerConfig struct {
@@ -49,6 +48,8 @@ func (self *Manager) StartWorkers(workerConfig WorkerConfig) error {
         worker.Config = nil
     }
 
+    self.log.Printf("Start %d %s workers...\n", workerConfig.Count, workerConfig.Name);
+
     for index := uint(1); index <= workerConfig.Count; index++ {
         worker := &Worker{
             Type:   workerConfig.Type,
@@ -90,8 +91,6 @@ func (self *Manager) StartWorkers(workerConfig WorkerConfig) error {
         if container, err := self.DockerUp(dockerID, dockerConfig); err != nil {
             return fmt.Errorf("DockerUp %v: %v", dockerID, err)
         } else {
-            log.Printf("DockerUP worker %v: %v\n", workerConfig, container)
-
             worker.dockerContainer = container
         }
 
@@ -111,7 +110,7 @@ func (self *Manager) StartWorkers(workerConfig WorkerConfig) error {
         }
 
         if err := self.DockerDown(worker.dockerContainer); err != nil {
-            log.Printf("DockerDown %v: %v", worker.dockerContainer, err)
+            self.log.Printf("DockerDown %v: %v", worker.dockerContainer, err)
         }
 
         delete(self.workers, key)
@@ -125,7 +124,7 @@ func (self *Manager) StopWorkers() (retErr error) {
     // sweep
     for key, worker := range self.workers {
         if err := self.DockerDown(worker.dockerContainer); err != nil {
-            log.Printf("DockerDown %v: %v", worker.dockerContainer, err)
+            self.log.Printf("DockerDown %v: %v", worker.dockerContainer, err)
             retErr = err
         }
 

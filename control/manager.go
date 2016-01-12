@@ -5,6 +5,8 @@ import (
     "close/config"
     "github.com/fsouza/go-dockerclient"
     "fmt"
+    "net/http"
+    "log"
     "close/stats"
     "github.com/BurntSushi/toml"
 )
@@ -24,12 +26,14 @@ type Config struct {
 type Manager struct {
     options         Options
 
+    logs            *Logs
     configRedis     *config.Redis
     statsReader     *stats.Reader
     dockerClient    *docker.Client
     dockerName      string
 
     // state
+    log             *log.Logger
     config          *Config
     clients         map[string]*Client
     workers         map[string]*Worker
@@ -51,6 +55,13 @@ func New(options Options) (*Manager, error) {
 }
 
 func (self *Manager) init(options Options) error {
+    if logs, err := NewLogs(); err != nil {
+        return fmt.Errorf("NewLogs: %v", err)
+    } else {
+        self.logs = logs
+        self.log = logs.Logger("Manager: ")
+    }
+
     if options.Config.Redis.Addr == "" {
         return fmt.Errorf("missing --config-redis-addr")
     } else if configRedis, err := config.NewRedis(options.Config); err != nil {
@@ -88,6 +99,10 @@ func (self *Manager) init(options Options) error {
     return nil
 }
 
+func (self *Manager) LogsHandler() http.Handler {
+    return self.logs
+}
+
 func (self *Manager) LoadConfig(filePath string) (config Config, err error) {
     if _, err := toml.DecodeFile(filePath, &config); err != nil {
         return config, err
@@ -120,6 +135,8 @@ func (self *Manager) DumpConfig() (string, error) {
 // Start new configuration
 func (self *Manager) Start(config Config) error {
     self.config = &config
+
+    self.log.Printf("Start config...\n");
 
     if config.Client == nil {
 
