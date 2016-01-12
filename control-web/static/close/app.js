@@ -55,7 +55,7 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
 
             $scope.busy = false;
 
-            if (data.config.Worker) {
+            if (data.config && data.config.Worker) {
                 $scope.statsChart(data.config.Worker.RateStats);
             }
         });
@@ -74,7 +74,7 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
         );
     }
 
-    $scope.stop = function(){
+    $scope.stopWorkers = function(){
         $scope.busy = true;
         $http.delete('/api/workers').then(
             function success(r){
