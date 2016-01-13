@@ -41,6 +41,27 @@ func (self Worker) String() string {
     return fmt.Sprintf("%s:%d", self.Type, self.ID)
 }
 
+func (self *Manager) discoverWorker(dockerContainer *DockerContainer) error {
+    worker := &Worker{
+        Type:   dockerContainer.Type,
+        ID:     dockerContainer.Index,
+
+        Config: nil, // TODO
+
+        dockerContainer:    dockerContainer,
+    }
+
+    if configSub, err := self.configRedis.Sub(config.SubOptions{Type: worker.Type, ID: fmt.Sprintf("%d", worker.ID)}); err != nil {
+        return fmt.Errorf("congigRedis.Sub: %v", err)
+    } else {
+        worker.configSub = configSub
+    }
+
+    self.workers[worker.String()] = worker
+
+    return nil
+}
+
 // Setup workers from config
 func (self *Manager) StartWorkers(workerConfig WorkerConfig) error {
     // mark

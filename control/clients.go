@@ -33,6 +33,21 @@ func (self Client) String() string {
     return fmt.Sprintf("%s:%d", self.Type, self.ID)
 }
 
+func (self *Manager) discoverClient(dockerContainer *DockerContainer) error {
+    client := &Client{
+        Config: nil, // TODO
+
+        Type:   dockerContainer.Type,
+        ID:     dockerContainer.Index,
+
+        dockerContainer:    dockerContainer,
+    }
+
+    self.clients[client.String()] = client
+
+    return nil
+}
+
 func (self *Manager) clientUp(config *ClientConfig, id uint) (*Client, error) {
     client := &Client{
         Config: config,

@@ -59,6 +59,10 @@ func main() {
         log.Fatal(err)
     }
 
+    if err := manager.Discover(); err != nil {
+        log.Fatal(err)
+    }
+
     if configPath != "" {
         if config, err := manager.LoadConfig(configPath); err != nil {
             log.Fatalf("manager.LoadConfig %v: %v\n", configPath, err)

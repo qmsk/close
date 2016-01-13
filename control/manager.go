@@ -116,6 +116,31 @@ func (self *Manager) LoadConfigString(data string) (workerConfig WorkerConfig, e
     return workerConfig, nil
 }
 
+// Discover running docker containers
+// This lets use down unnecessary containers when starting
+func (self *Manager) Discover() (err error) {
+    if dockerContainers, err := self.DockerList(); err != nil {
+        return err
+    } else {
+        for _, dockerContainer := range dockerContainers {
+            switch dockerContainer.Class {
+            case "client":
+                if err = self.discoverClient(dockerContainer); err != nil {
+                    self.log.Printf("discoverClient %v: %v", dockerContainer, err)
+                }
+            case "worker":
+                if err = self.discoverWorker(dockerContainer); err != nil {
+                    self.log.Printf("discoverWorker %v: %v", dockerContainer, err)
+                }
+            default:
+                self.log.Printf("Discover %v: unknown class", dockerContainer)
+            }
+        }
+
+        return err
+    }
+}
+
 // Get running configuration
 func (self *Manager) DumpConfig() (string, error) {
     var buf bytes.Buffer
