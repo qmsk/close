@@ -76,25 +76,24 @@ func (self *Logs) readr(reader *bufio.Reader) {
 func (self *Logs) subscribe(follower logFollower) {
     log.Printf("Logs.follow: %v\n", follower)
 
-    // XXX: lock map
-    self.followers[follower] = true
+    self.followers[follower] = true // XXX: race
 
     // sync up
-    for _, msg := range self.history {
+    for _, msg := range self.history { // XXX: race
         follower.write(msg)
     }
 }
 
 func (self *Logs) unsubscribe(follower logFollower) {
+    // XXX: race?
     delete(self.followers, follower)
 }
 
 // Called directly by the logger to distribute logs lines out to followers
 func (self *Logs) write(msg LogMsg) {
-    self.history = append(self.history, msg)
+    self.history = append(self.history, msg) // XXX: race
 
-    // XXX: lock map
-    for follower, _ := range self.followers {
+    for follower, _ := range self.followers { // XXX: race
         follower.write(msg)
     }
 }
