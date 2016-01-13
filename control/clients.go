@@ -127,6 +127,21 @@ func (self *Manager) GetClient(name string, index uint) (*Client, error) {
     }
 }
 
+// Stop all running clients
+func (self *Manager) StopClients() (retErr error) {
+    // sweep
+    for key, client := range self.clients {
+        if err := self.DockerDown(client.dockerContainer); err != nil {
+            self.log.Printf("DockerDown %v: %v", client.dockerContainer, err)
+            retErr = err
+        }
+
+        delete(self.clients, key)
+    }
+
+    return retErr
+}
+
 type ClientStatus struct {
     Config          string  `json:"config"`
     Type            string  `json:"type"`

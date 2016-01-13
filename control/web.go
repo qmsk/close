@@ -5,7 +5,6 @@ import (
     "github.com/ant0ine/go-json-rest/rest"
     "close/stats"
     "time"
-    "github.com/BurntSushi/toml"
 )
 
 type APIGet struct {
@@ -45,14 +44,12 @@ func (self *Manager) Get(w rest.ResponseWriter, req *rest.Request) {
 }
 
 func (self *Manager) Post(w rest.ResponseWriter, req *rest.Request) {
-    var config Config
-
-    if _, err := toml.DecodeReader(req.Body, &config); err != nil {
+    if err := self.LoadConfigReader(req.Body); err != nil {
         rest.Error(w, err.Error(), 400)
         return
     }
 
-    if err := self.Start(config); err != nil {
+    if err := self.Start(); err != nil {
         rest.Error(w, err.Error(), 500)
         return
     } else {

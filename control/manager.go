@@ -5,6 +5,7 @@ import (
     "close/config"
     "github.com/fsouza/go-dockerclient"
     "fmt"
+    "io"
     "log"
     "os"
     "close/stats"
@@ -100,20 +101,43 @@ func (self *Manager) init(options Options) error {
     return nil
 }
 
-func (self *Manager) LoadConfig(filePath string) (config Config, err error) {
-    if _, err := toml.DecodeFile(filePath, &config); err != nil {
-        return config, err
-    }
+// Activate the given config
+func (self *Manager) LoadConfig(config Config) error {
+    // TODO: stop old config?
 
-    return config, nil
+    self.config = &config
+
+    return nil
 }
 
-func (self *Manager) LoadConfigString(data string) (workerConfig WorkerConfig, err error) {
-    if _, err := toml.Decode(data, &workerConfig); err != nil {
-        return workerConfig, err
+func (self *Manager) LoadConfigReader(reader io.Reader) error {
+    var config Config
+
+    if _, err := toml.DecodeReader(reader, &config); err != nil {
+        return err
     }
 
-    return workerConfig, nil
+    return self.LoadConfig(config)
+}
+
+func (self *Manager) LoadConfigFile(filePath string) error {
+    var config Config
+
+    if _, err := toml.DecodeFile(filePath, &config); err != nil {
+        return err
+    }
+
+    return self.LoadConfig(config)
+}
+
+func (self *Manager) LoadConfigString(data string) error {
+    var config Config
+
+    if _, err := toml.Decode(data, &config); err != nil {
+        return err
+    }
+
+    return self.LoadConfig(config)
 }
 
 // Discover running docker containers
@@ -155,26 +179,40 @@ func (self *Manager) DumpConfig() (string, error) {
 }
 
 // Start new configuration
-func (self *Manager) Start(config Config) error {
-    self.config = &config
+func (self *Manager) Start() error {
+    if self.config == nil {
+        return nil
+    }
 
     self.log.Printf("Start config...\n");
 
-    if config.Client == nil {
+    if self.config.Client == nil {
 
-    } else if err := self.StartClients(*config.Client); err != nil {
+    } else if err := self.StartClients(*self.config.Client); err != nil {
         return err
     }
 
-    if config.Worker == nil {
+    if self.config.Worker == nil {
 
-    } else if err := self.StartWorkers(*config.Worker); err != nil {
+    } else if err := self.StartWorkers(*self.config.Worker); err != nil {
         return err
     }
 
     self.log.Printf("Started\n");
 
     return nil
+}
+
+// Stop current configuration
+func (self *Manager) Stop() (err error) {
+    if workersErr := self.StopWorkers(); workersErr != nil {
+        err = workersErr
+    }
+    if clientsErr:= self.StopClients(); clientsErr != nil {
+        err = clientsErr
+    }
+
+    return err
 }
 
 // Kill any running containers and reset state

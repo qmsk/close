@@ -14,6 +14,7 @@ var (
     controlOptions   control.Options
 
     configPath      string
+    start           bool
 
     httpDevel       bool
     httpListen      string
@@ -42,6 +43,8 @@ func init() {
 
     flag.StringVar(&configPath, "config-path", "",
         "Path to .toml config")
+    flag.BoolVar(&start, "start", false,
+        "Start config")
 }
 
 func main() {
@@ -63,14 +66,21 @@ func main() {
         log.Fatal(err)
     }
 
-    if configPath != "" {
-        if config, err := manager.LoadConfig(configPath); err != nil {
-            log.Fatalf("manager.LoadConfig %v: %v\n", configPath, err)
-        } else if err := manager.Start(config); err != nil {
-            log.Fatalf("manager.Start %v: %v\n", config, err)
-        } else {
-            log.Printf("Started from %v...\n", configPath)
-        }
+    if configPath == "" {
+
+    } else if err := manager.LoadConfigFile(configPath); err != nil {
+        log.Fatalf("manager.LoadConfig %v: %v\n", configPath, err)
+    } else {
+        log.Printf("Loaded configuration from %v...\n", configPath)
+    }
+
+    // TODO: should happen concurrently?
+    if !start {
+
+    } else if err := manager.Start(); err != nil {
+        log.Fatalf("manager.Start: %v\n", err)
+    } else {
+        log.Printf("Started...\n")
     }
 
     // run

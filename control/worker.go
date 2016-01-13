@@ -62,6 +62,59 @@ func (self *Manager) discoverWorker(dockerContainer *DockerContainer) error {
     return nil
 }
 
+func (self *Manager) workerUp(workerConfig *WorkerConfig, index uint) (*Worker, error) {
+    worker := &Worker{
+        Type:   workerConfig.Type,
+        ID:     index,
+        Config: workerConfig,
+    }
+
+    // docker
+    dockerID := DockerID{Class:"worker", Type: workerConfig.Type, Index: index}
+
+    dockerConfig := DockerConfig{
+        Image:      workerConfig.Image,
+        Command:    workerConfig.Command,
+        Env:        []string{
+            fmt.Sprintf("CLOSE_ID=%d", index),
+        },
+    }
+
+    dockerConfig.AddFlag("influxdb-addr", self.options.StatsReader.InfluxDB.Addr)
+    dockerConfig.AddFlag("influxdb-database", self.options.StatsReader.Database)
+    dockerConfig.AddFlag("config-redis-addr", self.options.Config.Redis.Addr)
+    dockerConfig.AddFlag("config-redis-db", self.options.Config.Redis.DB)
+    dockerConfig.AddFlag("config-prefix", self.options.Config.Prefix)
+
+    if workerConfig.IDFlag != "" {
+        dockerConfig.AddFlag(workerConfig.IDFlag, index)
+    }
+
+    dockerConfig.AddArg(workerConfig.Args...)
+
+    if workerConfig.Client != "" {
+        if client, err := self.GetClient(workerConfig.Client, index); err != nil {
+            return worker, fmt.Errorf("Worker %v GetClient: %v", worker, err)
+        } else {
+            dockerConfig.SetNetworkContainer(client.dockerContainer)
+        }
+    }
+
+    if container, err := self.DockerUp(dockerID, dockerConfig); err != nil {
+        return worker, fmt.Errorf("DockerUp %v: %v", dockerID, err)
+    } else {
+        worker.dockerContainer = container
+    }
+
+    if configSub, err := self.configRedis.Sub(config.SubOptions{Type: workerConfig.Type, ID: fmt.Sprintf("%d", worker.ID)}); err != nil {
+        return worker, fmt.Errorf("congigRedis.Sub: %v", err)
+    } else {
+        worker.configSub = configSub
+    }
+
+    return worker, nil
+}
+
 // Setup workers from config
 func (self *Manager) StartWorkers(workerConfig WorkerConfig) error {
     // mark
@@ -72,56 +125,11 @@ func (self *Manager) StartWorkers(workerConfig WorkerConfig) error {
     self.log.Printf("Start %d %s workers...\n", workerConfig.Count, workerConfig.Name);
 
     for index := uint(1); index <= workerConfig.Count; index++ {
-        worker := &Worker{
-            Type:   workerConfig.Type,
-            ID:     index,
-            Config: &workerConfig,
-        }
-
-        // docker
-        dockerID := DockerID{Class:"worker", Type: workerConfig.Type, Index: index}
-
-        dockerConfig := DockerConfig{
-            Image:      workerConfig.Image,
-            Command:    workerConfig.Command,
-            Env:        []string{
-                fmt.Sprintf("CLOSE_ID=%d", index),
-            },
-        }
-
-        dockerConfig.AddFlag("influxdb-addr", self.options.StatsReader.InfluxDB.Addr)
-        dockerConfig.AddFlag("influxdb-database", self.options.StatsReader.Database)
-        dockerConfig.AddFlag("config-redis-addr", self.options.Config.Redis.Addr)
-        dockerConfig.AddFlag("config-redis-db", self.options.Config.Redis.DB)
-        dockerConfig.AddFlag("config-prefix", self.options.Config.Prefix)
-
-        if workerConfig.IDFlag != "" {
-            dockerConfig.AddFlag(workerConfig.IDFlag, index)
-        }
-
-        dockerConfig.AddArg(workerConfig.Args...)
-
-        if workerConfig.Client != "" {
-            if client, err := self.GetClient(workerConfig.Client, index); err != nil {
-                return fmt.Errorf("Worker %v GetClient: %v", worker, err)
-            } else {
-                dockerConfig.SetNetworkContainer(client.dockerContainer)
-            }
-        }
-
-        if container, err := self.DockerUp(dockerID, dockerConfig); err != nil {
-            return fmt.Errorf("DockerUp %v: %v", dockerID, err)
+        if worker, err := self.workerUp(&workerConfig, index); err != nil {
+            self.log.Printf("workerUp %v %v: %v", workerConfig, index)
         } else {
-            worker.dockerContainer = container
+            self.workers[worker.String()] = worker
         }
-
-        if configSub, err := self.configRedis.Sub(config.SubOptions{Type: workerConfig.Type, ID: fmt.Sprintf("%d", worker.ID)}); err != nil {
-            return fmt.Errorf("congigRedis.Sub: %v", err)
-        } else {
-            worker.configSub = configSub
-        }
-
-        self.workers[worker.String()] = worker
     }
 
     // sweep
