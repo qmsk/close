@@ -221,7 +221,6 @@ func (self *Manager) Panic() (error) {
 
     err := self.DockerPanic()
 
-    self.config = nil
     self.clients = make(map[string]*Client)
     self.workers = make(map[string]*Worker)
 
