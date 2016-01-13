@@ -22,18 +22,21 @@ type ClientConfig struct {
 
 type Client struct {
     Config      *ClientConfig
+
+    Type        string
     ID          uint
 
     dockerContainer *DockerContainer
 }
 
 func (self Client) String() string {
-    return fmt.Sprintf("%s:%d", self.Config.Name, self.ID)
+    return fmt.Sprintf("%s:%d", self.Type, self.ID)
 }
 
 func (self *Manager) clientUp(config *ClientConfig, id uint) (*Client, error) {
     client := &Client{
         Config: config,
+        Type:   config.Name,
         ID:     id,
     }
 
@@ -111,6 +114,7 @@ func (self *Manager) GetClient(name string, index uint) (*Client, error) {
 
 type ClientStatus struct {
     Config          string  `json:"config"`
+    Type            string  `json:"type"`
     ID              uint    `json:"id"`
 
     Docker          string  `json:"docker"`
@@ -120,8 +124,12 @@ type ClientStatus struct {
 func (self *Manager) ListClients() (clients []ClientStatus, err error) {
     for _, client := range self.clients {
         clientStatus := ClientStatus{
-            Config:         client.Config.Name,
+            Type:           client.Type,
             ID:             client.ID,
+        }
+
+        if client.Config != nil {
+            clientStatus.Config = client.Config.Name
         }
 
         if dockerContainer, err := self.DockerGet(client.dockerContainer.String()); err != nil {

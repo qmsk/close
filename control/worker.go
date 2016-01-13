@@ -29,9 +29,9 @@ func (self WorkerConfig) String() string {
 
 // track state of managed workers
 type Worker struct {
+    Config          *WorkerConfig
     Type            string
     ID              uint
-    Config          *WorkerConfig
 
     dockerContainer *DockerContainer
     configSub       *config.Sub
@@ -166,9 +166,12 @@ func (self *Manager) ListWorkers() (workers []WorkerStatus, err error) {
             workerStatus.ConfigTTL = configTTL.Seconds()
         }
 
-        if configMap, err := worker.configSub.Get(); err != nil {
-            return nil, err
-        } else {
+        if worker.Config != nil {
+            configMap, err := worker.configSub.Get()
+            if err != nil {
+                return nil, err
+            }
+
             switch rateValue := configMap[worker.Config.RateConfig].(type) {
             case json.Number:
                 workerStatus.Rate = rateValue
