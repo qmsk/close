@@ -5,8 +5,8 @@ import (
     "close/config"
     "github.com/fsouza/go-dockerclient"
     "fmt"
-    "net/http"
     "log"
+    "os"
     "close/stats"
     "github.com/BurntSushi/toml"
 )
@@ -15,6 +15,8 @@ type Options struct {
     StatsReader     stats.ReaderConfig
     Config          config.Options
     DockerEndpoint  string
+
+    Logger          *log.Logger
 }
 
 // full-system configuration
@@ -25,27 +27,32 @@ type Config struct {
 
 type Manager struct {
     options         Options
+    log             *log.Logger
 
-    logs            *Logs
     configRedis     *config.Redis
     statsReader     *stats.Reader
     dockerClient    *docker.Client
     dockerName      string
 
     // state
-    log             *log.Logger
     config          *Config
     clients         map[string]*Client
     workers         map[string]*Worker
 }
 
 func New(options Options) (*Manager, error) {
+    if options.Logger == nil {
+        options.Logger = log.New(os.Stderr, "Manager: ", 0)
+    }
+
     self := &Manager{
         options:    options,
+        log:        options.Logger,
 
         clients:        make(map[string]*Client),
         workers:        make(map[string]*Worker),
     }
+
 
     if err := self.init(options); err != nil {
         return nil, err
@@ -55,13 +62,6 @@ func New(options Options) (*Manager, error) {
 }
 
 func (self *Manager) init(options Options) error {
-    if logs, err := NewLogs(); err != nil {
-        return fmt.Errorf("NewLogs: %v", err)
-    } else {
-        self.logs = logs
-        self.log = logs.Logger("Manager: ")
-    }
-
     if options.Config.Redis.Addr == "" {
         return fmt.Errorf("missing --config-redis-addr")
     } else if configRedis, err := config.NewRedis(options.Config); err != nil {
@@ -97,10 +97,6 @@ func (self *Manager) init(options Options) error {
     }
 
     return nil
-}
-
-func (self *Manager) LogsHandler() http.Handler {
-    return self.logs
 }
 
 func (self *Manager) LoadConfig(filePath string) (config Config, err error) {

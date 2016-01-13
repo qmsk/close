@@ -5,6 +5,7 @@ import (
     "flag"
     "net/http"
     "log"
+    "close/logs"
     "github.com/ant0ine/go-json-rest/rest"
     "close/stats"
 )
@@ -46,6 +47,13 @@ func init() {
 func main() {
     flag.Parse()
 
+    logs, err := logs.New()
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    controlOptions.Logger = logs.Logger("Manager: ")
+
     manager, err := control.New(controlOptions)
     if err != nil {
         log.Fatal(err)
@@ -77,7 +85,7 @@ func main() {
     staticHandler := http.FileServer(http.Dir(staticPath))
 
     http.Handle("/api/", http.StripPrefix("/api", api.MakeHandler()))
-    http.Handle("/logs", manager.LogsHandler())
+    http.Handle("/logs", logs)
     http.Handle("/", staticHandler)
 
     if err := http.ListenAndServe(httpListen, nil); err != nil {
