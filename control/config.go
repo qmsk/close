@@ -3,7 +3,6 @@ package control
 import (
     "close/config"
     "fmt"
-    "log"
 )
 
 type ConfigItem struct {
@@ -35,7 +34,7 @@ func (self *Manager) ConfigList(filter config.SubOptions) (configs []ConfigItem,
             configItem := ConfigItem{SubOptions:configSub.Options()}
 
             if ttl, err := configSub.Check(); err != nil {
-                log.Printf("Manager.List Sub.Get %v: %v\n", configSub, err)
+                self.log.Printf("Manager.List Sub.Get %v: %v\n", configSub, err)
                 continue
             } else {
                 configItem.TTL = ttl.Seconds()
@@ -54,8 +53,6 @@ func (self *Manager) ConfigGet(subOptions config.SubOptions) (config.Config, err
     } else if subConfig, err := configSub.Get(); err != nil {
         return nil, fmt.Errorf("config.Sub %v: Get: %v", configSub, err)
     } else {
-        log.Printf("config.Sub %v: Get: %v\n", configSub, subConfig)
-
         return subConfig, nil
     }
 }
@@ -66,7 +63,7 @@ func (self *Manager) ConfigPush(subOptions config.SubOptions, pushConfig config.
     } else if err := configSub.Push(pushConfig); err != nil {
         return fmt.Errorf("config.Sub %v: Push %v: %v", configSub, pushConfig, err)
     } else {
-        log.Printf("config.Sub %v: Push %v\n", configSub, pushConfig)
+        self.log.Printf("config.Sub %v: Push %v\n", configSub, pushConfig)
 
         return nil
     }

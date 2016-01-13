@@ -35,6 +35,7 @@ type Manager struct {
     dockerName      string
 
     // state
+    // XXX: these are unsafe against concurrent web requests
     config          *Config
     clients         map[string]*Client
     workers         map[string]*Worker
