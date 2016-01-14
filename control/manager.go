@@ -9,6 +9,7 @@ import (
     "log"
     "os"
     "close/stats"
+    "strings"
     "github.com/BurntSushi/toml"
 )
 
@@ -102,9 +103,18 @@ func (self *Manager) init(options Options) error {
 }
 
 // Activate the given config
-func (self *Manager) LoadConfig(config Config) error {
-    // TODO: stop old config?
+func (self *Manager) loadConfig(meta toml.MetaData, config Config) (err error) {
+    var undecodedKeys []string
 
+    for _, key := range meta.Undecoded() {
+        undecodedKeys = append(undecodedKeys, key.String())
+    }
+
+    if undecodedKeys != nil {
+        return fmt.Errorf("Undecoded keys: %v", strings.Join(undecodedKeys, " "))
+    }
+
+    // TODO: stop old config?
     self.config = &config
 
     return nil
@@ -113,31 +123,31 @@ func (self *Manager) LoadConfig(config Config) error {
 func (self *Manager) LoadConfigReader(reader io.Reader) error {
     var config Config
 
-    if _, err := toml.DecodeReader(reader, &config); err != nil {
+    if meta, err := toml.DecodeReader(reader, &config); err != nil {
         return err
+    } else {
+        return self.loadConfig(meta, config)
     }
-
-    return self.LoadConfig(config)
 }
 
 func (self *Manager) LoadConfigFile(filePath string) error {
     var config Config
 
-    if _, err := toml.DecodeFile(filePath, &config); err != nil {
+    if meta, err := toml.DecodeFile(filePath, &config); err != nil {
         return err
+    } else {
+        return self.loadConfig(meta, config)
     }
-
-    return self.LoadConfig(config)
 }
 
 func (self *Manager) LoadConfigString(data string) error {
     var config Config
 
-    if _, err := toml.Decode(data, &config); err != nil {
+    if meta, err := toml.Decode(data, &config); err != nil {
         return err
+    } else {
+        return self.loadConfig(meta, config)
     }
-
-    return self.LoadConfig(config)
 }
 
 // Discover running docker containers
