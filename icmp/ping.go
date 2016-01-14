@@ -13,19 +13,22 @@ import (
 )
 
 type PingConfig struct {
+    Instance    string              `json:"-"`
+
     Target      string              `json:"target"`
-    Interval    float64             `json:"interval"` // seconds
+    ID          int                 `json:"id"`         // 32-bit id, default from pid
+    Interval    float64             `json:"interval"`   // seconds
 }
 
 type PingStats struct {
-    Target          string
+    Instance        string
     Time            time.Time       // ping request was sent out
 
     RTT             time.Duration
 }
 
 func (self PingStats) StatsInstance() string {
-    return self.Target
+    return self.Instance
 }
 
 func (self PingStats) StatsTime() time.Time {
@@ -61,7 +64,6 @@ type pingResult struct {
 type Pinger struct {
     dst         net.Addr
     conn        *icmp.PacketConn
-    id          int
 
     config   PingConfig
     configC  chan config.Config
@@ -74,9 +76,14 @@ type Pinger struct {
 }
 
 func NewPinger(config PingConfig) (*Pinger, error) {
-    p := &Pinger {
-        id:     os.Getpid() & 0xffff,
-        log:    log.New(os.Stderr, "ping: ", 0),
+    if config.ID == 0 {
+        config.ID = os.Getpid() & 0xffff
+    }
+
+    p := &Pinger{
+        config:     config,
+        log:        log.New(os.Stderr, "ping: ", 0),
+        receiverC:  make(chan pingResult),
     }
 
     if err := p.init(config); err != nil {
@@ -101,9 +108,6 @@ func (p *Pinger) init(config PingConfig) error {
     }
 
     p.dst = udpAddr
-    p.receiverC = make(chan pingResult)
-
-    p.config = config
 
     go p.receiver()
 
@@ -126,7 +130,7 @@ func (p *Pinger) ConfigFrom(configRedis *config.Redis) (*config.Sub, error) {
     // copy for updates
     updateConfig := p.config
 
-    if configSub, err := configRedis.Sub(config.SubOptions{"icmp_ping", p.config.Target}); err != nil {
+    if configSub, err := configRedis.Sub(config.SubOptions{"icmp_ping", p.config.Instance}); err != nil {
         return nil, err
     } else if configChan, err := configSub.Start(&updateConfig); err != nil {
         return nil, err
@@ -168,9 +172,9 @@ func (p *Pinger) Run() {
 
                     // Could have takeStats interface...
                     s := PingStats{
-                        Target: p.config.Target,
-                        Time:   start,
-                        RTT:    rtt,
+                        Instance:   p.config.Instance,
+                        Time:       start,
+                        RTT:        rtt,
                     }
 
                     p.rttC <- s
@@ -193,9 +197,9 @@ func (p *Pinger) send(seq int) error {
         Type: ipv4.ICMPTypeEcho,
         Code: 0,
         Body: &icmp.Echo {
-            ID: p.id,
-            Seq: seq,
-            Data: []byte("HELLO 1"),
+            ID:     p.config.ID,
+            Seq:    seq,
+            Data:   []byte("HELLO 1"),
         },
     }
 

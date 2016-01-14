@@ -25,10 +25,6 @@ func init() {
 
     flag.StringVar(&statsConfig.Hostname, "stats-hostname", os.Getenv("STATS_HOSTNAME"),
         "hostname to uniquely identify this source")
-    flag.StringVar(&statsConfig.Instance, "stats-instance", os.Getenv("STATS_INSTANCE"),
-        "instance to uniquely identify the target")
-    flag.Float64Var(&statsConfig.Interval, "stats-interval", stats.INTERVAL,
-        "stats interval")
     flag.BoolVar(&statsConfig.Print, "stats-print", false,
         "display stats on stdout")
 
@@ -39,6 +35,8 @@ func init() {
     flag.StringVar(&configOptions.Prefix, "config-prefix", "close",
         "Redis key prefix")
 
+    flag.StringVar(&pingConfig.Instance, "instance", os.Getenv("CLOSE_ID"),
+        "type instance")
     flag.Float64Var(&pingConfig.Interval, "interval", 1.0,
         "ping interval")
     flag.StringVar(&pingConfig.Target, "target", "",
