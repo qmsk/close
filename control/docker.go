@@ -202,8 +202,12 @@ type DockerContainer struct {
     ID          string          `json:"id"`
     Node        string          `json:"node"`
     Name        string          `json:"name"`
-    Status      string          `json:"status"`
-    Running     bool            `json:"running"`
+    State       docker.State    `json:"state"`
+    Status      string          `json:"status"` // from State
+}
+
+func (self *DockerContainer) IsUp() bool {
+    return self.State.Running
 }
 
 func (self *DockerContainer) updateStatus(dockerContainer *docker.Container) {
@@ -219,8 +223,8 @@ func (self *DockerContainer) updateStatus(dockerContainer *docker.Container) {
         self.Node = dockerContainer.Node.Name
     }
 
+    self.State = dockerContainer.State
     self.Status = dockerContainer.State.String()
-    self.Running = dockerContainer.State.Running
 }
 
 func (self *Manager) DockerList() (containers []*DockerContainer, err error) {
@@ -365,14 +369,14 @@ func (self *Manager) DockerUp(id DockerID, config DockerConfig) (*DockerContaine
     }
 
     // running
-    if container.Running {
+    if container.IsUp() {
         self.log.Printf("DockerUp %v: running\n", container)
     } else if err := self.dockerClient.StartContainer(container.ID, nil); err != nil {
         return nil, fmt.Errorf("dockerClient.StartContainer %v: %v", container.ID, err)
     } else {
         self.log.Printf("DockerUp %v: started\n", container)
 
-        container.Running = true
+        container.State.Running = true // XXX
     }
 
     return container, nil
@@ -385,7 +389,7 @@ func (self *Manager) DockerDown(container *DockerContainer) error {
         return err
     }
 
-    container.Running = false
+    container.State.Running = false // XXX
 
     return nil
 }

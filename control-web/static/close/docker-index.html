@@ -5,6 +5,7 @@
 <table class="table docker">
     <thead>
         <tr>
+            <th>State</th>
             <th>Class</td>
             <th>Type</td>
             <th>Index</td>
@@ -16,6 +17,20 @@
     </thead>
     <tbody>
         <tr ng-repeat="dockerContainer in dockerContainers">
+            <td>
+                <span class="label label-success" ng-if="dockerContainer.state.Running">
+                    <span class="glyphicon glyphicon-play" title="Running"></span>
+                </span>
+                <span class="label label-info" ng-if="dockerContainer.state.Paused">
+                    <span class="glyphicon glyphicon-pause" title="Running"></span>
+                </span>
+                <span class="label label-warning" ng-if="dockerContainer.state.ExitCode">
+                    <span class="glyphicon glyphicon-alert" title="Error"></span>
+                </span>
+                <span class="label label-default" ng-if="!dockerContainer.state.Running && !dockerContainer.state.ExitCode">
+                    <span class="glyphicon glyphicon-stop" title="Stopped"></span>
+                </span>
+            </td>
             <td>{{dockerContainer.class}}</td>
             <td>{{dockerContainer.type}}</td>
             <td>{{dockerContainer.index}}</td>
