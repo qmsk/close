@@ -13,6 +13,7 @@ import (
 var (
     controlOptions   control.Options
 
+    authConfigPath  string
     configPath      string
     start           bool
 
@@ -41,6 +42,8 @@ func init() {
     flag.StringVar(&staticPath, "static-path", "",
         "Path to /static files")
 
+    flag.StringVar(&authConfigPath, "auth-config-path", "",
+        "Path to .toml users config")
     flag.StringVar(&configPath, "config-path", "",
         "Path to .toml config")
     flag.BoolVar(&start, "start", false,
@@ -85,6 +88,15 @@ func main() {
 
     // run
     api := rest.NewApi()
+
+    if authConfigPath == "" {
+        log.Printf("Warning: starting without authentication\n")
+    } else if auth, err := manager.NewAuth(authConfigPath); err != nil {
+        log.Fatalf("manager.NewAuth %v: %v\n", authConfigPath, err)
+    } else {
+        api.Use(auth)
+        log.Printf("Loaded users from %v...\n", authConfigPath)
+    }
 
     if httpDevel {
         api.Use(rest.DefaultDevStack...)
