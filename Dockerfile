@@ -1,8 +1,3 @@
-FROM golang:1.5
+FROM debian:jessie
 
-COPY . /go/src/close
-RUN go get -v \
-    close/latency \
-    close/udp-send \
-    close/udp-recv 
-
+COPY bin/ /usr/local/bin/
