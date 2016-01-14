@@ -163,12 +163,21 @@ func (self *Manager) StopWorkers() (retErr error) {
     return retErr
 }
 
+type WorkerState string
+
+var WorkerDown  WorkerState = "down"    // not running, clean exit
+var WorkerUp    WorkerState = "up"      // running, configured
+var WorkerWait  WorkerState = "wait"    // running, not configured
+var WorkerError WorkerState = "error"   // not running, unclea exit
+
 type WorkerStatus struct {
     Type            string  `json:"type"`
     ID              uint    `json:"id"`
 
     Docker          string  `json:"docker"`
     DockerStatus    string  `json:"docker_status"`
+
+    State           WorkerState `json:"state"`
 
     ConfigTTL       float64 `json:"config_ttl"` // seconds
 
@@ -187,10 +196,18 @@ func (self *Manager) ListWorkers() (workers []WorkerStatus, err error) {
         } else {
             workerStatus.Docker = dockerContainer.String()
             workerStatus.DockerStatus = dockerContainer.Status
+
+            if dockerContainer.State.Running {
+                workerStatus.State = WorkerUp
+            } else if dockerContainer.State.ExitCode == 0 {
+                workerStatus.State = WorkerDown
+            } else {
+                workerStatus.State = WorkerError
+            }
         }
 
         if configTTL, err := worker.configSub.Check(); err != nil {
-            return nil, err
+            workerStatus.State = WorkerWait
         } else {
             workerStatus.ConfigTTL = configTTL.Seconds()
         }

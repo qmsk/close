@@ -23,6 +23,7 @@
     <table class="table clients">
         <thead>
             <tr>
+                <th>Status</th>
                 <th>Type</td>
                 <th>ID</th>
                 <th>Docker</th>
@@ -31,6 +32,17 @@
         </thead>
         <tbody>
             <tr ng-repeat="client in clients">
+                <td>
+                    <span class="label label-default" ng-if="client.state == 'down'">
+                        <span class="glyphicon glyphicon-off" title="Down"></span>
+                    </span>
+                    <span class="label label-success" ng-if="client.state == 'up'">
+                        <span class="glyphicon glyphicon-ok" title="Up"></span>
+                    </span>
+                    <span class="label label-danger" ng-if="client.state == 'error'">
+                        <span class="glyphicon glyphicon-alert" title="Error"></span>
+                    </span>
+                </td>
                 <td>{{client.type}}</td>
                 <td>{{client.id}}</td>
                 <td>
@@ -53,6 +65,7 @@
     <table class="table workers">
         <thead>
             <tr>
+                <th>State</th>
                 <th>Type</td>
                 <th>ID</th>
                 <th>Docker</th>
@@ -63,6 +76,21 @@
         </thead>
         <tbody>
             <tr ng-repeat="worker in workers">
+                <td>
+                    <span class="label label-default" ng-if="worker.state == 'down'">
+                        <span class="glyphicon glyphicon-off" title="Down"></span>
+                    </span>
+                    <span class="label label-success" ng-if="worker.state == 'up'">
+                        <span class="glyphicon glyphicon-ok" title="Up"></span>
+                    </span>
+                    <span class="label label-warning" ng-if="worker.state == 'wait'">
+                        <span class="glyphicon glyphicon-time" title="Wait"></span>
+                    </span>
+                    <span class="label label-danger" ng-if="worker.state == 'error'">
+                        <span class="glyphicon glyphicon-alert" title="Error"></span>
+                    </span>
+                </td>
+
                 <td>{{worker.type}}</td>
                 <td>{{worker.id}}</td>
                 <td>

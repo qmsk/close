@@ -142,13 +142,21 @@ func (self *Manager) StopClients() (retErr error) {
     return retErr
 }
 
-type ClientStatus struct {
-    Config          string  `json:"config"`
-    Type            string  `json:"type"`
-    ID              uint    `json:"id"`
+type ClientState string
 
-    Docker          string  `json:"docker"`
-    DockerStatus    string  `json:"docker_status"`
+var ClientDown  ClientState = "down"
+var ClientUp    ClientState = "up"
+var ClientError ClientState = "error"
+
+type ClientStatus struct {
+    Config          string      `json:"config"`
+    Type            string      `json:"type"`
+    ID              uint        `json:"id"`
+
+    Docker          string      `json:"docker"`
+    DockerStatus    string      `json:"docker_status"`
+
+    State           ClientState `json:"state"`
 }
 
 func (self *Manager) ListClients() (clients []ClientStatus, err error) {
@@ -167,6 +175,14 @@ func (self *Manager) ListClients() (clients []ClientStatus, err error) {
         } else {
             clientStatus.Docker = dockerContainer.String()
             clientStatus.DockerStatus = dockerContainer.Status
+
+            if dockerContainer.State.Running {
+                clientStatus.State = ClientUp
+            } else if dockerContainer.State.ExitCode == 0 {
+                clientStatus.State = ClientDown
+            } else {
+                clientStatus.State = ClientError
+            }
         }
 
         clients = append(clients, clientStatus)
