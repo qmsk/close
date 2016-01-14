@@ -54,7 +54,16 @@ func (self *Sub) Options() SubOptions {
 
 // Check if this sub still exists, and return remaining TTL
 func (self *Sub) Check() (time.Duration, error) {
-    return self.redis.redisClient.PTTL(self.path).Result()
+    if duration, err := self.redis.redisClient.PTTL(self.path).Result(); err != nil {
+        return 0, err
+    } else if duration < 0 {
+        // XXX: go-redis doesn't handle these
+        n := int(duration.Seconds() * 1000)
+
+        return 0, fmt.Errorf("PTTL: %d", n)
+    } else {
+        return duration, nil
+    }
 }
 
 // get as generic map[string]interface{}
@@ -72,7 +81,7 @@ func (self *Sub) Get() (ConfigMap, error) {
 // update config from redis
 func (self *Sub) get(config Config) error {
     if jsonBuf, err := self.redis.redisClient.Get(self.path).Bytes(); err != nil {
-        return nil
+        return err
     } else if err := json.Unmarshal(jsonBuf, config); err != nil {
         return err
     } else {
