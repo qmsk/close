@@ -18,7 +18,7 @@
     <tbody>
         <tr ng-repeat="dockerContainer in dockerContainers">
             <td>
-                <span class="label label-success" ng-if="dockerContainer.state.Running">
+                <span class="label label-success" ng-if="dockerContainer.state.Running && !dockerContainer.state.Paused">
                     <span class="glyphicon glyphicon-play" title="Running"></span>
                 </span>
                 <span class="label label-info" ng-if="dockerContainer.state.Paused">

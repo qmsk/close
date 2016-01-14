@@ -96,7 +96,13 @@
                 <td>
                     <a href="#/docker/{{worker.docker}}">{{worker.docker_status}}</a>
                 </td>
-                <td>TTL={{worker.config_ttl}}</td>
+                <td>
+                    <span class="label label-warning" ng-if="!worker.config">
+                        <span class="glyphicon glyphicon-question-sign" title="Unknown"></span> Unknown
+                    </span>
+                    <span class="label label-warning" ng-if="worker.config_error">{{worker.config_error}}</span>
+                    <span ng-if="worker.config_ttl">TTL={{worker.config_ttl}}</span>
+                </td>
                 <td>{{worker.rate}}</td>
                 <td>
                     <a href="#/workers/{{worker.type}}/{{worker.id}}"><span class="glyphicon glyphicon-zoom-in"></span></a>

@@ -50,17 +50,22 @@ closeApp.controller('HeaderController', function($scope, $location) {
 closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $http) {
     $scope.busy = true;
     $scope.get = function(){
-        $http.get('/api/').success(function(data){
-            $scope.config = data.config_text;
-            $scope.clients = data.clients;
-            $scope.workers = data.workers;
+        $http.get('/api/').then(
+            function success(r){
+                $scope.config = r.data.config_text;
+                $scope.clients = r.data.clients;
+                $scope.workers = r.data.workers;
 
-            $scope.busy = false;
+                $scope.busy = false;
 
-            if (data.config && data.config.Worker) {
-                $scope.statsChart(data.config.Worker.RateStats);
+                if (r.data.config && r.data.config.Worker) {
+                    $scope.statsChart(r.data.config.Worker.RateStats);
+                }
+            },
+            function error(r){
+                $scope.configAlert = r.data;
             }
-        });
+        );
     };
 
     $scope.postConfig = function(){

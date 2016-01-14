@@ -165,10 +165,11 @@ func (self *Manager) StopWorkers() (retErr error) {
 
 type WorkerState string
 
-var WorkerDown  WorkerState = "down"    // not running, clean exit
-var WorkerUp    WorkerState = "up"      // running, configured
-var WorkerWait  WorkerState = "wait"    // running, not configured
-var WorkerError WorkerState = "error"   // not running, unclea exit
+var WorkerDown      WorkerState     = "down"    // not running, clean exit
+var WorkerUnknown   WorkerState     = "unknown" // running, unknown
+var WorkerUp        WorkerState     = "up"      // running, configured
+var WorkerWait      WorkerState     = "wait"    // running, not configured
+var WorkerError     WorkerState     = "error"   // not running, unclean exit
 
 type WorkerStatus struct {
     Type            string  `json:"type"`
@@ -177,9 +178,11 @@ type WorkerStatus struct {
     Docker          string  `json:"docker"`
     DockerStatus    string  `json:"docker_status"`
 
+    Config          string      `json:"config"` // WorkerConfig.Name
     State           WorkerState `json:"state"`
 
-    ConfigTTL       float64 `json:"config_ttl"` // seconds
+    ConfigError     string      `json:"config_error,omitempty"`
+    ConfigTTL       float64     `json:"config_ttl"` // seconds
 
     Rate            json.Number `json:"rate"`   // config
 }
@@ -192,7 +195,7 @@ func (self *Manager) ListWorkers() (workers []WorkerStatus, err error) {
         }
 
         if dockerContainer, err := self.DockerGet(worker.dockerContainer.String()); err != nil {
-            return nil, err
+            return nil, fmt.Errorf("ListWorkers %v: DockerGet %v: %v", worker, worker.dockerContainer, err)
         } else {
             workerStatus.Docker = dockerContainer.String()
             workerStatus.DockerStatus = dockerContainer.Status
@@ -207,16 +210,24 @@ func (self *Manager) ListWorkers() (workers []WorkerStatus, err error) {
         }
 
         if configTTL, err := worker.configSub.Check(); err != nil {
-            workerStatus.State = WorkerWait
+            if workerStatus.State == WorkerUp {
+                workerStatus.State = WorkerWait
+            }
         } else {
             workerStatus.ConfigTTL = configTTL.Seconds()
         }
 
-        if worker.Config != nil {
-            configMap, err := worker.configSub.Get()
-            if err != nil {
-                return nil, err
-            }
+
+        if worker.Config == nil {
+            workerStatus.Config = ""
+
+        } else if configMap, err := worker.configSub.Get(); err != nil {
+            self.log.Printf("ListWorkers %v: configSub.Get %v: %v\n", worker, worker.configSub, err)
+
+            workerStatus.Config = worker.Config.Name
+            workerStatus.ConfigError = err.Error()
+        } else {
+            workerStatus.Config = worker.Config.Name
 
             switch rateValue := configMap[worker.Config.RateConfig].(type) {
             case json.Number:
@@ -227,7 +238,7 @@ func (self *Manager) ListWorkers() (workers []WorkerStatus, err error) {
             case nil:
                 // XXX: not yet set...
             default:
-                return nil, fmt.Errorf("invalid %s RateConfig=%v value type %T: %#v", worker.Config.Type, worker.Config.RateConfig, rateValue, rateValue)
+                workerStatus.ConfigError = fmt.Sprintf("invalid %s RateConfig=%v value type %T: %#v", worker.Config.Type, worker.Config.RateConfig, rateValue, rateValue)
             }
         }
 
