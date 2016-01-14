@@ -1,10 +1,9 @@
 package main
 
 import (
-    "close/ping"
+    "close/icmp"
     "close/stats"
     "close/config"
-    "time"
     "log"
     "flag"
     "os"
@@ -17,7 +16,7 @@ var (
 )
 
 func init() {
-    statsConfig.Type = "icmp_latency"
+    statsConfig.Type = "icmp_ping"
 
     flag.StringVar(&statsConfig.InfluxDB.Addr, "influxdb-addr", "http://influxdb:8086",
         "influxdb http://... address")
@@ -40,16 +39,10 @@ func init() {
     flag.StringVar(&configOptions.Prefix, "config-prefix", "close",
         "Redis key prefix")
 
-    flag.StringVar(&pingConfig.Target, "ping", "8.8.8.8",
+    flag.Float64Var(&pingConfig.Interval, "interval", 1.0,
+        "ping interval")
+    flag.StringVar(&pingConfig.Target, "target", "",
         "target host to send ICMP echos to")
-}
-
-func collectLatency(p *ping.Pinger) {
-    ticker := time.NewTicker(time.Second)
-    for {
-        <-ticker.C
-        p.Latency()
-    }
 }
 
 func main() {
@@ -57,7 +50,7 @@ func main() {
 
     p, err := ping.NewPinger(pingConfig)
     if err != nil {
-        log.Panicf("ping.NewPinger %v: %v\n", pingConfig, err)
+        log.Fatalf("ping.NewPinger %v: %v\n", pingConfig, err)
     } else {
         log.Printf("ping.NewPinger %v: %v\n", pingConfig, p)
     }
@@ -84,6 +77,5 @@ func main() {
         statsWriter.WriteFrom(p)
     }
 
-
-    collectLatency(p)
+    p.Run()
 }
