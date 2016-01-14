@@ -12,6 +12,7 @@ type WorkerConfig struct {
     Client      string // ClientConfig.name
 
     Image       string
+    Privileged  bool
     Command     string
     Args        []string
 
@@ -72,7 +73,7 @@ func (self *Manager) workerUp(workerConfig *WorkerConfig, index uint) (*Worker, 
     }
 
     // docker
-    dockerID := DockerID{Class:"worker", Type: workerConfig.Type, Index: index}
+    dockerID := DockerID{Class:"worker", Type: workerConfig.String(), Index: index}
 
     dockerConfig := DockerConfig{
         Image:      workerConfig.Image,
@@ -80,6 +81,7 @@ func (self *Manager) workerUp(workerConfig *WorkerConfig, index uint) (*Worker, 
         Env:        []string{
             fmt.Sprintf("CLOSE_ID=%d", index),
         },
+        Privileged: workerConfig.Privileged,
     }
 
     dockerConfig.AddFlag("influxdb-addr", self.options.StatsReader.InfluxDB.Addr)
@@ -108,7 +110,10 @@ func (self *Manager) workerUp(workerConfig *WorkerConfig, index uint) (*Worker, 
         worker.dockerContainer = container
     }
 
-    if configSub, err := self.configRedis.Sub(config.SubOptions{Type: workerConfig.Type, ID: fmt.Sprintf("%d", worker.ID)}); err != nil {
+    // XXX: this is not unique if there are multiple config.Workers with the same Type!
+    if subOptions, err := config.ParseSub(worker.Config.Type, fmt.Sprintf("%d", worker.ID)); err != nil {
+        return nil, fmt.Errorf("config.ParseSub: %v", err)
+    } else if configSub, err := self.configRedis.Sub(subOptions); err != nil {
         return worker, fmt.Errorf("congigRedis.Sub: %v", err)
     } else {
         worker.configSub = configSub
