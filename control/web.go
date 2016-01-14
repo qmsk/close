@@ -8,7 +8,7 @@ import (
 )
 
 type APIGet struct {
-    Config              *Config         `json:"config"`
+    Config              Config          `json:"config"`
     ConfigText          string          `json:"config_text"`
 
     Clients             []ClientStatus  `json:"clients"`
@@ -58,8 +58,8 @@ func (self *Manager) Post(w rest.ResponseWriter, req *rest.Request) {
     }
 }
 
-func (self *Manager) DeleteWorkers(w rest.ResponseWriter, req *rest.Request) {
-    if err := self.StopWorkers(); err != nil {
+func (self *Manager) Delete(w rest.ResponseWriter, req *rest.Request) {
+    if err := self.Stop(); err != nil {
         rest.Error(w, err.Error(), 500)
     } else {
         w.WriteHeader(200)
@@ -221,8 +221,8 @@ func (self *Manager) PostPanic(w rest.ResponseWriter, req *rest.Request) {
 func (self *Manager) RestApp() (rest.App, error) {
     return rest.MakeRouter(
         rest.Get("/",           self.Get),
-        rest.Post("/",          self.Post),
-        rest.Delete("/workers", self.DeleteWorkers),
+        rest.Post("/",          self.Post),         // Load + Start
+        rest.Delete("/",        self.Delete),       // Stop
 
         // list active containers
         rest.Get("/docker/", self.GetDockerList),

@@ -58,8 +58,13 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
 
                 $scope.busy = false;
 
-                if (r.data.config && r.data.config.Worker) {
-                    $scope.statsChart(r.data.config.Worker.RateStats);
+                if (r.data.config && r.data.config.Workers) {
+                    // XXX: multiple configs?!
+                    $.each(r.data.config.Workers, function(configName, workerConfig){
+                        if (workerConfig.RateStats) {
+                            $scope.statsChart(workerConfig.RateStats);
+                        }
+                    });
                 }
             },
             function error(r){

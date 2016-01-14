@@ -8,7 +8,7 @@ import (
 )
 
 type ClientConfig struct {
-    Name            string
+    name            string
     Count           uint
 
     Image           string
@@ -20,43 +20,46 @@ type ClientConfig struct {
     VolumeReadonly  bool
 }
 
+func (self ClientConfig) String() string {
+    return self.name
+}
+
 type Client struct {
     Config      *ClientConfig
-
-    Type        string
     ID          uint
 
     dockerContainer *DockerContainer
 }
 
 func (self Client) String() string {
-    return fmt.Sprintf("%s:%d", self.Type, self.ID)
+    return fmt.Sprintf("%v:%d", self.Config, self.ID)
 }
 
-func (self *Manager) discoverClient(dockerContainer *DockerContainer) error {
-    client := &Client{
-        Config: nil, // TODO
+func (self *Manager) discoverClient(dockerContainer *DockerContainer) (*Client, error) {
+    clientConfig := self.config.Clients[dockerContainer.Type]
 
-        Type:   dockerContainer.Type,
+    if clientConfig == nil {
+        return nil, fmt.Errorf("Unknown client config type: %v", dockerContainer.Type)
+    }
+
+    client := &Client{
+        Config: clientConfig,
         ID:     dockerContainer.Index,
 
         dockerContainer:    dockerContainer,
     }
 
-    self.clients[client.String()] = client
-
-    return nil
+    return client, nil
 }
 
 func (self *Manager) clientUp(config *ClientConfig, id uint) (*Client, error) {
     client := &Client{
         Config: config,
-        Type:   config.Name,
         ID:     id,
     }
 
     // docker
-    dockerID := DockerID{Class:"client", Type: config.Name, Index: id}
+    dockerID := DockerID{Class:"client", Type: config.name, Index: id}
 
     dockerConfig := DockerConfig{
         Image:      config.Image,
@@ -84,34 +87,39 @@ func (self *Manager) clientUp(config *ClientConfig, id uint) (*Client, error) {
     return client, nil
 }
 
-// Start up all configured clients
-func (self *Manager) StartClients(config ClientConfig) error {
-    // mark
+// Mark all clients as unconfigured
+func (self *Manager) markClients() {
     for _, client := range self.clients {
         client.Config = nil
     }
+}
 
-    self.log.Printf("Start %d %s clients...\n", config.Count, config.Name);
+// Start up all configured clients
+func (self *Manager) ClientUp(config *ClientConfig) error {
+    self.log.Printf("ClientUp %v: Start %d clients...\n", config, config.Count)
 
     for id := uint(1); id <= config.Count; id++ {
-        if client, err := self.clientUp(&config, id); err != nil {
-            return err
+        if client, err := self.clientUp(config, id); err != nil {
+            return fmt.Errorf("ClientUp %v: %v", config, err)
         } else {
             self.clients[client.String()] = client
         }
     }
 
-    // sweep
+    return nil
+}
+
+// Stop running clients clients for given config
+// Call with config=nil to cleanup all unconfigured clients
+func (self *Manager) ClientDown(config *ClientConfig) error {
     for key, client := range self.clients {
-        if client.Config != nil {
-            continue
-        }
+        if client.Config == config {
+            if err := self.DockerDown(client.dockerContainer); err != nil {
+                return fmt.Errorf("ClientDown %v: DockerDown %v: %v", config, client.dockerContainer, err)
+            }
 
-        if err := self.DockerDown(client.dockerContainer); err != nil {
-            self.log.Printf("DockerDown %v: %v", client.dockerContainer, err)
+            delete(self.clients, key)
         }
-
-        delete(self.clients, key)
     }
 
     return nil
@@ -127,21 +135,6 @@ func (self *Manager) GetClient(name string, index uint) (*Client, error) {
     }
 }
 
-// Stop all running clients
-func (self *Manager) StopClients() (retErr error) {
-    // sweep
-    for key, client := range self.clients {
-        if err := self.DockerDown(client.dockerContainer); err != nil {
-            self.log.Printf("DockerDown %v: %v", client.dockerContainer, err)
-            retErr = err
-        }
-
-        delete(self.clients, key)
-    }
-
-    return retErr
-}
-
 type ClientState string
 
 var ClientDown  ClientState = "down"
@@ -150,7 +143,6 @@ var ClientError ClientState = "error"
 
 type ClientStatus struct {
     Config          string      `json:"config"`
-    Type            string      `json:"type"`
     ID              uint        `json:"id"`
 
     Docker          string      `json:"docker"`
@@ -162,12 +154,8 @@ type ClientStatus struct {
 func (self *Manager) ListClients() (clients []ClientStatus, err error) {
     for _, client := range self.clients {
         clientStatus := ClientStatus{
-            Type:           client.Type,
+            Config:         client.Config.name,
             ID:             client.ID,
-        }
-
-        if client.Config != nil {
-            clientStatus.Config = client.Config.Name
         }
 
         if dockerContainer, err := self.DockerGet(client.dockerContainer.String()); err != nil {

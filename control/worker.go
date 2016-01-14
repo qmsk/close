@@ -7,9 +7,9 @@ import (
 )
 
 type WorkerConfig struct {
-    Name        string
+    name        string
     Count       uint
-    Client      string // ClientConfig.Name
+    Client      string // ClientConfig.name
 
     Image       string
     Command     string
@@ -24,13 +24,12 @@ type WorkerConfig struct {
 }
 
 func (self WorkerConfig) String() string {
-    return self.Name
+    return self.name
 }
 
 // track state of managed workers
 type Worker struct {
     Config          *WorkerConfig
-    Type            string
     ID              uint
 
     dockerContainer *DockerContainer
@@ -38,35 +37,38 @@ type Worker struct {
 }
 
 func (self Worker) String() string {
-    return fmt.Sprintf("%s:%d", self.Type, self.ID)
+    return fmt.Sprintf("%v:%d", self.Config, self.ID)
 }
 
-func (self *Manager) discoverWorker(dockerContainer *DockerContainer) error {
-    worker := &Worker{
-        Type:   dockerContainer.Type,
-        ID:     dockerContainer.Index,
+func (self *Manager) discoverWorker(dockerContainer *DockerContainer) (*Worker, error) {
+    workerConfig := self.config.Workers[dockerContainer.Type]
 
-        Config: nil, // TODO
+    if workerConfig == nil {
+        return nil, fmt.Errorf("Unknown worker config type: %v", dockerContainer.Type)
+    }
+
+    worker := &Worker{
+        Config: workerConfig,
+        ID:     dockerContainer.Index,
 
         dockerContainer:    dockerContainer,
     }
 
-    if configSub, err := self.configRedis.Sub(config.SubOptions{Type: worker.Type, ID: fmt.Sprintf("%d", worker.ID)}); err != nil {
-        return fmt.Errorf("congigRedis.Sub: %v", err)
+    if subOptions, err := config.ParseSub(worker.Config.Type, fmt.Sprintf("%d", worker.ID)); err != nil {
+        return nil, fmt.Errorf("config.ParseSub: %v", err)
+    } else if configSub, err := self.configRedis.Sub(subOptions); err != nil {
+        return nil, fmt.Errorf("congigRedis.Sub %v: %v", subOptions, err)
     } else {
         worker.configSub = configSub
     }
 
-    self.workers[worker.String()] = worker
-
-    return nil
+    return worker, nil
 }
 
 func (self *Manager) workerUp(workerConfig *WorkerConfig, index uint) (*Worker, error) {
     worker := &Worker{
-        Type:   workerConfig.Type,
-        ID:     index,
         Config: workerConfig,
+        ID:     index,
     }
 
     // docker
@@ -94,7 +96,7 @@ func (self *Manager) workerUp(workerConfig *WorkerConfig, index uint) (*Worker, 
 
     if workerConfig.Client != "" {
         if client, err := self.GetClient(workerConfig.Client, index); err != nil {
-            return worker, fmt.Errorf("Worker %v GetClient: %v", worker, err)
+            return worker, fmt.Errorf("GetClient: %v", err)
         } else {
             dockerConfig.SetNetworkContainer(client.dockerContainer)
         }
@@ -115,70 +117,59 @@ func (self *Manager) workerUp(workerConfig *WorkerConfig, index uint) (*Worker, 
     return worker, nil
 }
 
-// Setup workers from config
-func (self *Manager) StartWorkers(workerConfig WorkerConfig) error {
-    // mark
+func (self *Manager) markWorkers() {
     for _, worker := range self.workers {
         worker.Config = nil
     }
+}
 
-    self.log.Printf("Start %d %s workers...\n", workerConfig.Count, workerConfig.Name);
+// Setup workers from config
+func (self *Manager) WorkerUp(workerConfig *WorkerConfig) error {
+    self.log.Printf("WorkerUp %v: Start %d workers...\n", workerConfig, workerConfig.Count)
 
     for index := uint(1); index <= workerConfig.Count; index++ {
-        if worker, err := self.workerUp(&workerConfig, index); err != nil {
-            self.log.Printf("workerUp %v %v: %v", workerConfig, index)
+        if worker, err := self.workerUp(workerConfig, index); err != nil {
+            return fmt.Errorf("WorkerUp %v: workerUp %v: %v", workerConfig, index, err)
         } else {
             self.workers[worker.String()] = worker
         }
     }
 
-    // sweep
-    for key, worker := range self.workers {
-        if worker.Config != nil {
-            continue
-        }
-
-        if err := self.DockerDown(worker.dockerContainer); err != nil {
-            self.log.Printf("DockerDown %v: %v", worker.dockerContainer, err)
-        }
-
-        delete(self.workers, key)
-    }
-
     return nil
 }
 
-// Stop all running workers
-func (self *Manager) StopWorkers() (retErr error) {
+// Stop running workers for given config
+// Call with config=nil to cleanup all unconfigured workers
+func (self *Manager) WorkerDown(config *WorkerConfig) error {
     // sweep
     for key, worker := range self.workers {
-        if err := self.DockerDown(worker.dockerContainer); err != nil {
-            self.log.Printf("DockerDown %v: %v", worker.dockerContainer, err)
-            retErr = err
-        }
+        if worker.Config == config {
+            if err := self.DockerDown(worker.dockerContainer); err != nil {
+                return fmt.Errorf("WorkerDown %v: DockerDown %v: %v", config, worker.dockerContainer, err)
+            }
 
-        delete(self.workers, key)
+            delete(self.workers, key)
+        }
     }
 
-    return retErr
+    return nil
 }
 
 type WorkerState string
 
 var WorkerDown      WorkerState     = "down"    // not running, clean exit
 var WorkerUnknown   WorkerState     = "unknown" // running, unknown
-var WorkerUp        WorkerState     = "up"      // running, configured
-var WorkerWait      WorkerState     = "wait"    // running, not configured
+var WorkerWait      WorkerState     = "wait"    // running, pending
+var WorkerUp        WorkerState     = "up"      // running, ready
 var WorkerError     WorkerState     = "error"   // not running, unclean exit
 
 type WorkerStatus struct {
-    Type            string  `json:"type"`
-    ID              uint    `json:"id"`
+    Config          string      `json:"config"` // WorkerConfig.name
+    ID              uint        `json:"id"`
 
     Docker          string  `json:"docker"`
     DockerStatus    string  `json:"docker_status"`
 
-    Config          string      `json:"config"` // WorkerConfig.Name
     State           WorkerState `json:"state"`
 
     ConfigError     string      `json:"config_error,omitempty"`
@@ -190,7 +181,7 @@ type WorkerStatus struct {
 func (self *Manager) ListWorkers() (workers []WorkerStatus, err error) {
     for _, worker := range self.workers {
         workerStatus := WorkerStatus{
-            Type:       worker.Type,
+            Config:     worker.Config.name,
             ID:         worker.ID,
         }
 
@@ -218,17 +209,11 @@ func (self *Manager) ListWorkers() (workers []WorkerStatus, err error) {
         }
 
 
-        if worker.Config == nil {
-            workerStatus.Config = ""
-
-        } else if configMap, err := worker.configSub.Get(); err != nil {
+        if configMap, err := worker.configSub.Get(); err != nil {
             self.log.Printf("ListWorkers %v: configSub.Get %v: %v\n", worker, worker.configSub, err)
 
-            workerStatus.Config = worker.Config.Name
             workerStatus.ConfigError = err.Error()
         } else {
-            workerStatus.Config = worker.Config.Name
-
             switch rateValue := configMap[worker.Config.RateConfig].(type) {
             case json.Number:
                 workerStatus.Rate = rateValue

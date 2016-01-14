@@ -62,16 +62,16 @@ func main() {
         log.Fatal(err)
     }
 
-    if err := manager.Discover(); err != nil {
-        log.Fatal(err)
-    }
-
     if configPath == "" {
 
     } else if err := manager.LoadConfigFile(configPath); err != nil {
         log.Fatalf("manager.LoadConfig %v: %v\n", configPath, err)
     } else {
         log.Printf("Loaded configuration from %v...\n", configPath)
+    }
+
+    if err := manager.Discover(); err != nil {
+        log.Fatal(err)
     }
 
     // TODO: should happen concurrently?

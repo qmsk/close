@@ -385,7 +385,11 @@ func (self *Manager) DockerUp(id DockerID, config DockerConfig) (*DockerContaine
 func (self *Manager) DockerDown(container *DockerContainer) error {
     self.log.Printf("DockerDown %v: stopping..\n", container)
 
-    if err := self.dockerClient.StopContainer(container.ID, DOCKER_STOP_TIMEOUT); err != nil {
+    if err := self.dockerClient.StopContainer(container.ID, DOCKER_STOP_TIMEOUT); err == nil {
+
+    } else if err, isNotRunning := err.(*docker.ContainerNotRunning); isNotRunning {
+        // skip
+    } else {
         return err
     }
 

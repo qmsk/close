@@ -23,8 +23,8 @@ type Options struct {
 
 // full-system configuration
 type Config struct {
-    Client          *ClientConfig
-    Worker          *WorkerConfig
+    Clients         map[string]*ClientConfig
+    Workers         map[string]*WorkerConfig
 }
 
 type Manager struct {
@@ -38,7 +38,7 @@ type Manager struct {
 
     // state
     // XXX: these are unsafe against concurrent web requests
-    config          *Config
+    config          Config
     clients         map[string]*Client
     workers         map[string]*Worker
 }
@@ -114,8 +114,21 @@ func (self *Manager) loadConfig(meta toml.MetaData, config Config) (err error) {
         return fmt.Errorf("Undecoded keys: %v", strings.Join(undecodedKeys, " "))
     }
 
+    // load
+    for clientName, clientConfig := range config.Clients {
+        clientConfig.name = clientName
+
+        self.log.Printf("loadConfig: client %#v", clientConfig)
+    }
+
+    for workerName, workerConfig := range config.Workers {
+        workerConfig.name = workerName
+
+        self.log.Printf("loadConfig: worker %#v", workerConfig)
+    }
+
     // TODO: stop old config?
-    self.config = &config
+    self.config = config
 
     return nil
 }
@@ -150,8 +163,20 @@ func (self *Manager) LoadConfigString(data string) error {
     }
 }
 
-// Discover running docker containers
-// This lets use down unnecessary containers when starting
+// Get running configuration
+func (self *Manager) DumpConfig() (string, error) {
+    var buf bytes.Buffer
+
+    if err := toml.NewEncoder(&buf).Encode(self.config); err != nil {
+        return "", err
+    }
+
+    return buf.String(), nil
+}
+
+// Discover any existing running docker containers before initial Start()
+// Must be run after loadConfig() to recognize any containers..
+// Allows Start() to re-use existing containers, and cleanup undesired containers
 func (self *Manager) Discover() (err error) {
     if dockerContainers, err := self.DockerList(); err != nil {
         return err
@@ -159,52 +184,57 @@ func (self *Manager) Discover() (err error) {
         for _, dockerContainer := range dockerContainers {
             switch dockerContainer.Class {
             case "client":
-                if err = self.discoverClient(dockerContainer); err != nil {
+                if client, err := self.discoverClient(dockerContainer); err != nil {
                     self.log.Printf("discoverClient %v: %v", dockerContainer, err)
+                } else {
+                    self.log.Printf("Discover %v: client %v", dockerContainer, client)
+
+                    self.clients[client.String()] = client
                 }
             case "worker":
-                if err = self.discoverWorker(dockerContainer); err != nil {
+                if worker, err := self.discoverWorker(dockerContainer); err != nil {
                     self.log.Printf("discoverWorker %v: %v", dockerContainer, err)
+                } else {
+                    self.log.Printf("Discover %v: worker %v", dockerContainer, worker)
+
+                    self.workers[worker.String()] = worker
                 }
             default:
-                self.log.Printf("Discover %v: unknown class", dockerContainer)
+                self.log.Printf("Discover %v: ignore unknown class: %v", dockerContainer, dockerContainer.Class)
             }
         }
 
-        return err
+        return nil
     }
-}
-
-// Get running configuration
-func (self *Manager) DumpConfig() (string, error) {
-    var buf bytes.Buffer
-
-    if self.config == nil {
-
-    } else if err := toml.NewEncoder(&buf).Encode(self.config); err != nil {
-        return "", err
-    }
-
-    return buf.String(), nil
 }
 
 // Start new configuration
 func (self *Manager) Start() error {
-    if self.config == nil {
-        return nil
-    }
-
     self.log.Printf("Start config...\n");
 
-    if self.config.Client == nil {
+    // reconfigure clients
+    self.markClients()
+    for _, clientConfig := range self.config.Clients {
+        if err := self.ClientUp(clientConfig); err != nil {
+            return err
+        }
+    }
 
-    } else if err := self.StartClients(*self.config.Client); err != nil {
+    // cleanup any unconfigured clients
+    if err := self.ClientDown(nil); err != nil {
         return err
     }
 
-    if self.config.Worker == nil {
+    // reconfigure workers
+    self.markWorkers()
+    for _, workerConfig := range self.config.Workers {
+        if err := self.WorkerUp(workerConfig); err != nil {
+            return err
+        }
+    }
 
-    } else if err := self.StartWorkers(*self.config.Worker); err != nil {
+    // cleanup any unconfigured workers
+    if err := self.WorkerDown(nil); err != nil {
         return err
     }
 
@@ -215,10 +245,13 @@ func (self *Manager) Start() error {
 
 // Stop current configuration
 func (self *Manager) Stop() (err error) {
-    if workersErr := self.StopWorkers(); workersErr != nil {
+    self.markWorkers()
+    if workersErr := self.WorkerDown(nil); workersErr != nil {
         err = workersErr
     }
-    if clientsErr:= self.StopClients(); clientsErr != nil {
+
+    self.markClients()
+    if clientsErr:= self.ClientDown(nil); clientsErr != nil {
         err = clientsErr
     }
 
