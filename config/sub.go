@@ -1,6 +1,7 @@
 package config
 
 import (
+    "bytes"
     "fmt"
     "encoding/json"
     "log"
@@ -102,13 +103,21 @@ func (self *Sub) Get() (ConfigMap, error) {
 
 // update config from redis
 func (self *Sub) get(config Config) error {
-    if jsonBuf, err := self.redis.redisClient.Get(self.path).Bytes(); err != nil {
+    jsonBytes, err := self.redis.redisClient.Get(self.path).Bytes()
+    if err != nil {
         return err
-    } else if err := json.Unmarshal(jsonBuf, config); err != nil {
-        return err
-    } else {
-        return nil
     }
+
+    // Decode using json.Number
+    buf := bytes.NewReader(jsonBytes)
+    decoder := json.NewDecoder(buf)
+    decoder.UseNumber()
+
+    if err := decoder.Decode(config); err != nil {
+        return err
+    }
+
+    return nil
 }
 
 // update config in redis
