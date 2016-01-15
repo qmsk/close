@@ -93,7 +93,7 @@ func (self *Manager) GetDockerLogs(w rest.ResponseWriter, req *rest.Request) {
 }
 
 func (self *Manager) GetConfigList(w rest.ResponseWriter, req *rest.Request) {
-    subFilter := config.SubOptions{Type: req.PathParam("type")}
+    subFilter := config.ID{Type: req.PathParam("type")}
 
     if list, err := self.ConfigList(subFilter); err != nil {
         rest.Error(w, err.Error(), 500)
@@ -103,9 +103,9 @@ func (self *Manager) GetConfigList(w rest.ResponseWriter, req *rest.Request) {
 }
 
 func (self *Manager) GetConfig(w rest.ResponseWriter, req *rest.Request) {
-    if subOptions, err := config.ParseSub(req.PathParam("type"), req.PathParam("id")); err != nil {
+    if configID, err := config.ParseID(req.PathParam("type"), req.PathParam("instance")); err != nil {
         rest.Error(w, err.Error(), 400)
-    } else if config, err := self.ConfigGet(subOptions); err != nil {
+    } else if config, err := self.ConfigGet(configID); err != nil {
         rest.Error(w, err.Error(), 500)
     } else {
         w.WriteJson(config)
@@ -120,9 +120,9 @@ func (self *Manager) PostConfig(w rest.ResponseWriter, req *rest.Request) {
         return
     }
 
-    if subOptions, err := config.ParseSub(req.PathParam("type"), req.PathParam("id")); err != nil {
+    if configID, err := config.ParseID(req.PathParam("type"), req.PathParam("instance")); err != nil {
         rest.Error(w, err.Error(), 400)
-    } else if err := self.ConfigPush(subOptions, configMap); err != nil {
+    } else if err := self.ConfigPush(configID, configMap); err != nil {
         rest.Error(w, err.Error(), 500)
     } else {
         // TODO: redirect to GET?
@@ -234,10 +234,10 @@ func (self *Manager) RestApp() (rest.App, error) {
         rest.Get("/config/:type", self.GetConfigList),
 
         // get full config
-        rest.Get("/config/:type/:id", self.GetConfig),
+        rest.Get("/config/:type/:instance", self.GetConfig),
 
         // publish config change to worker
-        rest.Post("/config/:type/:id", self.PostConfig),
+        rest.Post("/config/:type/:instance", self.PostConfig),
 
         // static information about available stats types/fields
         rest.Get("/stats", self.GetStatsTypes),
