@@ -45,7 +45,7 @@ func init() {
     flag.StringVar(&configOptions.Prefix, "config-prefix", "close",
         "Redis key prefix")
 
-    flag.StringVar(&sendConfig.Instance, "instance", os.Getenv("CLOSE_ID"),
+    flag.StringVar(&sendConfig.Instance, "instance", os.Getenv("CLOSE_INSTANCE"),
         "config instance")
     flag.Uint64Var(&sendConfig.ID, "id", 0,
         "ID (hexadecimal uint64)")

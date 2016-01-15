@@ -130,7 +130,7 @@ func (p *Pinger) ConfigFrom(configRedis *config.Redis) (*config.Sub, error) {
     // copy for updates
     updateConfig := p.config
 
-    if configSub, err := configRedis.Sub(config.SubOptions{"icmp_ping", p.config.Instance}); err != nil {
+    if configSub, err := configRedis.NewSub("icmp_ping", p.config.Instance); err != nil {
         return nil, err
     } else if configChan, err := configSub.Start(&updateConfig); err != nil {
         return nil, err
