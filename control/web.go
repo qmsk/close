@@ -66,6 +66,16 @@ func (self *Manager) Delete(w rest.ResponseWriter, req *rest.Request) {
     }
 }
 
+func (self *Manager) GetWorker(w rest.ResponseWriter, req *rest.Request) {
+    if workerStatus, err := self.WorkerGet(req.PathParam("config"), req.PathParam("instance")); workerStatus == nil {
+        rest.Error(w, "Not Foud", 404)
+    } else if err != nil {
+        rest.Error(w, err.Error(), 500)
+    } else {
+        w.WriteJson(workerStatus)
+    }
+}
+
 func (self *Manager) GetDockerList(w rest.ResponseWriter, req *rest.Request) {
     if list, err := self.DockerList(); err != nil {
         rest.Error(w, err.Error(), 500)
@@ -223,6 +233,8 @@ func (self *Manager) RestApp() (rest.App, error) {
         rest.Get("/",           self.Get),
         rest.Post("/",          self.Post),         // Load + Start
         rest.Delete("/",        self.Delete),       // Stop
+
+        rest.Get("/workers/:config/:instance",  self.GetWorker),
 
         // list active containers
         rest.Get("/docker/", self.GetDockerList),

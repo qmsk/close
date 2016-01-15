@@ -1,5 +1,9 @@
 <div class="page-header"> 
-    <h1>{{closeType}}: {{closeInstance}}</h2>
+    <h1>Worker {{config}}:{{instance}}</h2>
+
+    <div class="alert alert-warning" ng-if="error">
+        {{error}}
+    </div>
 </div>
 
 <div class="row">
@@ -15,7 +19,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr ng-repeat="(key, value) in workerConfig">
+                    <tr ng-repeat="(key, value) in configMap">
                         <th>{{key}}</th>
                         <td>{{value}}</td>
                         <td>

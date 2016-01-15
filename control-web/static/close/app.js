@@ -11,7 +11,7 @@ closeApp.config(function($routeProvider){
             templateUrl: '/close/workers.html',
             controller: 'WorkersCtrl'
         })
-        .when('/workers/:type/:instance', {
+        .when('/workers/:config/:instance', {
             templateUrl: '/close/worker.html',
             controller: 'WorkerCtrl'
         })
@@ -147,32 +147,58 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
 });
 
 closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams) {
-    $scope.workerType = $routeParams.type;
-    $scope.workerInstance = $routeParams.instance;
+    $scope.config = $routeParams.config;
+    $scope.instance = $routeParams.instance;
 
-    // XXX: need to get worker config 
-    var configType = $routeParams.type;
-    var configInstance = $routeParams.instance; 
-    var statsType = $routeParams.type;
-    var statsInstance = $routeParams.instance; // XXX
+    $http.get('/api/workers/' + $routeParams.config + '/' + $routeParams.instance).then(
+            function success(r) {
+                $scope.error = null;
+                $scope.worker = r.data;
+                $scope.workerConfig = r.data.worker_config;
+                $scope.configMap = r.data.config_map;
 
-    $http.get('/api/config/' + configType + '/' + configInstance).success(function(data){
-        $scope.workerConfig = data;
-    });
+                if (r.data.worker_config.StatsType && r.data.stats_instance) {
+                    $scope.getStats(r.data.worker_config.StatsType, r.data.stats_instance);
+                }
+            },
+            function error(r) {
+                $scope.error = r.data;
+            }
+    );
 
-    $scope.chartOptions = {
-        xaxis: { mode: "time" },
-    };
-    $http.get('/api/stats/' + statsType + '/', {params:{instance: statsInstance}}).success(function(data){
-        if (data) {
-            $scope.statsData = data.map(function(series){
-                return [{
-                    label: series.field,
-                    data: mapStatsData(series)
-                }];
-            });
-        }
-    });
+    $scope.getConfig = function() {
+        $http.get('/api/config/' + $scope.workerConfig.Type + '/' + $scope.worker.config_instance).then(
+            function success (r) {
+                $scope.error = null;
+                $scope.configMap = r.data;
+            },
+            function error(r) {
+                $scope.error = r.data;
+            }
+        );
+    }
+
+    $scope.getStats = function(type, instance) {
+        $scope.chartOptions = {
+            xaxis: { mode: "time" },
+        };
+        $http.get('/api/stats/' + type + '/', {params:{instance: instance}}).then(
+            function success(r) {
+                $scope.error = null;
+                if (r.data) {
+                    $scope.statsData = r.data.map(function(series){
+                        return [{
+                            label: series.field,
+                            data: mapStatsData(series)
+                        }];
+                    });
+                }
+            },
+            function error(r) {
+                $scope.error = r.data;
+            }
+        );
+    }
 
     // shadow copy of workerConfig, used as the <input ng-model> to POST any changed fields
     $scope.postConfig = {};
@@ -191,7 +217,7 @@ closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams) {
     // POST any changed config <form> fields to the server for the worker to apply
     $scope.submitConfig = function() {
         // only changed fields
-        $http.post('/api/config/' + configType + '/' + configInstance, $scope.postConfig, {
+        $http.post('/api/config/' + $scope.workerConfig.Type + '/' + $scope.worker.config_instance, $scope.postConfig, {
             headers: { 'Content-Type': 'application/json' },
         });
     };

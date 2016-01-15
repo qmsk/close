@@ -20,6 +20,7 @@ type WorkerConfig struct {
     Type            string
     InstanceFlag    string
 
+    StatsType       string      // default: .Type
     StatsInstanceFromConfig string
 
     RateConfig      string
@@ -70,6 +71,7 @@ func (self *Manager) discoverWorker(dockerContainer *DockerContainer) (*Worker, 
     return worker, nil
 }
 
+// Lookup current state of worker
 func (self *Manager) workerUp(workerConfig *WorkerConfig, instance string) (*Worker, error) {
     worker := &Worker{
         Config:     workerConfig,
@@ -172,71 +174,119 @@ var WorkerUp        WorkerState     = "up"      // running, ready
 var WorkerError     WorkerState     = "error"   // not running, unclean exit
 
 type WorkerStatus struct {
-    Config          string      `json:"config"` // WorkerConfig.name
+    Config          string      `json:"config"`         // WorkerConfig.name
     Instance        string      `json:"instance"`
 
-    Docker          string  `json:"docker"`
-    DockerStatus    string  `json:"docker_status"`
+    WorkerConfig    *WorkerConfig   `json:"worker_config,omitempty"`    // detail
+
+    Docker          string      `json:"docker"`
+    DockerStatus    string      `json:"docker_status"`
 
     State           WorkerState `json:"state"`
 
-    ConfigError     string      `json:"config_error,omitempty"`
-    ConfigTTL       float64     `json:"config_ttl"` // seconds
+    ConfigInstance  string              `json:"config_instance"`
+    ConfigError     string              `json:"config_error,omitempty"`
+    ConfigTTL       float64             `json:"config_ttl"` // seconds
+    ConfigMap       config.ConfigMap    `json:"config_map,omitempty"`   // detail
 
     Rate            json.Number `json:"rate"`   // config
+
+    StatsInstance   string      `json:"stats_instance"`
+}
+
+func (self *Manager) workerGet(worker *Worker, detail bool) (WorkerStatus, error) {
+    workerStatus := WorkerStatus{
+        Config:     worker.Config.name,
+        Instance:   worker.Instance,
+    }
+
+    if detail {
+        workerStatus.WorkerConfig = worker.Config
+    }
+
+    if dockerContainer, err := self.DockerGet(worker.dockerContainer.String()); err != nil {
+        return workerStatus, fmt.Errorf("ListWorkers %v: DockerGet %v: %v", worker, worker.dockerContainer, err)
+    } else {
+        workerStatus.Docker = dockerContainer.String()
+        workerStatus.DockerStatus = dockerContainer.Status
+
+        if dockerContainer.State.Running {
+            workerStatus.State = WorkerUp
+        } else if dockerContainer.State.ExitCode == 0 {
+            workerStatus.State = WorkerDown
+        } else {
+            workerStatus.State = WorkerError
+        }
+    }
+
+    if configTTL, err := worker.configSub.Check(); err != nil {
+        if workerStatus.State == WorkerUp {
+            workerStatus.State = WorkerWait
+        }
+    } else {
+        workerStatus.ConfigInstance = worker.configID().Instance
+        workerStatus.ConfigTTL = configTTL.Seconds()
+    }
+
+    // current running config
+    if configMap, err := worker.configSub.Get(); err != nil {
+        self.log.Printf("ListWorkers %v: configSub.Get %v: %v\n", worker, worker.configSub, err)
+
+        workerStatus.ConfigError = err.Error()
+    } else {
+        if detail {
+            workerStatus.ConfigMap = configMap
+        }
+
+        switch rateValue := configMap[worker.Config.RateConfig].(type) {
+        case json.Number:
+            workerStatus.Rate = rateValue
+        // XXX: why isn't this always just json.Number?
+        case float64:
+            workerStatus.Rate = json.Number(fmt.Sprintf("%v", rateValue))
+        case nil:
+            // XXX: not yet set...
+        default:
+            workerStatus.ConfigError = fmt.Sprintf("invalid %s RateConfig=%v value type %T: %#v", worker.Config.Type, worker.Config.RateConfig, rateValue, rateValue)
+        }
+
+        if worker.Config.StatsInstanceFromConfig == "" {
+            workerStatus.StatsInstance = worker.configID().Instance
+        } else if configValue, exists := configMap[worker.Config.StatsInstanceFromConfig]; !exists {
+            workerStatus.ConfigError = fmt.Sprintf("Invalid %s StatsInstanceFromConfig %v: not found", worker.Config, worker.Config.StatsInstanceFromConfig)
+        } else if statsInstance, ok := configValue.(string); ok {
+            workerStatus.StatsInstance = statsInstance
+        } else if statsInstance, ok := configValue.(json.Number); ok {
+            // XXX: not as floating point!
+            workerStatus.StatsInstance = statsInstance.String()
+        } else {
+            workerStatus.ConfigError = fmt.Sprintf("Invalid %s StatsInstanceFromConfig %v: type %T: %#v", worker.Config, worker.Config.StatsInstanceFromConfig, configValue, configValue)
+        }
+    }
+
+    return workerStatus, nil
 }
 
 func (self *Manager) ListWorkers() (workers []WorkerStatus, err error) {
     for _, worker := range self.workers {
-        workerStatus := WorkerStatus{
-            Config:     worker.Config.name,
-            Instance:   worker.Instance,
-        }
-
-        if dockerContainer, err := self.DockerGet(worker.dockerContainer.String()); err != nil {
-            return nil, fmt.Errorf("ListWorkers %v: DockerGet %v: %v", worker, worker.dockerContainer, err)
+        if workerStatus, err := self.workerGet(worker, false); err != nil {
+            return workers, err
         } else {
-            workerStatus.Docker = dockerContainer.String()
-            workerStatus.DockerStatus = dockerContainer.Status
-
-            if dockerContainer.State.Running {
-                workerStatus.State = WorkerUp
-            } else if dockerContainer.State.ExitCode == 0 {
-                workerStatus.State = WorkerDown
-            } else {
-                workerStatus.State = WorkerError
-            }
+            workers = append(workers, workerStatus)
         }
-
-        if configTTL, err := worker.configSub.Check(); err != nil {
-            if workerStatus.State == WorkerUp {
-                workerStatus.State = WorkerWait
-            }
-        } else {
-            workerStatus.ConfigTTL = configTTL.Seconds()
-        }
-
-
-        if configMap, err := worker.configSub.Get(); err != nil {
-            self.log.Printf("ListWorkers %v: configSub.Get %v: %v\n", worker, worker.configSub, err)
-
-            workerStatus.ConfigError = err.Error()
-        } else {
-            switch rateValue := configMap[worker.Config.RateConfig].(type) {
-            case json.Number:
-                workerStatus.Rate = rateValue
-            // XXX: why isn't this always just json.Number?
-            case float64:
-                workerStatus.Rate = json.Number(fmt.Sprintf("%v", rateValue))
-            case nil:
-                // XXX: not yet set...
-            default:
-                workerStatus.ConfigError = fmt.Sprintf("invalid %s RateConfig=%v value type %T: %#v", worker.Config.Type, worker.Config.RateConfig, rateValue, rateValue)
-            }
-        }
-
-        workers = append(workers, workerStatus)
     }
 
     return workers, nil
+}
+
+func (self *Manager) WorkerGet(configName string, instance string) (*WorkerStatus, error) {
+    workerName := fmt.Sprintf("%s:%s", configName, instance)
+
+    if worker, found := self.workers[workerName]; !found {
+        return nil, nil
+    } else if workerStatus, err := self.workerGet(worker, true); err != nil {
+        return nil, err
+    } else {
+        return &workerStatus, nil
+    }
 }
