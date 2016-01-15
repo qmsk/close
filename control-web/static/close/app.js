@@ -157,9 +157,7 @@ closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams) {
                 $scope.workerConfig = r.data.worker_config;
                 $scope.configMap = r.data.config_map;
 
-                if (r.data.worker_config.StatsType && r.data.stats_instance) {
-                    $scope.getStats(r.data.worker_config.StatsType, r.data.stats_instance);
-                }
+                $scope.getStats();
             },
             function error(r) {
                 $scope.error = r.data;
@@ -178,11 +176,18 @@ closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams) {
         );
     }
 
-    $scope.getStats = function(type, instance) {
+    $scope.getStats = function() {
+        var statsType = $scope.workerConfig.StatsType;
+        var statsInstance = $scope.worker.stats_instance;
+
+        if (!(statsType && statsInstance)) {
+            return;
+        }
+
         $scope.chartOptions = {
             xaxis: { mode: "time" },
         };
-        $http.get('/api/stats/' + type + '/', {params:{instance: instance}}).then(
+        $http.get('/api/stats/' + statsType + '/', {params:{instance: statsInstance}}).then(
             function success(r) {
                 $scope.error = null;
                 if (r.data) {

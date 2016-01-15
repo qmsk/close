@@ -8,7 +8,13 @@
 
 <div class="row">
     <div class="col-md-6">
-        <h2>Config</h2>
+        <h2>
+            <button ng-click="getConfig()" class="pull-right">
+                <span class="glyphicon glyphicon-refresh" title="Refresh Config"></span>
+            </button>
+
+            Config
+        </h2>
         <form name="configForm" ng-submit="submitConfig()">
             <table class="table worker-config">
                 <thead>
@@ -41,6 +47,9 @@
     </div>
 
     <div class="col-md-6">
+        <button ng-click="getStats()" class="pull-right">
+            <span class="glyphicon glyphicon-refresh" title="Refresh Stats"></span>
+        </button>
         <h2>Stats</h2>
         <div ng-repeat="data in statsData">
             <flot dataset="data" options="chartOptions" width="400px" height="100px"></flot>
