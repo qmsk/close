@@ -13,19 +13,19 @@ const DOCKER_STOP_TIMEOUT = 10 // seconds
 type DockerID struct {
     Class       string          `json:"class"`
     Type        string          `json:"type"`
-    Index       uint            `json:"index"`
+    Instance    string          `json:"instance"`
 }
 
 // Docker name
 func (self DockerID) String() string {
-    return fmt.Sprintf("close-%s_%s_%d", self.Class, self.Type, self.Index)
+    return fmt.Sprintf("close-%s-%s-%s", self.Class, self.Type, self.Instance)
 }
 
 func (self DockerID) labels() map[string]string {
     return map[string]string{
         "close":            self.Class,
         "close.type":       self.Type,
-        "close.index":      fmt.Sprintf("%d", self.Index),
+        "close.instance":   self.Instance,
     }
 }
 
@@ -47,10 +47,10 @@ func (self *DockerID) parseID(name string, labels map[string]string) error {
         self.Type = typ
     }
 
-    if index := labels["close.index"]; index == "" {
-        return fmt.Errorf("missing close.index=")
-    } else if _, err := fmt.Sscan(index, &self.Index); err != nil {
-        return fmt.Errorf("invalid close.index=%v: %v", index, err)
+    if instance := labels["close.instance"]; instance == "" {
+        return fmt.Errorf("missing close.instance=")
+    } else {
+        self.Instance = instance
     }
 
     if name != self.String() {
@@ -267,7 +267,7 @@ func (self *Manager) DockerGet(id string) (*DockerContainer, error) {
 
     // ID
     if err := container.parseID(dockerContainer.Name, dockerContainer.Config.Labels); err != nil {
-        return nil, err
+        return nil, fmt.Errorf("parseID %s: %v", dockerContainer.Name, err)
     }
 
     container.updateStatus(dockerContainer)
