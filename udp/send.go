@@ -6,7 +6,6 @@ import (
     "log"
     "net"
     "os"
-    "math/rand"
     "close/stats"
     "time"
 )
@@ -20,7 +19,7 @@ type SendConfig struct {
     SourcePort      uint
     SourcePortBits  uint
 
-    ID              uint    `json:"id"`     // 64-bit ID, or random
+    ID              uint64  `json:"id"`     // 64-bit ID, or random
     Rate            uint    `json:"rate"`   // 0 - unrated
     Count           uint    `json:"count"`  // 0 - infinite
     Size            uint    `json:"size"`   // target size of UDP payload
@@ -134,17 +133,29 @@ func (self *Send) init(config SendConfig) error {
         }
     }
 
-    // source
+    // initialize real source
     self.srcPort.init(0) // TODO: seed
 
+    if srcAddr, err := self.sockSend.probeSource(); err != nil {
+        return err
+    } else {
+        self.srcAddr = srcAddr.IP
+        self.srcAddrBits = 0
+        self.srcPort.SetPort(uint(srcAddr.Port))
+    }
+
+    // generate ID from source addr, unless given
+    if config.ID != 0 {
+
+    } else if id, err := genID(self.srcAddr, self.srcPort.Port()); err != nil {
+        return fmt.Errorf("genID %v %v: %v", self.srcAddr, self.srcPort.Port(), err)
+    } else {
+        config.ID = id
+    }
+
+    // randomize source
     if config.SourceNet == "" {
-        if srcAddr, err := self.sockSend.probeSource(); err != nil {
-            return err
-        } else {
-            self.srcAddr = srcAddr.IP
-            self.srcAddrBits = 0
-            self.srcPort.SetPort(uint(srcAddr.Port))
-        }
+
     } else if _, ipNet, err := net.ParseCIDR(config.SourceNet); err != nil {
         return fmt.Errorf("Parse SourceNet %v: %v", config.SourceNet, err)
     } else {
@@ -162,11 +173,6 @@ func (self *Send) init(config SendConfig) error {
     }
 
     // config
-    if config.ID == 0 {
-        // generate from dst
-        config.ID = uint(rand.Int63())
-    }
-
     self.config = config
 
     return nil

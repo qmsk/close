@@ -2,7 +2,10 @@ package udp
 
 import (
     "encoding/binary"
+    "bytes"
     "fmt"
+    "net"
+    "crypto/sha256"
 )
 
 const PORT uint = 1337 // used as destination port
@@ -17,6 +20,27 @@ type Payload struct {
     // The sender sends packets with consective sequence numbers, starting from zero.
     // Used by the sender to count received/missed/reordered packets, per ID.
     Seq         uint64
+}
+
+// Generate an ID from source address
+func genID(ip net.IP, port uint16) (uint64, error) {
+    hash := sha256.New()
+
+    binary.Write(hash, binary.BigEndian, ip)
+    binary.Write(hash, binary.BigEndian, port)
+
+    var hashSum []byte
+
+    hashSum = hash.Sum(hashSum)
+
+    // truncated hash-sum into 64-bit id 
+    var id uint64
+
+    if err := binary.Read(bytes.NewReader(hashSum), binary.BigEndian, &id); err != nil {
+        return 0, err
+    }
+
+    return id, nil
 }
 
 func (self Payload) Pack(dataSize uint) []byte {

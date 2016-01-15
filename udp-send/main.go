@@ -45,7 +45,7 @@ func init() {
     flag.StringVar(&configOptions.Prefix, "config-prefix", "close",
         "Redis key prefix")
 
-    flag.UintVar(&sendConfig.ID, "id", 0,
+    flag.Uint64Var(&sendConfig.ID, "id", 0,
         "ID (hexadecimal uint64)")
     flag.UintVar(&sendConfig.Rate, "rate", 0,
         "rate /s")
