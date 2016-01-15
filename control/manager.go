@@ -179,7 +179,7 @@ func (self *Manager) DumpConfig() (string, error) {
 // Allows Start() to re-use existing containers, and cleanup undesired containers
 func (self *Manager) Discover() (err error) {
     if dockerContainers, err := self.DockerList(); err != nil {
-        return err
+        return fmt.Errorf("DockerList: %v", err)
     } else {
         for _, dockerContainer := range dockerContainers {
             switch dockerContainer.Class {
