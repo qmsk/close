@@ -23,6 +23,10 @@ func (self SubOptions) String() string {
     return fmt.Sprintf("%s:%s", self.Type, self.ID)
 }
 
+func (self SubOptions) Valid() bool {
+    return subRegexp.MatchString(self.String())
+}
+
 func ParseSub(subType string, id string) (SubOptions, error) {
     return SubOptions{subType, id}, nil
 }
@@ -38,6 +42,10 @@ type Sub struct {
 }
 
 func (self *Sub) init(options SubOptions) error {
+    if !options.Valid() {
+        return fmt.Errorf("Invalid SubOptions: %#v", options)
+    }
+
     self.options = options
     self.path = self.redis.path(options.Type, fmt.Sprintf("%v", options.ID))
     self.log = log.New(os.Stderr, fmt.Sprintf("config.Sub %v: ", self.path), 0)
