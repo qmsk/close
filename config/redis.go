@@ -52,15 +52,25 @@ func (self *Redis) registerType(subType string) error {
     return nil
 }
 
-// Return a new Sub for the given name
-func (self *Redis) Sub(options SubOptions) (*Sub, error) {
-    sub := &Sub{redis: self}
-
-    if err := sub.init(options); err != nil {
+// Get an existing sub
+// may not necessarily be active yet!
+func (self *Redis) GetSub(id ID) (*Sub, error) {
+    if err := id.Check(); err != nil {
         return nil, err
+    } else {
+        return newSub(self, id)
     }
+}
 
-    return sub, nil
+// Return a new Sub for the given name
+func (self *Redis) NewSub(subType string, instance string) (*Sub, error) {
+    if id, err := ParseID(subType, instance); err != nil {
+        return nil, err
+    } else if sub, err := newSub(self, id); err != nil {
+        return nil, err
+    } else {
+        return sub, nil
+    }
 }
 
 // List all types
@@ -78,16 +88,15 @@ func (self *Redis) List(subType string) (subs []*Sub, err error) {
     }
 
     for _, subPath := range members {
-        subOptions, err := ParseSub(subType, path.Base(subPath))
-        if err != nil {
-            // gets returned
-            continue
+        instance := path.Base(subPath)
+
+        if id, err := ParseID(subType, instance); err != nil {
+            return nil, err
+        } else if sub, err := newSub(self, id); err != nil {
+            return nil, err
+        } else {
+            subs = append(subs, sub)
         }
-
-        sub := &Sub{redis: self}
-        sub.init(subOptions)
-
-        subs = append(subs, sub)
     }
 
     return

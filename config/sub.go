@@ -12,28 +12,43 @@ import (
 
 const SUB_TTL = 10 * time.Second
 
-var subRegexp = regexp.MustCompile(`^(\w+):(\w+)$`)
+var idRegexp = regexp.MustCompile(`^([a-zA-Z0-9_]+)/([a-zA-Z0-9_:-]+)$`)
 
-type SubOptions struct {
-    Type    string  `json:"type"`
-    ID      string  `json:"id"`
+type ID struct {
+    Type        string  `json:"type"`
+    Instance    string  `json:"instance"`
 }
 
-func (self SubOptions) String() string {
-    return fmt.Sprintf("%s:%s", self.Type, self.ID)
+func (self ID) String() string {
+    return fmt.Sprintf("%s/%s", self.Type, self.Instance)
 }
 
-func (self SubOptions) Valid() bool {
-    return subRegexp.MatchString(self.String())
+func (self ID) Valid() bool {
+    return idRegexp.MatchString(self.String())
 }
 
-func ParseSub(subType string, id string) (SubOptions, error) {
-    return SubOptions{subType, id}, nil
+// Return error if not Valid()
+func (self ID) Check() error {
+    if !self.Valid() {
+        return fmt.Errorf("Invalid ID: %#v", self)
+    }
+
+    return nil
+}
+
+func ParseID(subType string, instance string) (ID, error) {
+    id := ID{subType, instance}
+
+    if err := id.Check(); err != nil {
+        return id, err
+    }
+
+    return id, nil
 }
 
 type Sub struct {
+    id      ID
     redis   *Redis
-    options SubOptions
     path    string
     log     *log.Logger
 
@@ -41,23 +56,22 @@ type Sub struct {
     stopChan    chan bool
 }
 
-func (self *Sub) init(options SubOptions) error {
-    if !options.Valid() {
-        return fmt.Errorf("Invalid SubOptions: %#v", options)
+func newSub(redis *Redis, id ID) (*Sub, error) {
+    sub := &Sub{
+        id:     id,
+        redis:  redis,
+        path:   redis.path(id.Type, id.Instance),
+        log:    log.New(os.Stderr, fmt.Sprintf("config.Sub %v: ", id), 0),
     }
 
-    self.options = options
-    self.path = self.redis.path(options.Type, fmt.Sprintf("%v", options.ID))
-    self.log = log.New(os.Stderr, fmt.Sprintf("config.Sub %v: ", self.path), 0)
-
-    return nil
+    return sub, nil
 }
 
 func (self *Sub) String() string {
-    return self.options.String()
+    return self.id.String()
 }
-func (self *Sub) Options() SubOptions {
-    return self.options
+func (self *Sub) ID() ID {
+    return self.id
 }
 
 // Check if this sub still exists, and return remaining TTL
@@ -123,7 +137,7 @@ func (self *Sub) sync(config Config) error {
 // register config in redis, maintaining both the ZSet and the object expiry keepalive under TTL
 func (self *Sub) register() {
     // registration set's path, vs self.path for our object
-    path := self.redis.path(self.options.Type, "")
+    path := self.redis.path(self.id.Type, "")
 
     expire := time.Now().Add(SUB_TTL)
     refreshTimer := time.Tick(SUB_TTL / 2)
@@ -174,7 +188,7 @@ func (self *Sub) read(pubsub *redis.PubSub, configChan chan Config, config Confi
             configChan <- config
         }
 
-        // update stored config
+        // XXX: only update config after it has been applied!
         if err := self.set(config); err != nil {
             self.log.Printf("read -> set: %v\n", err)
             continue
@@ -193,7 +207,7 @@ func (self *Sub) Start(config Config) (chan Config, error) {
     }
 
     // register top-level type
-    if err := self.redis.registerType(self.options.Type); err != nil {
+    if err := self.redis.registerType(self.id.Type); err != nil {
         return nil, err
     }
 
