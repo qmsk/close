@@ -14,6 +14,8 @@ const SOURCE_PORT uint = 0
 const SOURCE_PORT_BITS uint = 0
 
 type SendConfig struct {
+    Instance        string  `json:"-"`
+
     DestAddr        string // host:port (or host)
     SourceNet       string // host/mask
     SourcePort      uint
@@ -225,7 +227,7 @@ func (self *Send) ConfigFrom(configRedis *config.Redis) (*config.Sub, error) {
     // copy for updates
     updateConfig := self.config
 
-    if configSub, err := configRedis.Sub(config.SubOptions{"udp", self.ID()}); err != nil {
+    if configSub, err := configRedis.Sub(config.SubOptions{"udp_send", self.config.Instance}); err != nil {
         return nil, err
     } else if configChan, err := configSub.Start(&updateConfig); err != nil {
         return nil, err

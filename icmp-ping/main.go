@@ -36,7 +36,7 @@ func init() {
         "Redis key prefix")
 
     flag.StringVar(&pingConfig.Instance, "instance", os.Getenv("CLOSE_ID"),
-        "type instance")
+        "config instance")
     flag.Float64Var(&pingConfig.Interval, "interval", 1.0,
         "ping interval")
     flag.StringVar(&pingConfig.Target, "target", "",
