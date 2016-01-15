@@ -11,7 +11,7 @@ closeApp.config(function($routeProvider){
             templateUrl: '/close/workers.html',
             controller: 'WorkersCtrl'
         })
-        .when('/workers/:type/:id', {
+        .when('/workers/:type/:instance', {
             templateUrl: '/close/worker.html',
             controller: 'WorkerCtrl'
         })
@@ -147,18 +147,16 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
 });
 
 closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams) {
-    $scope.closeType = $routeParams.type;
-    $scope.closeInstance = $routeParams.id;
+    $scope.workerType = $routeParams.type;
+    $scope.workerInstance = $routeParams.instance;
 
+    // XXX: need to get worker config 
+    var configType = $routeParams.type;
+    var configInstance = $routeParams.instance; 
     var statsType = $routeParams.type;
-    var statsInstance = $routeParams.id;
+    var statsInstance = $routeParams.instance; // XXX
 
-    switch ($scope.closeType) {
-    case "udp":
-        statsType = "udp_send";
-    }
-    
-    $http.get('/api/config/' + $routeParams.type + '/' + $routeParams.id).success(function(data){
+    $http.get('/api/config/' + configType + '/' + configInstance).success(function(data){
         $scope.workerConfig = data;
     });
 
@@ -193,7 +191,7 @@ closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams) {
     // POST any changed config <form> fields to the server for the worker to apply
     $scope.submitConfig = function() {
         // only changed fields
-        $http.post('/api/config/' + $routeParams.type + '/' + $routeParams.id, $scope.postConfig, {
+        $http.post('/api/config/' + configType + '/' + configInstance, $scope.postConfig, {
             headers: { 'Content-Type': 'application/json' },
         });
     };

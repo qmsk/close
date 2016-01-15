@@ -17,11 +17,13 @@ type WorkerConfig struct {
     Args        []string
 
     // worker 
-    Type        string
-    IDFlag      string
+    Type            string
+    InstanceFlag    string
 
-    RateConfig  string
-    RateStats   string
+    StatsInstanceFromConfig string
+
+    RateConfig      string
+    RateStats       string
 }
 
 func (self WorkerConfig) String() string {
@@ -31,14 +33,18 @@ func (self WorkerConfig) String() string {
 // track state of managed workers
 type Worker struct {
     Config          *WorkerConfig
-    ID              uint
+    Instance        string
 
     dockerContainer *DockerContainer
     configSub       *config.Sub
 }
 
+func (self Worker) configID() config.ID {
+    return config.ID{Type:self.Config.Type, Instance:self.String()}
+}
+
 func (self Worker) String() string {
-    return fmt.Sprintf("%v:%d", self.Config, self.ID)
+    return fmt.Sprintf("%v:%s", self.Config, self.Instance)
 }
 
 func (self *Manager) discoverWorker(dockerContainer *DockerContainer) (*Worker, error) {
@@ -49,16 +55,14 @@ func (self *Manager) discoverWorker(dockerContainer *DockerContainer) (*Worker, 
     }
 
     worker := &Worker{
-        Config: workerConfig,
-        ID:     dockerContainer.Index,
+        Config:     workerConfig,
+        Instance:   dockerContainer.Instance,
 
         dockerContainer:    dockerContainer,
     }
 
-    if subOptions, err := config.ParseSub(worker.Config.Type, fmt.Sprintf("%d", worker.ID)); err != nil {
-        return nil, fmt.Errorf("config.ParseSub: %v", err)
-    } else if configSub, err := self.configRedis.Sub(subOptions); err != nil {
-        return nil, fmt.Errorf("congigRedis.Sub %v: %v", subOptions, err)
+    if configSub, err := self.configRedis.GetSub(worker.configID()); err != nil {
+        return nil, fmt.Errorf("configRedis.GetSub: %v", err)
     } else {
         worker.configSub = configSub
     }
@@ -66,20 +70,20 @@ func (self *Manager) discoverWorker(dockerContainer *DockerContainer) (*Worker, 
     return worker, nil
 }
 
-func (self *Manager) workerUp(workerConfig *WorkerConfig, index uint) (*Worker, error) {
+func (self *Manager) workerUp(workerConfig *WorkerConfig, instance string) (*Worker, error) {
     worker := &Worker{
-        Config: workerConfig,
-        ID:     index,
+        Config:     workerConfig,
+        Instance:   instance,
     }
 
     // docker
-    dockerID := DockerID{Class:"worker", Type: workerConfig.String(), Index: index}
+    dockerID := DockerID{Class:"worker", Type: workerConfig.String(), Instance: instance}
 
     dockerConfig := DockerConfig{
         Image:      workerConfig.Image,
         Command:    workerConfig.Command,
         Env:        []string{
-            fmt.Sprintf("CLOSE_ID=%d", index),
+            fmt.Sprintf("CLOSE_INSTANCE=%s", worker.configID().Instance),
         },
         Privileged: workerConfig.Privileged,
     }
@@ -90,14 +94,14 @@ func (self *Manager) workerUp(workerConfig *WorkerConfig, index uint) (*Worker, 
     dockerConfig.AddFlag("config-redis-db", self.options.Config.Redis.DB)
     dockerConfig.AddFlag("config-prefix", self.options.Config.Prefix)
 
-    if workerConfig.IDFlag != "" {
-        dockerConfig.AddFlag(workerConfig.IDFlag, index)
+    if workerConfig.InstanceFlag != "" {
+        dockerConfig.AddFlag(workerConfig.InstanceFlag, worker.configID().Instance)
     }
 
     dockerConfig.AddArg(workerConfig.Args...)
 
     if workerConfig.Client != "" {
-        if client, err := self.GetClient(workerConfig.Client, index); err != nil {
+        if client, err := self.GetClient(workerConfig.Client, instance); err != nil {
             return worker, fmt.Errorf("GetClient: %v", err)
         } else {
             dockerConfig.SetNetworkContainer(client.dockerContainer)
@@ -110,11 +114,8 @@ func (self *Manager) workerUp(workerConfig *WorkerConfig, index uint) (*Worker, 
         worker.dockerContainer = container
     }
 
-    // XXX: this is not unique if there are multiple config.Workers with the same Type!
-    if subOptions, err := config.ParseSub(worker.Config.Type, fmt.Sprintf("%d", worker.ID)); err != nil {
-        return nil, fmt.Errorf("config.ParseSub: %v", err)
-    } else if configSub, err := self.configRedis.Sub(subOptions); err != nil {
-        return worker, fmt.Errorf("congigRedis.Sub: %v", err)
+    if configSub, err := self.configRedis.GetSub(worker.configID()); err != nil {
+        return nil, fmt.Errorf("configRedis.GetSub: %v", err)
     } else {
         worker.configSub = configSub
     }
@@ -133,8 +134,10 @@ func (self *Manager) WorkerUp(workerConfig *WorkerConfig) error {
     self.log.Printf("WorkerUp %v: Start %d workers...\n", workerConfig, workerConfig.Count)
 
     for index := uint(1); index <= workerConfig.Count; index++ {
-        if worker, err := self.workerUp(workerConfig, index); err != nil {
-            return fmt.Errorf("WorkerUp %v: workerUp %v: %v", workerConfig, index, err)
+        instance := fmt.Sprintf("%d", index)
+
+        if worker, err := self.workerUp(workerConfig, instance); err != nil {
+            return fmt.Errorf("WorkerUp %v: workerUp %v: %v", workerConfig, instance, err)
         } else {
             self.workers[worker.String()] = worker
         }
@@ -170,7 +173,7 @@ var WorkerError     WorkerState     = "error"   // not running, unclean exit
 
 type WorkerStatus struct {
     Config          string      `json:"config"` // WorkerConfig.name
-    ID              uint        `json:"id"`
+    Instance        string      `json:"instance"`
 
     Docker          string  `json:"docker"`
     DockerStatus    string  `json:"docker_status"`
@@ -187,7 +190,7 @@ func (self *Manager) ListWorkers() (workers []WorkerStatus, err error) {
     for _, worker := range self.workers {
         workerStatus := WorkerStatus{
             Config:     worker.Config.name,
-            ID:         worker.ID,
+            Instance:   worker.Instance,
         }
 
         if dockerContainer, err := self.DockerGet(worker.dockerContainer.String()); err != nil {

@@ -26,13 +26,13 @@ func (self ClientConfig) String() string {
 
 type Client struct {
     Config      *ClientConfig
-    ID          uint
+    Instance    string
 
     dockerContainer *DockerContainer
 }
 
 func (self Client) String() string {
-    return fmt.Sprintf("%v:%d", self.Config, self.ID)
+    return fmt.Sprintf("%v:%s", self.Config, self.Instance)
 }
 
 func (self *Manager) discoverClient(dockerContainer *DockerContainer) (*Client, error) {
@@ -43,8 +43,8 @@ func (self *Manager) discoverClient(dockerContainer *DockerContainer) (*Client, 
     }
 
     client := &Client{
-        Config: clientConfig,
-        ID:     dockerContainer.Index,
+        Config:     clientConfig,
+        Instance:   dockerContainer.Instance,
 
         dockerContainer:    dockerContainer,
     }
@@ -52,19 +52,19 @@ func (self *Manager) discoverClient(dockerContainer *DockerContainer) (*Client, 
     return client, nil
 }
 
-func (self *Manager) clientUp(config *ClientConfig, id uint) (*Client, error) {
+func (self *Manager) clientUp(config *ClientConfig, instance string) (*Client, error) {
     client := &Client{
-        Config: config,
-        ID:     id,
+        Config:     config,
+        Instance:   instance,
     }
 
     // docker
-    dockerID := DockerID{Class:"client", Type: config.name, Index: id}
+    dockerID := DockerID{Class:"client", Type: config.name, Instance: instance}
 
     dockerConfig := DockerConfig{
         Image:      config.Image,
         Env:        []string{
-            fmt.Sprintf("CLOSE_ID=%d", id),
+            fmt.Sprintf("CLOSE_INSTANCE=%s", instance),
         },
         Privileged: config.Privileged,
     }
@@ -72,7 +72,7 @@ func (self *Manager) clientUp(config *ClientConfig, id uint) (*Client, error) {
     if config.Volume != "" {
         bind := config.VolumePath
         if config.VolumeFmtID != "" {
-            bind += fmt.Sprintf(config.VolumeFmtID, id)
+            bind += fmt.Sprintf(config.VolumeFmtID, instance)
         }
 
         dockerConfig.AddMount(config.Volume, bind, config.VolumeReadonly)
@@ -98,8 +98,10 @@ func (self *Manager) markClients() {
 func (self *Manager) ClientUp(config *ClientConfig) error {
     self.log.Printf("ClientUp %v: Start %d clients...\n", config, config.Count)
 
-    for id := uint(1); id <= config.Count; id++ {
-        if client, err := self.clientUp(config, id); err != nil {
+    for index := uint(1); index <= config.Count; index++ {
+        instance := fmt.Sprintf("%d", index)
+
+        if client, err := self.clientUp(config, instance); err != nil {
             return fmt.Errorf("ClientUp %v: %v", config, err)
         } else {
             self.clients[client.String()] = client
@@ -125,8 +127,8 @@ func (self *Manager) ClientDown(config *ClientConfig) error {
     return nil
 }
 
-func (self *Manager) GetClient(name string, index uint) (*Client, error) {
-    clientName := fmt.Sprintf("%s:%d", name, index)
+func (self *Manager) GetClient(config string, instance string) (*Client, error) {
+    clientName := fmt.Sprintf("%s:%v", config, instance)
 
     if client, exists := self.clients[clientName]; !exists {
         return nil, fmt.Errorf("Client not found: %v", clientName)
@@ -143,7 +145,7 @@ var ClientError ClientState = "error"
 
 type ClientStatus struct {
     Config          string      `json:"config"`
-    ID              uint        `json:"id"`
+    Instance        string      `json:"instance"`
 
     Docker          string      `json:"docker"`
     DockerStatus    string      `json:"docker_status"`
@@ -155,7 +157,7 @@ func (self *Manager) ListClients() (clients []ClientStatus, err error) {
     for _, client := range self.clients {
         clientStatus := ClientStatus{
             Config:         client.Config.name,
-            ID:             client.ID,
+            Instance:       client.Instance,
         }
 
         if dockerContainer, err := self.DockerGet(client.dockerContainer.String()); err != nil {

@@ -25,7 +25,7 @@
             <tr>
                 <th>Status</th>
                 <th>Config</td>
-                <th>ID</th>
+                <th>Instance</th>
                 <th>Docker</th>
                 <th></th>
             </tr>
@@ -44,7 +44,7 @@
                     </span>
                 </td>
                 <td>{{client.config}}</td>
-                <td>{{client.id}}</td>
+                <td>{{client.instance}}</td>
                 <td>
                     <a href="#/docker/{{client.docker}}">{{client.docker_status}}</a>
                 </td>
@@ -67,7 +67,7 @@
             <tr>
                 <th>State</th>
                 <th>Config</td>
-                <th>ID</th>
+                <th>Instance</th>
                 <th>Docker</th>
                 <th>Config</th>
                 <th>Rate</th>
@@ -92,7 +92,11 @@
                 </td>
 
                 <td>{{worker.config}}</td>
-                <td>{{worker.id}}</td>
+                <td>
+                    <a href="#/workers/{{worker.config}}/{{worker.instance}}">
+                        {{worker.instance}}
+                    </a>
+                </td>
                 <td>
                     <a href="#/docker/{{worker.docker}}">{{worker.docker_status}}</a>
                 </td>
@@ -107,7 +111,7 @@
                 </td>
                 <td>{{worker.rate}}</td>
                 <td>
-                    <a href="#/workers/{{worker.config}}/{{worker.id}}"><span class="glyphicon glyphicon-zoom-in"></span></a>
+
                 </td>
             </tr>
         </tbody>
