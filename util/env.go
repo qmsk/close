@@ -7,7 +7,7 @@ import (
 
 type Env []string
 
-func MakeEnv(values []string) Env {
+func MakeEnv(values ...string) Env {
     // sorted copy
     self := Env(make([]string, len(values)))
 

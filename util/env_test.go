@@ -4,52 +4,90 @@ import (
     "testing"
 )
 
+var testEnvSubset = []struct{
+    env     Env
+    other   Env
+    subset  bool
+}{
+    {
+        MakeEnv("TEST1=test", "TEST2=test"),
+        MakeEnv("TEST1=test", "TEST2=test"),
+        true,
+    },
+    {
+        MakeEnv("TEST1=test", "TEST2=test"),
+        MakeEnv("TEST2=test", "TEST1=test"),
+        true,
+    },
+    {
+        MakeEnv("TEST1=test", "TEST2=test"),
+        MakeEnv(),
+        false,
+    },
+    {
+        MakeEnv(),
+        MakeEnv("TEST1=test", "TEST2=test"),
+        true,
+    },
+    {
+        MakeEnv("TEST1=test", "TEST2=test"),
+        MakeEnv("TEST1=test"),
+        false,
+    },
+    {
+        MakeEnv("TEST1=test", "TEST2=test"),
+        MakeEnv("TEST2=test"),
+        false,
+    },
+    {
+        MakeEnv("TEST1=test", "TEST2=test"),
+        MakeEnv("TEST1=test2", "TEST2=test"),
+        false,
+    },
+    {
+        MakeEnv("TEST1=test", "TEST2=test"),
+        MakeEnv("TEST1=test", "TEST2=test2"),
+        false,
+    },
+    // XXX: match duplicates?
+    {
+        MakeEnv("TEST1=test", "TEST2=test"),
+        MakeEnv("TEST1=test", "TEST2=test", "TEST2=test"),
+        true,
+    },
+    {
+        MakeEnv("TEST1=test", "TEST2=test"),
+        MakeEnv("TEST1=test", "TEST1=test", "TEST2=test"),
+        true,
+    },
+    {
+        MakeEnv("TEST1=test", "TEST2=test"),
+        MakeEnv("TEST1=test", "TEST2=test", "TEST3=test"),
+        true,
+    },
+    {
+        MakeEnv("TEST1=test", "TEST2=test"),
+        MakeEnv("TEST1=test", "TEST1b=test", "TEST2=test"),
+        true,
+    },
+    {
+        MakeEnv("TEST1=test", "TEST2=test"),
+        MakeEnv("TEST1=test", "TEST2=test2", "TEST3=test"),
+        false,
+    },
+
+}
+
 func TestEnvSubset(t *testing.T) {
-    env := MakeEnv([]string{"TEST1=test", "TEST2=test"})
+    for _, test := range testEnvSubset {
+        subset := test.env.Subset(test.other)
 
-    // env
-    env2 := env
+        if subset == test.subset {
 
-    if !env.Subset(env2) {
-        t.Errorf("equal identical: %#v %#v", env, env2)
-    }
-
-    env2 = MakeEnv([]string{"TEST2=test", "TEST1=test"})
-    if !env.Subset(env2) {
-        t.Errorf("equal reordered: %#v %#v", env, env2)
-    }
-
-    env2 = MakeEnv([]string{})
-    if env.Subset(env2) {
-        t.Errorf("non-equal empty: %#v %#v", env, env2)
-    }
-
-    env2 = MakeEnv([]string{"TEST1=test2"})
-    if env.Subset(env2) {
-        t.Errorf("non-equal short: %#v %#v", env, env2)
-    }
-
-    env2 = env
-    env2 = MakeEnv([]string{"TEST1=test", "TEST2=test2"})
-    if env.Subset(env2) {
-        t.Errorf("non-equal modified: %#v %#v", env, env2)
-    }
-
-    env2 = env
-    env2 = MakeEnv([]string{"TEST1=test", "TEST2=test", "TEST3=test"})
-    if !env.Subset(env2) {
-        t.Errorf("equal superset: %#v %#v", env, env2)
-    }
-
-    env2 = env
-    env2 = MakeEnv([]string{"TEST1=test", "TEST1b=test", "TEST2=test"})
-    if !env.Subset(env2) {
-        t.Errorf("equal superset: %#v %#v", env, env2)
-    }
-
-    env2 = env
-    env2 = MakeEnv([]string{"TEST1=test", "TEST2=test2", "TEST3=test"})
-    if env.Subset(env2) {
-        t.Errorf("non-equal modified superset: %#v %#v", env, env2)
+        } else if !test.subset {
+            t.Errorf("should not be a subset:\nSelf:\t%v\nOther:\t%v\n", test.env, test.other)
+        } else {
+            t.Errorf("should be a subset:\nSelf:\t%v\nOther:\t%v\n", test.env, test.other)
+        }
     }
 }
