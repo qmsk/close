@@ -160,6 +160,11 @@ func (self *Manager) ListClients() (clients []ClientStatus, err error) {
 
         if dockerContainer, err := self.DockerGet(client.dockerContainer.String()); err != nil {
             return nil, err
+        } else if dockerContainer == nil {
+            clientStatus.Docker = ""
+            clientStatus.DockerStatus = ""
+            clientStatus.State = ClientDown
+
         } else {
             clientStatus.Docker = dockerContainer.String()
             clientStatus.DockerStatus = dockerContainer.Status

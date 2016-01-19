@@ -46,7 +46,7 @@
                 <td>{{client.config}}</td>
                 <td>{{client.instance}}</td>
                 <td>
-                    <a href="#/docker/{{client.docker}}">{{client.docker_status}}</a>
+                    <a ng-if="client.docker" href="#/docker/{{client.docker}}">{{client.docker_status}}</a>
                 </td>
                 <td>
 
@@ -98,7 +98,7 @@
                     </a>
                 </td>
                 <td>
-                    <a href="#/docker/{{worker.docker}}">{{worker.docker_status}}</a>
+                    <a ng-if="worker.docker" href="#/docker/{{worker.docker}}">{{worker.docker_status}}</a>
                 </td>
                 <td>
                     <span class="label label-warning" ng-if="!worker.config">

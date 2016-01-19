@@ -206,6 +206,10 @@ func (self *Manager) workerGet(worker *Worker, detail bool) (WorkerStatus, error
 
     if dockerContainer, err := self.DockerGet(worker.dockerContainer.String()); err != nil {
         return workerStatus, fmt.Errorf("ListWorkers %v: DockerGet %v: %v", worker, worker.dockerContainer, err)
+    } else if dockerContainer == nil {
+        workerStatus.Docker = ""
+        workerStatus.DockerStatus = ""
+        workerStatus.State = WorkerDown
     } else {
         workerStatus.Docker = dockerContainer.String()
         workerStatus.DockerStatus = dockerContainer.Status
