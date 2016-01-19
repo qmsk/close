@@ -87,7 +87,8 @@ func (self *Manager) workerUp(workerConfig *WorkerConfig, instance string) (*Wor
         Privileged: workerConfig.Privileged,
     }
 
-    dockerConfig.Env.Add("CLOSE_INSTANCE", worker.configID().Instance)
+    // TODO: rename to CLOSE_WORKER=?
+    dockerConfig.Env.Add("CLOSE_INSTANCE", worker.String())
 
     dockerConfig.AddFlag("influxdb-addr", self.options.StatsReader.InfluxDB.Addr)
     dockerConfig.AddFlag("influxdb-database", self.options.StatsReader.Database)
@@ -96,7 +97,7 @@ func (self *Manager) workerUp(workerConfig *WorkerConfig, instance string) (*Wor
     dockerConfig.AddFlag("config-prefix", self.options.Config.Prefix)
 
     if workerConfig.InstanceFlag != "" {
-        dockerConfig.AddFlag(workerConfig.InstanceFlag, worker.configID().Instance)
+        dockerConfig.AddFlag(workerConfig.InstanceFlag, worker.String())
     }
 
     dockerConfig.AddArg(workerConfig.Args...)
@@ -223,7 +224,7 @@ func (self *Manager) workerGet(worker *Worker, detail bool) (WorkerStatus, error
             workerStatus.State = WorkerWait
         }
     } else {
-        workerStatus.ConfigInstance = worker.configID().Instance
+        workerStatus.ConfigInstance = worker.String()
         workerStatus.ConfigTTL = configTTL.Seconds()
     }
 
@@ -250,7 +251,7 @@ func (self *Manager) workerGet(worker *Worker, detail bool) (WorkerStatus, error
         }
 
         if worker.Config.StatsInstanceFromConfig == "" {
-            workerStatus.StatsInstance = worker.configID().Instance
+            workerStatus.StatsInstance = worker.String()
         } else if configValue, exists := configMap[worker.Config.StatsInstanceFromConfig]; !exists {
             workerStatus.ConfigError = fmt.Sprintf("Invalid %s StatsInstanceFromConfig %v: not found", worker.Config, worker.Config.StatsInstanceFromConfig)
         } else if statsInstance, ok := configValue.(string); ok {
