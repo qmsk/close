@@ -114,7 +114,7 @@ func configFromDocker(dockerContainer *docker.Container) DockerConfig {
         Image:          dockerContainer.Config.Image,
         Command:        dockerContainer.Config.Cmd[0],
         Args:           dockerContainer.Config.Cmd[1:],
-        Env:            util.MakeEnv(...dockerContainer.Config.Env),
+        Env:            util.MakeEnv(dockerContainer.Config.Env...),
         Privileged:     dockerContainer.HostConfig.Privileged,
         Mounts:         dockerContainer.Mounts,
         NetworkMode:    dockerContainer.HostConfig.NetworkMode,
