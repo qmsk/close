@@ -133,6 +133,7 @@ func (self *DockerConfig) normalize() {
 
 // Compare config against running config for compatibility
 // The running config will include additional stuff from the image..
+// Both DockerConfig's must be .normalize()'d!
 func (self DockerConfig) Equals(other DockerConfig) bool {
     if other.Image != self.Image {
         return false
@@ -156,16 +157,17 @@ func (self DockerConfig) Equals(other DockerConfig) bool {
     }
 
     // env needs to be a subset
-checkEnv:
-    for i, j := 0, 0; i < len(self.Env); i++ {
-        for ; j < len(other.Env); j++ {
-            if self.Env[i] == other.Env[j] {
-                continue checkEnv // next self.Env[i++]
-            }
-        }
-
-        // inner for loop went to end of other.Env[j]
+    if len(self.Env) > len(other.Env) {
         return false
+    }
+    for i, j := 0, 0; i < len(self.Env) && j < len(other.Env); j++ {
+        if self.Env[i] > other.Env[j] {
+            continue
+        } else if self.Env[i] < other.Env[j] {
+            return false
+        } else {
+            i++
+        }
     }
 
     if self.Privileged != other.Privileged {

@@ -6,7 +6,7 @@ import (
 
 func TestDockerConfigEquals(t *testing.T) {
     config0 := DockerConfig{Image: "test"}
-    config1 := DockerConfig{Image: "test", Command: "test", Args: []string{"-test"}, Env: []string{"TEST=test"}}
+    config1 := DockerConfig{Image: "test", Command: "test", Args: []string{"-test"}, Env: []string{"TEST1=test", "TEST2=test"}}
     config2 := config1
 
     // self-equality
@@ -58,18 +58,37 @@ func TestDockerConfigEquals(t *testing.T) {
     config2 = config1
     config2.Env = []string{}
     if config1.Equals(config2) {
-        t.Errorf("non-equal Env: %#v %#v", config1, config2)
+        t.Errorf("non-equal empty Env: %#v %#v", config1, config2)
     }
 
     config2 = config1
-    config2.Env = []string{"TEST=test2"}
+    config2.Env = []string{"TEST1=test2"}
     if config1.Equals(config2) {
-        t.Errorf("non-equal Env: %#v %#v", config1, config2)
+        t.Errorf("non-equal short Env: %#v %#v", config1, config2)
     }
 
     config2 = config1
-    config2.Env = []string{"TEST=test", "TEST2=test2"}
-    if !config1.Equals(config2) {
-        t.Errorf("superset Env: %#v %#v", config1, config2)
+    config2.Env = []string{"TEST1=test", "TEST2=test2"}
+    if config1.Equals(config2) {
+        t.Errorf("non-equal modified Env: %#v %#v", config1, config2)
     }
+
+    config2 = config1
+    config2.Env = []string{"TEST1=test", "TEST2=test", "TEST3=test"}
+    if !config1.Equals(config2) {
+        t.Errorf("equal superset Env: %#v %#v", config1, config2)
+    }
+
+    config2 = config1
+    config2.Env = []string{"TEST1=test", "TEST1b=test", "TEST2=test"}
+    if !config1.Equals(config2) {
+        t.Errorf("equal superset Env: %#v %#v", config1, config2)
+    }
+
+    config2 = config1
+    config2.Env = []string{"TEST1=test", "TEST2=test2", "TEST3=test"}
+    if config1.Equals(config2) {
+        t.Errorf("non-equal modified superset Env: %#v %#v", config1, config2)
+    }
+
 }
