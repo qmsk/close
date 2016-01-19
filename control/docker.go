@@ -4,8 +4,8 @@ import (
     "bytes"
     "github.com/fsouza/go-dockerclient"
     "fmt"
-    "sort"
     "strings"
+    "close/util"
 )
 
 const DOCKER_STOP_TIMEOUT = 10 // seconds
@@ -66,7 +66,7 @@ type DockerConfig struct {
     Image       string          `json:"image"`
     Command     string          `json:"command"`
     Args        []string        `json:"args"`
-    Env         []string        `json:"env"`
+    Env         util.Env        `json:"env"`
 
     Privileged      bool                `json:"privileged"`
     Mounts          []docker.Mount      `json:"mounts"`
@@ -89,12 +89,6 @@ func (self *DockerConfig) AddFlag(name string, value interface{}) {
 
 func (self *DockerConfig) AddArg(args ...string) {
     self.Args = append(self.Args, args...)
-}
-
-func (self *DockerConfig) AddEnv(name string, value interface{}) {
-    env := fmt.Sprintf("%s=%v", name, value)
-
-    self.Env = append(self.Env, env)
 }
 
 func (self *DockerConfig) AddMount(name string, bind string, readonly bool) {
@@ -120,20 +114,15 @@ func configFromDocker(dockerContainer *docker.Container) DockerConfig {
         Image:          dockerContainer.Config.Image,
         Command:        dockerContainer.Config.Cmd[0],
         Args:           dockerContainer.Config.Cmd[1:],
-        Env:            dockerContainer.Config.Env,
+        Env:            util.MakeEnv(...dockerContainer.Config.Env),
         Privileged:     dockerContainer.HostConfig.Privileged,
         Mounts:         dockerContainer.Mounts,
         NetworkMode:    dockerContainer.HostConfig.NetworkMode,
     }
 }
 
-func (self *DockerConfig) normalize() {
-    sort.Strings(self.Env)
-}
-
 // Compare config against running config for compatibility
 // The running config will include additional stuff from the image..
-// Both DockerConfig's must be .normalize()'d!
 func (self DockerConfig) Equals(other DockerConfig) bool {
     if other.Image != self.Image {
         return false
@@ -157,17 +146,8 @@ func (self DockerConfig) Equals(other DockerConfig) bool {
     }
 
     // env needs to be a subset
-    if len(self.Env) > len(other.Env) {
+    if !self.Env.Subset(other.Env) {
         return false
-    }
-    for i, j := 0, 0; i < len(self.Env) && j < len(other.Env); j++ {
-        if self.Env[i] > other.Env[j] {
-            continue
-        } else if self.Env[i] < other.Env[j] {
-            return false
-        } else {
-            i++
-        }
     }
 
     if self.Privileged != other.Privileged {
@@ -265,8 +245,6 @@ func (self *Manager) DockerGet(id string) (*DockerContainer, error) {
         Config: configFromDocker(dockerContainer),
     }
 
-    container.Config.normalize()
-
     // ID
     if err := container.parseID(dockerContainer.Name, dockerContainer.Config.Labels); err != nil {
         return nil, fmt.Errorf("parseID %s: %v", dockerContainer.Name, err)
@@ -296,8 +274,6 @@ func (self *Manager) DockerLogs(id string) (string, error) {
 }
 
 func (self *Manager) DockerUp(id DockerID, config DockerConfig) (*DockerContainer, error) {
-    config.normalize()
-
     // check
     container, err := self.DockerGet(id.String())
 

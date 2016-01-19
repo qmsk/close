@@ -84,11 +84,10 @@ func (self *Manager) workerUp(workerConfig *WorkerConfig, instance string) (*Wor
     dockerConfig := DockerConfig{
         Image:      workerConfig.Image,
         Command:    workerConfig.Command,
-        Env:        []string{
-            fmt.Sprintf("CLOSE_INSTANCE=%s", worker.configID().Instance),
-        },
         Privileged: workerConfig.Privileged,
     }
+
+    dockerConfig.Env.Add("CLOSE_INSTANCE", worker.configID().Instance)
 
     dockerConfig.AddFlag("influxdb-addr", self.options.StatsReader.InfluxDB.Addr)
     dockerConfig.AddFlag("influxdb-database", self.options.StatsReader.Database)
