@@ -13,22 +13,23 @@ import (
 )
 
 type PingConfig struct {
-    Instance    string              `json:"-"`
-
-    Target      string              `json:"target"`
-    ID          int                 `json:"id"`         // 32-bit id, default from pid
-    Interval    float64             `json:"interval"`   // seconds
+    Target      string              `json:"target" long:"target"`
+    ID          int                 `json:"id" long:"id"`
+    Interval    time.Duration       `json:"interval" long:"interval" value-name:"<count>(ns|us|ms|s|m|h)" default:"1s"`
 }
 
 type PingStats struct {
-    Instance        string
+    ID              int
     Time            time.Time       // ping request was sent out
 
     RTT             time.Duration
 }
 
-func (self PingStats) StatsInstance() string {
-    return self.Instance
+func (self PingStats) StatsID() stats.ID {
+    return stats.ID{
+        Type:       "icmp_ping",
+        Instance:   fmt.Sprintf("%d", self.ID),
+    }
 }
 
 func (self PingStats) StatsTime() time.Time {
@@ -48,140 +49,157 @@ func (self PingStats) String() string {
     )
 }
 
-func getAddr(dst string) (net.Addr, error) {
-    if ips, err := net.LookupIP(dst); err != nil {
-        return nil, err
-    } else {
-        return &net.UDPAddr{IP: ips[0]}, err
-    }
-}
-
 type pingResult struct {
-    Seq   int
-    Stop  time.Time
+    ID    uint16
+    Seq   uint16
+    Time  time.Time
 }
 
 type Pinger struct {
-    dst         net.Addr
-    conn        *icmp.PacketConn
-
-    config   PingConfig
-    configC  chan config.Config
-
-    rttC            chan  stats.Stats
-
-    receiverC   chan  pingResult
+    config      PingConfig
 
     log         *log.Logger
+
+    targetAddr  *net.UDPAddr
+    icmpConn    *icmp.PacketConn
+
+    configC     chan config.Config
+    statsC      chan  stats.Stats
+    receiverC   chan  pingResult
+
 }
 
-func NewPinger(config PingConfig) (*Pinger, error) {
-    if config.ID == 0 {
-        config.ID = os.Getpid() & 0xffff
-    }
-
+func NewPinger() (*Pinger, error) {
     p := &Pinger{
-        config:     config,
+        config:     PingConfig{
+            ID:         os.Getpid(),
+        },
         log:        log.New(os.Stderr, "ping: ", 0),
-        receiverC:  make(chan pingResult),
     }
 
-    if err := p.init(config); err != nil {
-        return nil, err
-    } else {
-        return p, nil
-    }
+    return p, nil
 }
 
-func (p *Pinger) init(config PingConfig) error {
-    conn, err := icmp.ListenPacket("udp4", "0.0.0.0")
-    if err != nil {
-        p.log.Printf("Could not start listening: %s\n", err)
-        return err
-    }
-    p.conn = conn
+func (p *Pinger) String() string {
+    return fmt.Sprintf("Ping %v", p.config.Target)
+}
 
-    udpAddr, err := getAddr(config.Target)
-    if err != nil {
-        p.log.Printf("Could not resolve remote address: %s\n", err)
-        return err
-    }
+func (p *Pinger) Config() config.Config {
+    return &p.config
+}
 
-    p.dst = udpAddr
-
-    go p.receiver()
+func (p *Pinger) StatsWriter(statsWriter *stats.Writer) error {
+    p.statsC = statsWriter.StatsWriter()
 
     return nil
 }
 
-func (p *Pinger) Stop() {
-    p.log.Printf("stopping...\n")
-
-    // XXX: assume this trips recevier()?
-    p.conn.Close()
-}
-
-// interval is ignored
-func (p *Pinger) GiveStats(interval time.Duration) chan stats.Stats {
-    p.rttC = make(chan stats.Stats)
-
-    return p.rttC
-}
-
-func (p *Pinger) ConfigFrom(configRedis *config.Redis) (*config.Sub, error) {
+func (p *Pinger) ConfigSub(configSub *config.Sub) error {
     // copy for updates
-    updateConfig := p.config
+    pingConfig := p.config
 
-    if configSub, err := configRedis.NewSub("icmp_ping", p.config.Instance); err != nil {
-        return nil, err
-    } else if configChan, err := configSub.Start(&updateConfig); err != nil {
-        return nil, err
+    if configChan, err := configSub.Start(&pingConfig); err != nil {
+        return err
     } else {
         p.configC = configChan
 
-        return configSub, nil
+        return nil
     }
 }
 
+func (p *Pinger) resolveTarget(target string) (*net.UDPAddr, error) {
+    if target == "" {
+        return nil, fmt.Errorf("No target given")
+    }
+
+    if ipAddr, err := net.ResolveIPAddr("ip", target); err != nil {
+        return nil, err
+    } else {
+        // unprivileged icmp mode uses SOCK_DGRAM
+        udpAddr := &net.UDPAddr{IP: ipAddr.IP, Zone: ipAddr.Zone}
+
+        return udpAddr, nil
+    }
+}
+
+func (p *Pinger) icmpListen(targetAddr *net.UDPAddr) (*icmp.PacketConn, error) {
+    if ip4 := targetAddr.IP.To4(); ip4 != nil {
+        return icmp.ListenPacket("udp4", "")
+    } else {
+        return nil, fmt.Errorf("Unsupported address: %v", targetAddr)
+    }
+}
+
+// Apply configuration to state
+// TODO: teardown old state?
+func (p *Pinger) apply(config PingConfig) error {
+    if targetAddr, err := p.resolveTarget(config.Target); err != nil {
+        return fmt.Errorf("resolveTarget: %v", err)
+    } else {
+        p.targetAddr = targetAddr
+    }
+
+    if icmpConn, err := p.icmpListen(p.targetAddr); err != nil {
+        return fmt.Errorf("icmpListen: %v", err)
+    } else {
+        p.icmpConn = icmpConn
+    }
+
+    p.receiverC = make(chan pingResult)
+
+    // good
+    p.config = config
+
+    go p.receiver(p.receiverC, p.icmpConn)
+
+    return nil
+}
+
 // mainloop
-func (p *Pinger) Run() {
-    defer close(p.rttC)
+func (p *Pinger) Run() error {
+    if p.statsC != nil {
+        defer close(p.statsC)
+    }
+
+    // start
+    if err := p.apply(p.config); err != nil {
+        return err
+    }
+
     defer p.log.Printf("stopped\n")
 
-    var seq int
-    timerChan := time.Tick(time.Duration(p.config.Interval * float64(time.Second)))
-    startTimes  := make(map[int]time.Time)
+    // state
+    var id = uint16(p.config.ID)
+    var seq uint16
+    timerChan := time.Tick(p.config.Interval)
+    startTimes  := make(map[uint16]time.Time)
 
     for {
         select {
         case <-timerChan:
             seq++
 
-            if err := p.send(seq); err != nil {
-                p.log.Printf("send %d: %v\n", seq, err)
+            if err := p.send(id, seq); err != nil {
+                return err
             } else {
                 startTimes[seq] = time.Now()
             }
 
         case result, ok := <-p.receiverC:
             if !ok {
-                return
+                return nil
             }
-            if start, ok := startTimes[result.Seq]; ok {
-                rtt := result.Stop.Sub(start)
+            if startTime, ok := startTimes[result.Seq]; ok {
+                rtt := result.Time.Sub(startTime)
 
-                // TODO statsInterval
-                if p.rttC != nil {
-
-                    // Could have takeStats interface...
-                    s := PingStats{
-                        Instance:   p.config.Instance,
-                        Time:       start,
+                if p.statsC != nil {
+                    p.statsC <- PingStats{
+                        ID:         p.config.ID,
+                        Time:       startTime,
                         RTT:        rtt,
                     }
-
-                    p.rttC <- s
                 }
+
                 delete(startTimes, result.Seq)
             }
 
@@ -189,19 +207,29 @@ func (p *Pinger) Run() {
             config := configConfig.(*PingConfig)
 
             p.log.Printf("config: %v\n", config)
+
+            // TODO: apply()
+
 //      case <-expiryTicker.C:
         }
     }
 }
 
+func (p *Pinger) Stop() {
+    p.log.Printf("stopping...\n")
+
+    // causes recevier() to close(receiverC)
+    p.icmpConn.Close()
+}
+
 // Now this is called only from manager, so it's okay it's not thread safe
-func (p *Pinger) send(seq int) error {
+func (p *Pinger) send(id uint16, seq uint16) error {
     wm := icmp.Message {
         Type: ipv4.ICMPTypeEcho,
         Code: 0,
         Body: &icmp.Echo {
-            ID:     p.config.ID,
-            Seq:    seq,
+            ID:     int(id),
+            Seq:    int(seq),
             Data:   []byte("HELLO 1"),
         },
     }
@@ -211,39 +239,43 @@ func (p *Pinger) send(seq int) error {
         return fmt.Errorf("icmp Message.Marshal: %v", err)
     }
 
-    n, err := p.conn.WriteTo(wb, p.dst)
+    n, err := p.icmpConn.WriteTo(wb, p.targetAddr)
     if n != len(wb) || err != nil {
-        return fmt.Errorf("icmp PacketConn.WriteTo: %v", err)
+        return fmt.Errorf("icmp.PacketConn %v: WriteTo %v: %v", p.icmpConn, p.targetAddr, err)
     }
 
     return nil
 }
 
-func (p *Pinger) receiver() {
-    defer close(p.receiverC)
+func (p *Pinger) receiver(receiverC chan pingResult, icmpConn *icmp.PacketConn) {
+    defer close(receiverC)
+
+    // IANA ICMP v4 protocol is 1
+    // TODO: get protocol from icmpConn, for IPv6?
+    icmpProto := 1
 
     for {
-        rb := make([]byte, 1500)
-        n, _, err := p.conn.ReadFrom(rb)
-        if err != nil {
-            p.log.Printf("icmp PacketConn.ReadFrom: %v\n", err)
+        buf := make([]byte, 1500)
+        if readSize, _, err := icmpConn.ReadFrom(buf); err != nil {
+            p.log.Printf("icmp.PacketConn %v: ReadFrom: %v\n", icmpConn, err)
 
             // quit if the connection is closed
-            break
+            return
+        } else {
+            buf = buf[:readSize]
         }
 
-        stop := time.Now()
+        recvTime := time.Now()
 
-        // IANA ICMP v4 protocol is 1
-        rm, err := icmp.ParseMessage(1, rb[:n])
-        if err != nil {
+        if icmpMessage, err := icmp.ParseMessage(icmpProto, buf); err != nil {
             p.log.Printf("icmp.ParseMessage: %v\n", err)
             continue
-        }
-
-        if rm.Type == ipv4.ICMPTypeEchoReply {
-            echo := rm.Body.(*icmp.Echo)
-            p.receiverC <- pingResult{echo.Seq, stop}
+        } else if icmpEcho, ok := icmpMessage.Body.(*icmp.Echo); ok {
+            receiverC <- pingResult{
+                ID:     uint16(icmpEcho.ID),
+                Seq:    uint16(icmpEcho.Seq),
+                Time:   recvTime,
+            }
         }
     }
 }
