@@ -9,87 +9,69 @@ import (
     "time"
 )
 
-const INFLUXDB_DATABASE = "close"
-const INFLUXDB_USER_AGENT = "close-stats"
-const INTERVAL = 1.0
+type WriterOptions struct {
+    InfluxURL   InfluxURL       `long:"influxdb-url" value-name:"http://[USER:[PASSWORD]@]HOST[:PORT]/DATABASE"`
 
-type Config struct {
-    InfluxDB            influxdb.HTTPConfig
-    InfluxDBDatabase    string
-
-    // The hostname this instance is running on to uniquely identify the source of measurements
-    // If multiple instances of the same type are running on a single host, they must have a different hostname
-    Hostname    string
-
-    // Type of measurements being sent
-    Type        string
-
-    // The target being measured, intended to be aggregated from multiple instances of this type running on different hosts
-    Instance    string
+    Hostname    string          `long:"stats-hostname"`
 
     // Collection interval
-    Interval    float64 // seconds
+    Interval    time.Duration   `long:"stats-interval" value-name:"SECONDS" default:"1s"`
 
     // Show stats on stdout
-    Print       bool
+    Print       bool            `long:"stats-print"`
+}
+
+func (self WriterOptions) Empty() bool {
+    return self.InfluxURL.Empty()
 }
 
 // Wrap a statsd client to uniquely identify the measurements
 type Writer struct {
-    config          Config
-    Interval        time.Duration
+    options             WriterOptions
 
     influxdbClient      influxdb.Client
     writeChan           chan *influxdb.Point
 }
 
-func NewWriter(config Config) (*Writer, error) {
-    if config.Hostname == "" {
-        if hostname, err := os.Hostname(); err != nil {
-            return nil, err
-        } else {
-            config.Hostname = hostname
-        }
+func NewWriter(options WriterOptions) (*Writer, error) {
+    if options.Hostname != "" {
+
+    } else if hostname, err := os.Hostname(); err != nil {
+        return nil, err
+    } else {
+        options.Hostname = hostname
     }
-    if strings.Contains(config.Hostname, ".") {
+
+    if strings.Contains(options.Hostname, ".") {
         log.Printf("statsd-hostname: stripping domain\n")
-        config.Hostname = strings.Split(config.Hostname, ".")[0]
-    }
-
-    if config.Type == "" {
-        panic("Invalid stats-type")
-    }
-
-    if config.InfluxDB.UserAgent == "" {
-        config.InfluxDB.UserAgent = INFLUXDB_USER_AGENT
+        options.Hostname = strings.Split(options.Hostname, ".")[0]
     }
 
     self := &Writer{
-        config:     config,
-        Interval:   time.Duration(config.Interval * float64(time.Second)),
+        options:     options,
         writeChan:  make(chan *influxdb.Point),
     }
 
-    if influxdbClient, err := influxdb.NewHTTPClient(config.InfluxDB); err != nil {
+    if influxdbClient, err := options.InfluxURL.Connect(); err != nil {
         return nil, err
     } else {
         self.influxdbClient = influxdbClient
     }
 
     // start writing
-    go self.write()
+    go self.writer()
 
     return self, nil
 }
 
 func (self *Writer) String() string {
-    return fmt.Sprintf("%v/%v/%v?hostname=%v&instance=%v", self.config.InfluxDB.Addr, self.config.InfluxDBDatabase, self.config.Type, self.config.Hostname, self.config.Instance)
+    return fmt.Sprintf("%v?hostname=%v", self.options.InfluxURL, self.options.Hostname)
 }
 
-func (self *Writer) write() {
+func (self *Writer) writer() {
     // TODO: batch up from chan?
     for point := range self.writeChan {
-        points, err := influxdb.NewBatchPoints(influxdb.BatchPointsConfig{Database: self.config.InfluxDBDatabase})
+        points, err := influxdb.NewBatchPoints(self.options.InfluxURL.BatchPointsConfig())
         if err != nil {
             log.Printf("stats.Writer %v: InfluxDB points error: %v\n", self, err)
             continue
@@ -103,41 +85,59 @@ func (self *Writer) write() {
     }
 }
 
-func (self *Writer) Write(instance string, timestamp time.Time, fields map[string]interface{}) {
-    // log.Printf("stats.Writer %v: write %v@%v %v\n", self, instance, timestamp, fields)
-
-    if instance == "" {
-        instance = self.config.Instance
+func (self *Writer) write(stats Stats) {
+    if self.options.Print {
+        fmt.Printf("%v\n", stats)
     }
+
+    id := stats.StatsID()
+    id.Hostname = self.options.Hostname
 
     tags := map[string]string{
-        "hostname":   self.config.Hostname,
-        "instance":   instance,
+        "hostname":   id.Hostname,
+        "instance":   id.Instance,
     }
 
-    if point, err := influxdb.NewPoint(self.config.Type, tags, fields, timestamp); err != nil {
+    if point, err := influxdb.NewPoint(id.Type, tags, stats.StatsFields(), stats.StatsTime()); err != nil {
         log.Printf("stats.Writer %v: InfluxDB point error: %v\n", self, err)
     } else {
         self.writeChan <- point
     }
 }
 
-func (self *Writer) WriteStats(stats Stats) {
-    if self.config.Print {
-        fmt.Printf("%v\n", stats)
-    }
-    self.Write(stats.StatsInstance(), stats.StatsTime(), stats.StatsFields())
-}
-
-func (self *Writer) writeFrom(statsChan chan Stats) {
-    log.Printf("stats.Writer %v: writeFrom %v...\n", self, statsChan)
+func (self *Writer) statsWriter(intervalChan <-chan time.Time, statsChan chan Stats) {
+    log.Printf("stats.Writer %v: writeFrom %v @%v...\n", self, statsChan, intervalChan)
 
     for stats := range statsChan {
-        self.WriteStats(stats)
+        self.write(stats)
+
+        // only read stats every interval tick, or continuously if tickChan is nil
+        if intervalChan != nil {
+            <-intervalChan
+        }
     }
 }
 
-// Start gathering stats 
-func (self *Writer) WriteFrom(statsSource StatsSource) {
-    go self.writeFrom(statsSource.GiveStats(self.Interval))
+func (self *Writer) IntervalTick() (<-chan time.Time) {
+    return time.Tick(self.options.Interval)
+}
+
+// Return a channel which normally blocks on writes, but accepts a write every tick-interval
+func (self *Writer) IntervalStatsWriter() (chan Stats) {
+    tickChan := self.IntervalTick()
+    statsChan := make(chan Stats)
+
+    go self.statsWriter(tickChan, statsChan)
+
+    return statsChan
+}
+
+// Return a channel which continously accepts stats writes
+func (self *Writer) StatsWriter() (chan Stats) {
+    tickChan := time.Tick(self.options.Interval)
+    statsChan := make(chan Stats)
+
+    go self.statsWriter(tickChan, statsChan)
+
+    return statsChan
 }

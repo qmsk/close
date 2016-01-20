@@ -4,13 +4,15 @@ import (
     "time"
 )
 
+type ID struct {
+    Type        string
+    Hostname    string
+    Instance    string
+}
+
 type Stats interface {
-    StatsInstance() string
+    StatsID()       ID
     StatsTime()     time.Time
     StatsFields()   map[string]interface{}
     String()        string
-}
-
-type StatsSource interface {
-    GiveStats(interval time.Duration)     chan Stats
 }
