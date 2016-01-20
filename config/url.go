@@ -27,8 +27,12 @@ func (self *RedisURL) UnmarshalFlag(value string) error {
     }
 }
 
+func (self RedisURL) String() string {
+    return (*url.URL)(&self).String()
+}
+
 func (self *RedisURL) MarshalFlag() (string, error) {
-    return (*url.URL)(self).String(), nil
+    return self.String(), nil
 }
 
 func (self RedisURL) Empty() bool {

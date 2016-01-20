@@ -44,6 +44,10 @@ func (self *Redis) init(options Options) error {
     return nil
 }
 
+func (self *Redis) String() string {
+    return self.options.RedisURL.String()
+}
+
 func (self *Redis) path(parts...string) string {
     return path.Join(append([]string{self.prefix}, parts...)...)
 }
