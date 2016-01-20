@@ -94,11 +94,13 @@ func (p *Pinger) StatsWriter(statsWriter *stats.Writer) error {
     return nil
 }
 
-func (p *Pinger) ConfigSub(configSub *config.Sub) error {
+func (p *Pinger) ConfigSub(configRedis *config.Redis, options config.SubOptions) error {
     // copy for updates
     pingConfig := p.config
 
-    if configChan, err := configSub.Start(&pingConfig); err != nil {
+    if configSub, err := configRedis.NewSub("icmp_ping", options.Instance); err != nil {
+        return err
+    } else if configChan, err := configSub.Start(&pingConfig); err != nil {
         return err
     } else {
         p.configC = configChan

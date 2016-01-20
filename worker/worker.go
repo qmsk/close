@@ -9,7 +9,7 @@ type Worker interface {
     Config() config.Config
 
     StatsWriter(statsWriter *stats.Writer) error
-    ConfigSub(configSub *config.Sub) error
+    ConfigSub(configRedis *config.Redis, options config.SubOptions) error
 
     Run() error
     Stop()

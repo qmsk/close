@@ -226,11 +226,13 @@ func (self *Send) StatsWriter(statsWriter *stats.Writer) error {
 }
 
 // pull runtime configuration from config source
-func (self *Send) ConfigSub(configSub *config.Sub) error {
+func (self *Send) ConfigSub(configRedis *config.Redis, options config.SubOptions) error {
     // copy for updates
     updateConfig := self.config
 
-    if configChan, err := configSub.Start(&updateConfig); err != nil {
+    if configSub, err := configRedis.NewSub("udp_send", options.Instance); err != nil {
+        return err
+    } else if configChan, err := configSub.Start(&updateConfig); err != nil {
         return err
     } else {
         self.configChan = configChan

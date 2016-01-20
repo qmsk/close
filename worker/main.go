@@ -37,12 +37,12 @@ func Main(worker Worker) {
     // config
     if options.Config.Empty() {
         log.Printf("Skip config")
-    } else if configSub, err := config.NewSub(options.Config); err != nil {
-        log.Fatalf("config.NewSub %v: %v\n", options.Config, err)
-    } else if err := worker.ConfigSub(configSub); err != nil {
-        log.Fatalf("Worker %v: ConfigSub %v: %v\n", worker, configSub, err)
+    } else if configRedis, err := config.NewRedis(options.Config.Options); err != nil {
+        log.Fatalf("config.NewRedis %v: %v\n", options.Config, err)
+    } else if err := worker.ConfigSub(configRedis, options.Config); err != nil {
+        log.Fatalf("Worker %v: ConfigSub %v: %v\n", worker, configRedis, err)
     } else {
-        log.Printf("Worker %v: ConfigSub %v\n", worker, configSub)
+        log.Printf("Worker %v: ConfigSub %v %v\n", worker, configRedis, options.Config.ID)
     }
 
     // stats
