@@ -15,10 +15,12 @@ type SockIP struct {
     ipConn      *net.IPConn
     rawConn     *ipv4.RawConn
 
-    stats       SockStats
+    stats       *SockStats
 }
 
 func (self *SockIP) init(dstAddr string) error {
+    self.stats = &SockStats{}
+
     // resolve
     if udpAddr, err := net.ResolveUDPAddr("udp", dstAddr); err != nil {
         return fmt.Errorf("Resolve UDP %v: %v", dstAddr, err)
@@ -78,9 +80,6 @@ func (self *SockIP) send(packet Packet) error {
     return nil
 }
 
-func (self *SockIP) takeStats() SockStats {
-    stats := self.stats
-    self.stats = SockStats{}
-
-    return stats
+func (self *SockIP) useStats(stats *SockStats) {
+    self.stats = stats
 }

@@ -11,8 +11,7 @@ type SockStats struct {
 }
 
 type SockSend interface {
-    // return stats and reset
-    takeStats() SockStats
+    useStats(*SockStats)
 
     send(packet Packet) error
 
@@ -21,8 +20,7 @@ type SockSend interface {
 }
 
 type SockRecv interface {
-    // return stats and reset
-    takeStats() SockStats
+    useStats(*SockStats)
 
     recv() (Packet, error)
     recvChan() chan Packet

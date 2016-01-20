@@ -12,12 +12,20 @@ type RateStats struct {
 
 type RateClock struct {
     rateChan    chan time.Time
-    stats       RateStats
+    stats       *RateStats
 
     start       time.Time
     rate        uint
     stop        uint                // stop once offset
     offset      uint
+}
+
+func (self *RateClock) init() {
+    self.stats = &RateStats{}
+}
+
+func (self *RateClock) useStats(stats *RateStats) {
+    self.stats = stats
 }
 
 func (self *RateClock) run() {
@@ -72,12 +80,3 @@ func (self *RateClock) Stop() {
     // XXX
     self.stop = self.offset
 }
-
-func (self *RateClock) takeStats() RateStats {
-    // XXX: safe?
-    stats := self.stats
-    self.stats = RateStats{}
-
-    return stats
-}
-

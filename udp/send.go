@@ -16,49 +16,54 @@ const SOURCE_PORT_BITS uint = 0
 type SendConfig struct {
     Instance        string  `json:"-"`
 
-    DestAddr        string // host:port (or host)
-    SourceNet       string // host/mask
-    SourcePort      uint
-    SourcePortBits  uint
+    DestAddr        string  `long:"dest-addr"`      // host:port (or host)
+    SourceNet       string  `long:"source-net"`     // host/mask
+    SourcePort      uint    `long:"source-port"`
+    SourcePortBits  uint    `long:"source-port-bits"`
 
-    ID              uint64  `json:"id"`     // 64-bit ID, or random
-    Rate            uint    `json:"rate"`   // 0 - unrated
-    Count           uint    `json:"count"`  // 0 - infinite
-    Size            uint    `json:"size"`   // target size of UDP payload
+    ID              uint64  `json:"id" long:"id"`       // 64-bit ID, or random
+    Rate            uint    `json:"rate" long:"rate"`   // 0 - unrated
+    Count           uint    `json:"count" long:"count"` // 0 - infinite
+    Size            uint    `json:"size" long:"size"`   // target size of UDP payload
 }
 
 type SendStats struct {
     ID              uint64          // send id, to correlated with RecvStats
-    Time            time.Time       // stats were reset
-    Duration        time.Duration   // stats were collected
+    Start           time.Time       // stats were reset
+    Time            time.Time       // stats were updated
 
     Config          SendConfig
     Rate            RateStats
+    Send            SockStats       // Send.Bytes includes IP+UDP+Payload
+}
 
-    // Send.Bytes includes IP+UDP+Payload
-    Send            SockStats
+func (self SendStats) StatsID() stats.ID {
+    return stats.ID{
+        Type:       "udp_send",
+        Instance:   fmt.Sprintf("%d", self.ID),
+    }
 }
 
 func (self SendStats) StatsTime() time.Time {
     return self.Time
 }
 
+func (self SendStats) Duration() time.Duration {
+    return self.Time.Sub(self.Start)
+}
+
 func (self SendStats) CalcRate() float64 {
-    return float64(self.Rate.Count) / self.Duration.Seconds()
+    return float64(self.Rate.Count) / self.Duration().Seconds()
 }
 
 // Return rate-loop utilization between 0..1, with 1.0 being fully utilized (unable to keep up with rate)
 func (self SendStats) RateUtil() float64 {
-    return 1.0 - self.Rate.SleepDuration.Seconds() / self.Duration.Seconds()
+    return 1.0 - self.Rate.SleepDuration.Seconds() / self.Duration().Seconds()
 }
 
 // Return the actual rate vs configured rate as a proportional error, with 1.0 being the most accurate
 func (self SendStats) RateError() float64 {
     return self.CalcRate() / float64(self.Config.Rate)
-}
-
-func (self SendStats) StatsInstance() string {
-    return fmt.Sprintf("%d", self.ID)
 }
 
 func (self SendStats) StatsFields() map[string]interface{} {
@@ -79,13 +84,12 @@ func (self SendStats) StatsFields() map[string]interface{} {
 
 func (self SendStats) String() string {
     // pps rate of sent packets; may be lower than Rate() in the case of Send.Errors > 0
-    sendRate := float64(self.Send.Packets) / self.Duration.Seconds()
+    sendRate := float64(self.Send.Packets) / self.Duration().Seconds()
 
     // achieved througput with IP+UDP headers
-    sendMbps := float64(self.Send.Bytes) / 1000 / 1000 * 8 / self.Duration.Seconds()
+    sendMbps := float64(self.Send.Bytes) / 1000 / 1000 * 8 / self.Duration().Seconds()
 
-    return fmt.Sprintf("%5.2f: send %9d with %5d underruns @ %10.2f/s = %8.2fMb/s +%5d errors @ %6.2f%% rate %6.2f%% util",
-        self.Duration.Seconds(),
+    return fmt.Sprintf("send %9d with %5d underruns @ %10.2f/s = %8.2fMb/s +%5d errors @ %6.2f%% rate %6.2f%% util",
         self.Send.Packets, self.Rate.UnderrunCount,
         sendRate, sendMbps, self.Send.Errors,
         self.RateError() * 100,
@@ -94,6 +98,9 @@ func (self SendStats) String() string {
 }
 
 type Send struct {
+    config      SendConfig
+    log         *log.Logger
+
     dstAddr     net.IPAddr
     dstIP       net.IP
     dstPort     uint16
@@ -103,28 +110,29 @@ type Send struct {
 
     sockSend  SockSend
 
-    config      SendConfig
     configChan  chan config.Config
 
     statsChan       chan stats.Stats
     statsInterval   time.Duration
 
-    log         *log.Logger
 }
 
-func NewSend(config SendConfig) (*Send, error) {
+func NewSend() (*Send, error) {
     sender := &Send{
+        config: SendConfig{
+
+        },
         log:    log.New(os.Stderr, "udp.Send: ", 0),
     }
 
-    if err := sender.init(config); err != nil {
-        return nil, err
-    } else {
-        return sender, nil
-    }
+    return sender, nil
 }
 
-func (self *Send) init(config SendConfig) error {
+func (self *Send) Config() config.Config {
+    return &self.config
+}
+
+func (self *Send) apply(config SendConfig) error {
     if config.SourceNet == "" && config.SourcePortBits == 0 {
         if err := self.initUDP(config); err != nil {
             return err
@@ -211,40 +219,33 @@ func (self *Send) initIP(config SendConfig) error {
     return nil
 }
 
-func (self *Send) ID() string {
-    return fmt.Sprintf("%d", self.config.ID)
-}
+func (self *Send) StatsWriter(statsWriter *stats.Writer) error {
+    self.statsChan = statsWriter.IntervalStatsWriter()
 
-func (self *Send) GiveStats(interval time.Duration) chan stats.Stats {
-    self.statsChan = make(chan stats.Stats)
-    self.statsInterval = interval
-
-    return self.statsChan
+    return nil
 }
 
 // pull runtime configuration from config source
-func (self *Send) ConfigFrom(configRedis *config.Redis) (*config.Sub, error) {
+func (self *Send) ConfigSub(configSub *config.Sub) error {
     // copy for updates
     updateConfig := self.config
 
-    if configSub, err := configRedis.NewSub("udp_send", self.config.Instance); err != nil {
-        return nil, err
-    } else if configChan, err := configSub.Start(&updateConfig); err != nil {
-        return nil, err
+    if configChan, err := configSub.Start(&updateConfig); err != nil {
+        return err
     } else {
         self.configChan = configChan
-
-        return configSub, nil
     }
+
+    return nil
 }
 
 // Generate a sequence of *Packet
 //
 // Returns once complete, or error
 func (self *Send) Run() error {
-    var rateClock RateClock
-
-    rateTick := rateClock.Start(self.config.Rate, self.config.Count)
+    if err := self.apply(self.config); err != nil {
+        return err
+    }
 
     payload := Payload{
         ID:     uint64(self.config.ID),
@@ -252,15 +253,29 @@ func (self *Send) Run() error {
     }
 
     // stats
-    statsStart := time.Now()
-    statsTick := time.Tick(self.statsInterval)
+    stats := SendStats{
+        ID:     payload.ID,
+        Start:  time.Now(),
+        Config: self.config,
+    }
+
+    self.sockSend.useStats(&stats.Send)
+
+    // Rate
+    var rateClock RateClock
+
+    rateClock.init()
+    rateClock.useStats(&stats.Rate)
+
+    rateTick := rateClock.Start(self.config.Rate, self.config.Count)
 
     for {
+        stats.Time = time.Now()
+
         select {
-        case sendTime := <-rateTick:
-            if sendTime.IsZero() {
-                // channel closed
-                break
+        case _, running := <-rateTick:
+            if !running {
+                return nil
             }
 
             // send
@@ -280,19 +295,11 @@ func (self *Send) Run() error {
 
             payload.Seq++
 
-        case statsTime := <-statsTick:
-            self.statsChan <- SendStats{
-                ID:         payload.ID,
-                Time:       statsTime,
-                Duration:   statsTime.Sub(statsStart),
-
-                Config:     self.config,
-
-                Rate:       rateClock.takeStats(),
-                Send:       self.sockSend.takeStats(),
-            }
-
-            statsStart = statsTime
+        case self.statsChan <- stats:
+            // reset
+            stats.Start = stats.Time
+            stats.Rate = RateStats{}
+            stats.Send = SockStats{}
 
         case configConfig := <-self.configChan:
             config := configConfig.(*SendConfig)
@@ -315,6 +322,11 @@ func (self *Send) Run() error {
             }
         }
     }
+}
 
-    return nil
+func (self *Send) Stop() {
+    self.log.Printf("stopping...\n")
+
+    // XXX:
+    panic("stop")
 }

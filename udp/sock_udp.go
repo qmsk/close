@@ -11,10 +11,16 @@ type SockUDP struct {
     udpAddr     net.UDPAddr
     udpConn     *net.UDPConn
 
-    stats       SockStats
+    stats       *SockStats
+}
+
+func (self *SockUDP) init() {
+    self.stats = &SockStats{}
 }
 
 func (self *SockUDP) initDial(addr string) error {
+    self.init()
+
     if udpAddr, err := net.ResolveUDPAddr("udp", addr); err != nil {
         return fmt.Errorf("Resolve UDP %v: %v", addr, err)
     } else if udpConn, err := net.DialUDP("udp", nil, udpAddr); err != nil {
@@ -28,6 +34,8 @@ func (self *SockUDP) initDial(addr string) error {
 }
 
 func (self *SockUDP) initListen(addr string) error {
+    self.init()
+
     if udpAddr, err := net.ResolveUDPAddr("udp", addr); err != nil {
         return fmt.Errorf("Resolve UDP %v: %v", addr, err)
     } else if udpConn, err := net.ListenUDP("udp", udpAddr); err != nil {
@@ -99,9 +107,6 @@ func (self *SockUDP) send(packet Packet) error {
     return nil
 }
 
-func (self *SockUDP) takeStats() SockStats {
-    stats := self.stats
-    self.stats = SockStats{}
-
-    return stats
+func (self *SockUDP) useStats(stats *SockStats) {
+    self.stats = stats
 }

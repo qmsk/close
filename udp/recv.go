@@ -8,16 +8,16 @@ import (
 )
 
 type RecvConfig struct {
-    ListenAddr        string
+    ListenAddr        string    `long:"listen-addr" default:"0.0.0.0:1337"`
 }
 
 type Recv struct {
+    config      RecvConfig
+
     sockRecv    SockRecv
 
     statsChan       chan stats.Stats
-    statsInterval   time.Duration
-
-    recvState       map[uint64]*RecvState
+    statsTick       <-chan time.Time
 }
 
 type RecvState struct {
@@ -41,8 +41,11 @@ type RecvStats struct {
     PacketDups      uint            // out-of-sequence packets
 }
 
-func (self RecvStats) StatsInstance() string {
-    return fmt.Sprintf("%016x", self.ID)
+func (self RecvStats) StatsID() stats.ID {
+    return stats.ID{
+        Type:       "udp_recv",
+        Instance:   fmt.Sprintf("%016x", self.ID),
+    }
 }
 
 func (self RecvStats) StatsTime() time.Time {
@@ -96,55 +99,65 @@ func (self RecvStats) String() string {
     )
 }
 
-func NewRecv(config RecvConfig) (*Recv, error) {
-    receiver := &Recv{
-        recvState: make(map[uint64]*RecvState),
+func NewRecv() (*Recv, error) {
+    recv := &Recv{
+        config: RecvConfig{
+
+        },
     }
 
-    if err := receiver.init(config); err != nil {
-        return nil, err
-    } else {
-        return receiver, nil
-    }
+    return recv, nil
 }
 
-func (self *Recv) init(config RecvConfig) error {
+func (self *Recv) Config() *RecvConfig {
+    return &self.config
+}
+
+func (self *Recv) apply(config RecvConfig) error {
     sockUDP := &SockUDP{}
+
     if err := sockUDP.initListen(config.ListenAddr); err != nil {
         return err
     }
 
     self.sockRecv = sockUDP
 
+    // config
+    self.config = config
+
     return nil
 }
 
-func (self *Recv) GiveStats(interval time.Duration) chan stats.Stats {
-    self.statsChan = make(chan stats.Stats)
-    self.statsInterval = interval
+func (self *Recv) StatsWriter(statsWriter *stats.Writer) error {
+    self.statsTick = statsWriter.IntervalTick()
+    self.statsChan = statsWriter.StatsWriter()
 
-    return self.statsChan
+    return nil
 }
 
 func (self *Recv) Run() error {
+    if err := self.apply(self.config); err != nil {
+        return err
+    }
+
+    recvStates := make(map[uint64]*RecvState)
     recvChan := self.sockRecv.recvChan()
-    statsTick := time.Tick(self.statsInterval)
 
     for {
         select {
         case packet := <-recvChan:
-            if recvState, exists := self.recvState[packet.Payload.ID]; !exists {
-                self.recvState[packet.Payload.ID] = self.makeState(packet)
+            if recvState, exists := recvStates[packet.Payload.ID]; !exists {
+                recvStates[packet.Payload.ID] = self.makeState(packet)
             } else {
                 recvState.handlePacket(packet)
             }
-        case <- statsTick:
-            for id, recvState := range self.recvState {
+        case <- self.statsTick:
+            for id, recvState := range recvStates {
                 if recvState.alive() {
                     self.statsChan <- recvState.takeStats()
                 } else {
                     // cleanup
-                    delete(self.recvState, id)
+                    delete(recvStates, id)
                 }
             }
         }

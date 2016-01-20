@@ -1,64 +1,60 @@
 package main
 
 import (
-    "flag"
+    "github.com/jessevdk/go-flags"
     "log"
     "os"
     "close/stats"
     "close/udp"
 )
 
-var (
-    statsConfig     stats.Config
-    receiverConfig  udp.RecvConfig
-)
-
-func init() {
-    statsConfig.Type = "udp_recv"
-
-    flag.StringVar(&statsConfig.InfluxDB.Addr, "influxdb-addr", "http://influxdb:8086",
-        "influxdb http://... address")
-    flag.StringVar(&statsConfig.InfluxDBDatabase, "influxdb-database", stats.INFLUXDB_DATABASE,
-        "influxdb database name")
-    flag.StringVar(&statsConfig.Hostname, "stats-hostname", os.Getenv("STATS_HOSTNAME"),
-        "hostname to uniquely identify this source")
-    flag.StringVar(&statsConfig.Instance, "stats-instance", os.Getenv("STATS_INSTANCE"),
-        "instance to uniquely identify the target")
-    flag.Float64Var(&statsConfig.Interval, "stats-interval", stats.INTERVAL,
-        "stats interval")
-    flag.BoolVar(&statsConfig.Print, "stats-print", false,
-        "display stats on stdout")
-
-    flag.StringVar(&receiverConfig.ListenAddr, "listen-addr", "0.0.0.0:1337",
-        "host:port")
+type Options struct {
+    Stats       stats.WriterOptions     `group:"Stats Writer"`
+    UDPRecv     *udp.RecvConfig         `group:"UDP Receiver"`
 }
 
 func main() {
-    flag.Parse()
-
-    udpRecv, err := udp.NewRecv(receiverConfig)
+    // udp Recv
+    udpRecv, err := udp.NewRecv()
     if err != nil {
-        log.Fatalf("udp.NewRecv %v: %v\n", receiverConfig, err)
+        log.Fatalf("udp.NewRecv: %v\n", err)
     } else {
-        log.Printf("udp.NewRecv %v: %+v\n", receiverConfig, udpRecv)
+        log.Printf("udp.NewRecv: %v\n", udpRecv)
+    }
+
+    options := Options{
+        UDPRecv:    udpRecv.Config(),
+    }
+
+    parser := flags.NewParser(&options, flags.Default)
+
+    // flags
+    if args, err := parser.Parse(); err != nil {
+        log.Fatalf("flags.Parser: Parse: %v\n", err)
+        os.Exit(1)
+    } else if len(args) > 0 {
+        log.Printf("flags Parser.Parser: extra arguments: %v\n", args)
+        parser.WriteHelp(os.Stderr)
+        os.Exit(1)
     }
 
     // stats
-    statsWriter, err := stats.NewWriter(statsConfig)
-    if err != nil {
-        log.Fatalf("stats.NewWriter %v: %v\n", statsConfig, err)
+    if options.Stats.Empty() {
+        log.Printf("Skip stats")
+    } else if statsWriter, err := stats.NewWriter(options.Stats); err != nil {
+        log.Fatalf("stats.NewWriter %v: %v\n", options.Stats, err)
+    } else if err := udpRecv.StatsWriter(statsWriter); err != nil {
+        log.Fatalf("udp.Recv %v: StatsWriter %v: %v\n", udpRecv, statsWriter, err)
     } else {
-        log.Printf("stats.NewWriter %v: %v\n", statsConfig, statsWriter)
+        log.Printf("upd.Recv %v: StatsWriter %v\n", udpRecv, statsWriter)
     }
-
-    statsWriter.WriteFrom(udpRecv)
 
     // run
     log.Printf("Run...\n",)
 
     if err := udpRecv.Run(); err != nil {
-        log.Fatalf("udp.Recv.Run: %v\n", err)
+        log.Fatalf("udp.Recv %v: Run: %v\n", udpRecv, err)
     } else {
-        log.Printf("udp.Recv.Run: done\n")
+        log.Printf("udp.Recv %v: Run: done\n", udpRecv)
     }
 }

@@ -16,10 +16,12 @@ type SockSyscall struct {
     fd          int
     sockaddr    syscall.Sockaddr
 
-    stats       SockStats
+    stats       *SockStats
 }
 
 func (self *SockSyscall) init(dstAddr string) error {
+    self.stats = &SockStats{}
+
     // resolve
     if udpAddr, err := net.ResolveUDPAddr("udp", dstAddr); err != nil {
         return fmt.Errorf("Resolve UDP %v: %v", dstAddr, err)
@@ -80,9 +82,6 @@ func (self *SockSyscall) send(packet Packet) error {
     return nil
 }
 
-func (self *SockSyscall) takeStats() SockStats {
-    stats := self.stats
-    self.stats = SockStats{}
-
-    return stats
+func (self *SockSyscall) useStats(stats *SockStats) {
+    self.stats = stats
 }
