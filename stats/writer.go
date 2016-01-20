@@ -10,9 +10,9 @@ import (
 )
 
 type WriterOptions struct {
-    InfluxURL   InfluxURL       `long:"influxdb-url" value-name:"http://[USER:[PASSWORD]@]HOST[:PORT]/DATABASE"`
+    InfluxURL   InfluxURL       `long:"influxdb-url" value-name:"http://[USER:[PASSWORD]@]HOST[:PORT]/DATABASE" env:"INFLUXDB_URL"`
 
-    Hostname    string          `long:"stats-hostname"`
+    Hostname    string          `long:"stats-hostname" env:"HOSTNAME"`
 
     // Collection interval
     Interval    time.Duration   `long:"stats-interval" value-name:"SECONDS" default:"1s"`
