@@ -7,44 +7,14 @@ import (
     "log"
     "os"
     "gopkg.in/redis.v3"
-    "regexp"
     "time"
 )
 
 const SUB_TTL = 10 * time.Second
 
-var idRegexp = regexp.MustCompile(`^([a-zA-Z0-9_]+)/([a-zA-Z0-9_:-]+)$`)
-
-type ID struct {
-    Type        string  `json:"type"`
-    Instance    string  `json:"instance"`
-}
-
-func (self ID) String() string {
-    return fmt.Sprintf("%s/%s", self.Type, self.Instance)
-}
-
-func (self ID) Valid() bool {
-    return idRegexp.MatchString(self.String())
-}
-
-// Return error if not Valid()
-func (self ID) Check() error {
-    if !self.Valid() {
-        return fmt.Errorf("Invalid ID: %#v", self)
-    }
-
-    return nil
-}
-
-func ParseID(subType string, instance string) (ID, error) {
-    id := ID{subType, instance}
-
-    if err := id.Check(); err != nil {
-        return id, err
-    }
-
-    return id, nil
+type SubOptions struct {
+    Options
+    ID
 }
 
 type Sub struct {
@@ -55,6 +25,16 @@ type Sub struct {
 
     expire      time.Time
     stopChan    chan bool
+}
+
+func NewSub(options SubOptions) (*Sub, error) {
+    if redis, err := NewRedis(options.Options); err != nil {
+        return nil, err
+    } else if sub, err := redis.GetSub(options.ID); err != nil {
+        return nil, err
+    } else {
+        return sub, nil
+    }
 }
 
 func newSub(redis *Redis, id ID) (*Sub, error) {

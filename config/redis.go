@@ -8,8 +8,11 @@ import (
 )
 
 type Options struct {
-    Redis           redis.Options
-    Prefix          string
+    RedisURL        RedisURL        `long:"redis-url" value-name:"redis://[:PASSWORD@]HOST[:PORT][/PREFIX]"`
+}
+
+func (self Options) Empty() bool {
+    return self.RedisURL.Empty()
 }
 
 type Redis struct {
@@ -29,13 +32,14 @@ func NewRedis(options Options) (*Redis, error) {
 }
 
 func (self *Redis) init(options Options) error {
-    self.prefix = path.Clean(options.Prefix)
 
-    self.redisClient = redis.NewClient(&options.Redis)
-
-    if _, err := self.redisClient.Ping().Result(); err != nil {
+    if redisClient, err := options.RedisURL.RedisClient(); err != nil {
         return err
+    } else {
+        self.redisClient = redisClient
     }
+
+    self.prefix = options.RedisURL.Prefix()
 
     return nil
 }
