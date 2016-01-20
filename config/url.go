@@ -17,7 +17,7 @@ func (self *RedisURL) UnmarshalFlag(value string) error {
         return err
     } else {
         switch parseURL.Scheme {
-        case "", "redis":
+        case "tcp":
             *self = *(*RedisURL)(parseURL)
         default:
             return fmt.Errorf("Unsupported URL: %v", parseURL)
@@ -32,14 +32,14 @@ func (self *RedisURL) MarshalFlag() (string, error) {
 }
 
 func (self RedisURL) Empty() bool {
-    return self.Scheme == ""
+    return self.Host == ""
 }
 
 // TODO: ?db=
 func (self RedisURL) RedisOptions() (redisOptions redis.Options) {
-    redisOptions.Network = "tcp"
+    redisOptions.Network = self.Scheme
 
-    if _, _, err := net.SplitHostPort(self.Host); err != nil {
+    if _, port, err := net.SplitHostPort(self.Host); err != nil && port != "" {
         redisOptions.Addr = self.Host
     } else {
         redisOptions.Addr = net.JoinHostPort(self.Host, REDIS_PORT)
