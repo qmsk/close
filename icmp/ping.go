@@ -114,7 +114,9 @@ func (p *Pinger) init(config PingConfig) error {
     return nil
 }
 
-func (p *Pinger) Close() {
+func (p *Pinger) Stop() {
+    p.log.Printf("stopping...\n")
+
     // XXX: assume this trips recevier()?
     p.conn.Close()
 }
@@ -144,6 +146,7 @@ func (p *Pinger) ConfigFrom(configRedis *config.Redis) (*config.Sub, error) {
 // mainloop
 func (p *Pinger) Run() {
     defer close(p.rttC)
+    defer p.log.Printf("stopped\n")
 
     var seq int
     timerChan := time.Tick(time.Duration(p.config.Interval * float64(time.Second)))
@@ -162,7 +165,7 @@ func (p *Pinger) Run() {
 
         case result, ok := <-p.receiverC:
             if !ok {
-                break
+                return
             }
             if start, ok := startTimes[result.Seq]; ok {
                 rtt := result.Stop.Sub(start)
@@ -225,7 +228,7 @@ func (p *Pinger) receiver() {
         if err != nil {
             p.log.Printf("icmp PacketConn.ReadFrom: %v\n", err)
 
-            // XXX: If the connection is closed quit the loop
+            // quit if the connection is closed
             break
         }
 

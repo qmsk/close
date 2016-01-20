@@ -7,6 +7,7 @@ import (
     "log"
     "flag"
     "os"
+    "os/signal"
 )
 
 var (
@@ -52,7 +53,6 @@ func main() {
     } else {
         log.Printf("ping.NewPinger %v: %v\n", pingConfig, p)
     }
-    defer p.Close()
 
     // config
     if configOptions.Redis.Addr == "" {
@@ -75,5 +75,21 @@ func main() {
         statsWriter.WriteFrom(p)
     }
 
+    // stopping
+    stopChan := make(chan os.Signal, 1)
+    signal.Notify(stopChan, os.Interrupt, os.Kill)
+
+    go func(){
+        // one time only; revert to default signal handling
+        defer signal.Stop(stopChan)
+
+        select {
+        case <-stopChan:
+            p.Stop()
+        }
+
+    }()
+
+    // mainloop
     p.Run()
 }
