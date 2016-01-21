@@ -8,22 +8,30 @@ import (
     "close/stats"
 )
 
-type WorkerOptions struct {
+type Options struct {
     Stats       stats.WriterOptions `group:"Stats Writer"`
     Config      config.SubOptions   `group:"Config Sub"`
+
+    workers         map[string]WorkerConfig
+    workerType      string
+    workerConfig    WorkerConfig
 }
 
-func Main(worker Worker) {
-    var options WorkerOptions
+func (options *Options) Register(name string, workerConfig WorkerConfig) {
+    if options.workers == nil {
+        options.workers = make(map[string]WorkerConfig)
+    }
 
-    parser := flags.NewParser(&options, flags.Default)
+    options.workers[name] = workerConfig
+}
 
-    workerConfig := worker.Config()
+func (options *Options) Parse() {
+    parser := flags.NewParser(options, flags.Default)
 
-    if _, err := parser.AddGroup("Worker Options", "", workerConfig); err != nil {
-        log.Fatalf("flags Parser.AddGroup %T: %v\n", workerConfig, err)
-    } else {
-        log.Printf("flags Parse.AddGroup %T\n", workerConfig)
+    for workerName, workerConfig := range options.workers {
+        if _, err := parser.AddCommand(workerName, "", "", workerConfig); err != nil {
+            panic(err)
+        }
     }
 
     if args, err := parser.Parse(); err != nil {
@@ -34,15 +42,38 @@ func Main(worker Worker) {
         os.Exit(1)
     }
 
+    // worker command
+    if command := parser.Active; command == nil {
+        log.Fatalf("No command given\n")
+    } else if workerConfig, found := options.workers[command.Name]; !found {
+        log.Fatalf("Invalid command: %v\n", command)
+    } else {
+        log.Printf("Parse worker: %v\n", workerConfig)
+
+        options.workerType = command.Name
+        options.workerConfig = workerConfig
+    }
+}
+
+func Main(options Options) {
+    worker, err := options.workerConfig.Worker()
+    if err != nil {
+        log.Fatalf("%T: Apply: %v\n", options.workerConfig, err)
+    } else {
+        log.Printf("T: Apply: %v\n", options.workerConfig, worker)
+    }
+
     // config
     if options.Config.Empty() {
         log.Printf("Skip config")
     } else if configRedis, err := config.NewRedis(options.Config.Options); err != nil {
         log.Fatalf("config.NewRedis %v: %v\n", options.Config, err)
-    } else if err := worker.ConfigSub(configRedis, options.Config); err != nil {
-        log.Fatalf("Worker %v: ConfigSub %v: %v\n", worker, configRedis, err)
+    } else if configSub, err := configRedis.NewSub(options.workerType, options.Config.Instance); err != nil {
+        log.Fatalf("config.Redis %v: NewSub %v %v: %v\n", configRedis, options.workerType, options.Config.Instance, err)
+    } else if err := worker.ConfigSub(configSub); err != nil {
+        log.Fatalf("Worker %v: ConfigSub %v: %v\n", worker, configSub, err)
     } else {
-        log.Printf("Worker %v: ConfigSub %v %v\n", worker, configRedis, options.Config.ID)
+        log.Printf("Worker %v: ConfigSub %v\n", worker, configSub)
     }
 
     // stats

@@ -11,6 +11,10 @@ type RecvConfig struct {
     ListenAddr        string    `long:"listen-addr" default:"0.0.0.0:1337"`
 }
 
+func (self RecvConfig) Apply() (*Recv, error) {
+    return NewRecv(self)
+}
+
 type Recv struct {
     config      RecvConfig
 
@@ -99,11 +103,11 @@ func (self RecvStats) String() string {
     )
 }
 
-func NewRecv() (*Recv, error) {
-    recv := &Recv{
-        config: RecvConfig{
+func NewRecv(config RecvConfig) (*Recv, error) {
+    recv := &Recv{}
 
-        },
+    if err := recv.apply(config); err != nil {
+        return nil, err
     }
 
     return recv, nil
@@ -136,10 +140,6 @@ func (self *Recv) StatsWriter(statsWriter *stats.Writer) error {
 }
 
 func (self *Recv) Run() error {
-    if err := self.apply(self.config); err != nil {
-        return err
-    }
-
     recvStates := make(map[uint64]*RecvState)
     recvChan := self.sockRecv.recvChan()
 

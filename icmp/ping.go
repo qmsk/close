@@ -1,4 +1,4 @@
-package ping
+package icmp
 
 import (
     "golang.org/x/net/icmp"
@@ -10,12 +10,17 @@ import (
     "fmt"
     "time"
     "net"
+    "close/worker"
 )
 
 type PingConfig struct {
     Target      string              `json:"target" long:"target"`
     ID          int                 `json:"id" long:"id"`
     Interval    time.Duration       `json:"interval" long:"interval" value-name:"<count>(ns|us|ms|s|m|h)" default:"1s"`
+}
+
+func (self PingConfig) Worker() (worker.Worker, error) {
+    return NewPinger(self)
 }
 
 type PingStats struct {
@@ -66,15 +71,16 @@ type Pinger struct {
     configC     chan config.Config
     statsC      chan  stats.Stats
     receiverC   chan  pingResult
-
 }
 
-func NewPinger() (*Pinger, error) {
+func NewPinger(config PingConfig) (*Pinger, error) {
     p := &Pinger{
-        config:     PingConfig{
-            ID:         os.Getpid(),
-        },
         log:        log.New(os.Stderr, "ping: ", 0),
+    }
+
+    // start
+    if err := p.apply(config); err != nil {
+        return nil, err
     }
 
     return p, nil
@@ -94,13 +100,11 @@ func (p *Pinger) StatsWriter(statsWriter *stats.Writer) error {
     return nil
 }
 
-func (p *Pinger) ConfigSub(configRedis *config.Redis, options config.SubOptions) error {
+func (p *Pinger) ConfigSub(configSub *config.Sub) error {
     // copy for updates
     pingConfig := p.config
 
-    if configSub, err := configRedis.NewSub("icmp_ping", options.Instance); err != nil {
-        return err
-    } else if configChan, err := configSub.Start(&pingConfig); err != nil {
+    if configChan, err := configSub.Start(&pingConfig); err != nil {
         return err
     } else {
         p.configC = configChan
@@ -135,6 +139,10 @@ func (p *Pinger) icmpListen(targetAddr *net.UDPAddr) (*icmp.PacketConn, error) {
 // Apply configuration to state
 // TODO: teardown old state?
 func (p *Pinger) apply(config PingConfig) error {
+    if config.ID == 0 {
+        config.ID = os.Getpid()
+    }
+
     if targetAddr, err := p.resolveTarget(config.Target); err != nil {
         return fmt.Errorf("resolveTarget: %v", err)
     } else {
@@ -162,12 +170,6 @@ func (p *Pinger) Run() error {
     if p.statsC != nil {
         defer close(p.statsC)
     }
-
-    // start
-    if err := p.apply(p.config); err != nil {
-        return err
-    }
-
     defer p.log.Printf("stopped\n")
 
     // state

@@ -10,21 +10,11 @@ import (
 
 type Options struct {
     Stats       stats.WriterOptions     `group:"Stats Writer"`
-    UDPRecv     *udp.RecvConfig         `group:"UDP Receiver"`
+    UDPRecv     udp.RecvConfig          `group:"UDP Receiver"`
 }
 
 func main() {
-    // udp Recv
-    udpRecv, err := udp.NewRecv()
-    if err != nil {
-        log.Fatalf("udp.NewRecv: %v\n", err)
-    } else {
-        log.Printf("udp.NewRecv: %v\n", udpRecv)
-    }
-
-    options := Options{
-        UDPRecv:    udpRecv.Config(),
-    }
+    var options Options
 
     parser := flags.NewParser(&options, flags.Default)
 
@@ -36,6 +26,14 @@ func main() {
         log.Printf("flags Parser.Parser: extra arguments: %v\n", args)
         parser.WriteHelp(os.Stderr)
         os.Exit(1)
+    }
+
+    // udp.Recv
+    udpRecv, err := options.UDPRecv.Apply()
+    if err != nil {
+        log.Fatalf("udp.RecvConfig: Apply: %v\n", err)
+    } else {
+        log.Printf("udp.Recv %v\n", udpRecv)
     }
 
     // stats

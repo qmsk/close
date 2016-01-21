@@ -5,11 +5,13 @@ import (
     "close/stats"
 )
 
-type Worker interface {
-    Config() config.Config
+type WorkerConfig interface {
+    Worker() (Worker, error)
+}
 
-    StatsWriter(statsWriter *stats.Writer) error
-    ConfigSub(configRedis *config.Redis, options config.SubOptions) error
+type Worker interface {
+    StatsWriter(*stats.Writer) error
+    ConfigSub(*config.Sub) error
 
     Run() error
     Stop()

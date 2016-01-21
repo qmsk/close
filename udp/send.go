@@ -8,23 +8,26 @@ import (
     "os"
     "close/stats"
     "time"
+    "close/worker"
 )
 
 const SOURCE_PORT uint = 0
 const SOURCE_PORT_BITS uint = 0
 
 type SendConfig struct {
-    Instance        string  `json:"-"`
-
-    DestAddr        string  `long:"dest-addr"`      // host:port (or host)
-    SourceNet       string  `long:"source-net"`     // host/mask
-    SourcePort      uint    `long:"source-port"`
-    SourcePortBits  uint    `long:"source-port-bits"`
+    DestAddr        string  `long:"dest-addr" value-name:"HOST:PORT" description:"Fixed destination address" required:"yes"`
+    SourceNet       string  `long:"source-net" value-name:"HOST/MASK" description:"Use raw IP socket with given randomized range of source addresses"`
+    SourcePort      uint    `long:"source-port" value-name:"0-65535" description:"Use raw IP socket with given randomized source port"`
+    SourcePortBits  uint    `long:"source-port-bits" value-name:"0-16" description:"Randomize low-order bits of source-port"`
 
     ID              uint64  `json:"id" long:"id"`       // 64-bit ID, or random
     Rate            uint    `json:"rate" long:"rate"`   // 0 - unrated
     Count           uint    `json:"count" long:"count"` // 0 - infinite
     Size            uint    `json:"size" long:"size"`   // target size of UDP payload
+}
+
+func (self SendConfig) Worker() (worker.Worker, error) {
+    return NewSend(self)
 }
 
 type SendStats struct {
@@ -117,15 +120,16 @@ type Send struct {
 
 }
 
-func NewSend() (*Send, error) {
-    sender := &Send{
-        config: SendConfig{
-
-        },
+func NewSend(config SendConfig) (*Send, error) {
+    send := &Send{
         log:    log.New(os.Stderr, "udp.Send: ", 0),
     }
 
-    return sender, nil
+    if err := send.apply(config); err != nil {
+        return nil, err
+    }
+
+    return send, nil
 }
 
 func (self *Send) Config() config.Config {
@@ -226,13 +230,11 @@ func (self *Send) StatsWriter(statsWriter *stats.Writer) error {
 }
 
 // pull runtime configuration from config source
-func (self *Send) ConfigSub(configRedis *config.Redis, options config.SubOptions) error {
+func (self *Send) ConfigSub(configSub *config.Sub) error {
     // copy for updates
     updateConfig := self.config
 
-    if configSub, err := configRedis.NewSub("udp_send", options.Instance); err != nil {
-        return err
-    } else if configChan, err := configSub.Start(&updateConfig); err != nil {
+    if configChan, err := configSub.Start(&updateConfig); err != nil {
         return err
     } else {
         self.configChan = configChan
@@ -245,10 +247,6 @@ func (self *Send) ConfigSub(configRedis *config.Redis, options config.SubOptions
 //
 // Returns once complete, or error
 func (self *Send) Run() error {
-    if err := self.apply(self.config); err != nil {
-        return err
-    }
-
     payload := Payload{
         ID:     uint64(self.config.ID),
         Seq:    0,
