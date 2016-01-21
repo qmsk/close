@@ -81,6 +81,7 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
                 $scope.get();
             },
             function error(r){
+                $scope.busy = false;
                 $scope.configAlert = r.data;
             }
         );
