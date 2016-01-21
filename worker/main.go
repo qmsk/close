@@ -60,7 +60,7 @@ func Main(options Options) {
     if err != nil {
         log.Fatalf("%T: Apply: %v\n", options.workerConfig, err)
     } else {
-        log.Printf("T: Apply: %v\n", options.workerConfig, worker)
+        log.Printf("%T: Apply: %v\n", options.workerConfig, worker)
     }
 
     // config
