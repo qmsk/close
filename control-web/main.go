@@ -2,61 +2,41 @@ package main
 
 import (
     "close/control"
-    "flag"
+    "github.com/jessevdk/go-flags"
     "net/http"
     "log"
     "close/logs"
+    "os"
     "github.com/ant0ine/go-json-rest/rest"
-    "close/stats"
 )
 
-var (
-    controlOptions   control.Options
+type Options struct {
+    control.Options
 
-    authConfigPath  string
-    configPath      string
-    start           bool
+    ConfigPath      string      `long:"config-path" value-name:"PATH.toml"`
+    Start           bool        `long:"start" description:"Start --config after loading and discovery"`
 
-    httpDevel       bool
-    httpListen      string
-    staticPath      string
-)
-
-func init() {
-    flag.StringVar(&controlOptions.StatsReader.InfluxDB.Addr, "influxdb-addr", "http://influxdb:8086",
-        "influxdb http://... address")
-    flag.StringVar(&controlOptions.StatsReader.Database, "influxdb-database", stats.INFLUXDB_DATABASE,
-        "influxdb database name")
-
-    flag.StringVar(&controlOptions.Config.Redis.Addr, "config-redis-addr", "",
-        "host:port")
-    flag.Int64Var(&controlOptions.Config.Redis.DB, "config-redis-db", 0,
-        "Database to select")
-    flag.StringVar(&controlOptions.Config.Prefix, "config-prefix", "close",
-        "Redis key prefix")
-
-    flag.BoolVar(&httpDevel, "http-devel", false,
-        "Development mode for HTTP")
-    flag.StringVar(&httpListen, "http-listen", ":8282",
-        "host:port for HTTP API")
-    flag.StringVar(&staticPath, "static-path", "",
-        "Path to /static files")
-
-    flag.StringVar(&authConfigPath, "auth-config-path", "",
-        "Path to .toml users config")
-    flag.StringVar(&configPath, "config-path", "",
-        "Path to .toml config")
-    flag.BoolVar(&start, "start", false,
-        "Start config")
+    AuthConfigPath  string      `long:"auth-config" value-name:"PATH.toml"`
+    HttpDevel       bool        `long:"http-devel" description:"Use development mode"`
+    HttpListen      string      `long:"http-listen" value-name:"HOST:PORT" default:":8282"`
+    StaticPath      string      `long:"static-path" value-name:"PATH" description:"Path to / static files"`
 }
 
 func main() {
-    flag.Parse()
+    var options Options
 
+    if _, err := flags.Parse(&options); err != nil {
+        os.Exit(1)
+    }
+
+    // logs
     logs, err := logs.New()
     if err != nil {
         log.Fatal(err)
     }
+
+    // manager
+    controlOptions := options.Options
 
     controlOptions.Logger = logs.Logger("Manager: ")
 
@@ -65,12 +45,13 @@ func main() {
         log.Fatal(err)
     }
 
-    if configPath == "" {
+    // config
+    if options.ConfigPath == "" {
 
-    } else if err := manager.LoadConfigFile(configPath); err != nil {
-        log.Fatalf("manager.LoadConfig %v: %v\n", configPath, err)
+    } else if err := manager.LoadConfigFile(options.ConfigPath); err != nil {
+        log.Fatalf("manager.LoadConfig %v: %v\n", options.ConfigPath, err)
     } else {
-        log.Printf("Loaded configuration from %v...\n", configPath)
+        log.Printf("Loaded configuration from %v...\n", options.ConfigPath)
     }
 
     if err := manager.Discover(); err != nil {
@@ -78,7 +59,7 @@ func main() {
     }
 
     // TODO: should happen concurrently?
-    if !start {
+    if !options.Start {
 
     } else if err := manager.Start(); err != nil {
         log.Fatalf("manager.Start: %v\n", err)
@@ -86,19 +67,19 @@ func main() {
         log.Printf("Started...\n")
     }
 
-    // run
+    // http API
     api := rest.NewApi()
 
-    if authConfigPath == "" {
+    if options.AuthConfigPath == "" {
         log.Printf("Warning: starting without authentication\n")
-    } else if auth, err := manager.NewAuth(authConfigPath); err != nil {
-        log.Fatalf("manager.NewAuth %v: %v\n", authConfigPath, err)
+    } else if auth, err := manager.NewAuth(options.AuthConfigPath); err != nil {
+        log.Fatalf("manager.NewAuth %v: %v\n", options.AuthConfigPath, err)
     } else {
         api.Use(auth)
-        log.Printf("Loaded users from %v...\n", authConfigPath)
+        log.Printf("Loaded users from %v...\n", options.AuthConfigPath)
     }
 
-    if httpDevel {
+    if options.HttpDevel {
         api.Use(rest.DefaultDevStack...)
     }
 
@@ -108,13 +89,13 @@ func main() {
         api.SetApp(app)
     }
 
-    staticHandler := http.FileServer(http.Dir(staticPath))
+    staticHandler := http.FileServer(http.Dir(options.StaticPath))
 
     http.Handle("/api/", http.StripPrefix("/api", api.MakeHandler()))
     http.Handle("/logs", logs)
     http.Handle("/", staticHandler)
 
-    if err := http.ListenAndServe(httpListen, nil); err != nil {
-        log.Fatalf("http.ListenAndServe %v: %v\n", httpListen, err)
+    if err := http.ListenAndServe(options.HttpListen, nil); err != nil {
+        log.Fatalf("http.ListenAndServe %v: %v\n", options.HttpListen, err)
     }
 }

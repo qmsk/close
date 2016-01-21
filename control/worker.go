@@ -87,14 +87,9 @@ func (self *Manager) workerUp(workerConfig *WorkerConfig, instance string) (*Wor
         Privileged: workerConfig.Privileged,
     }
 
-    // TODO: rename to CLOSE_WORKER=?
-    dockerConfig.Env.Add("CLOSE_INSTANCE", worker.String())
-
-    dockerConfig.AddFlag("influxdb-addr", self.options.StatsReader.InfluxDB.Addr)
-    dockerConfig.AddFlag("influxdb-database", self.options.StatsReader.Database)
-    dockerConfig.AddFlag("config-redis-addr", self.options.Config.Redis.Addr)
-    dockerConfig.AddFlag("config-redis-db", self.options.Config.Redis.DB)
-    dockerConfig.AddFlag("config-prefix", self.options.Config.Prefix)
+    dockerConfig.Env.Add("CLOSE_INSTANCE", worker)
+    dockerConfig.Env.Add("INFLUXDB_URL", self.options.Stats.InfluxURL)
+    dockerConfig.Env.Add("REDIS_URL", self.options.Config.RedisURL)
 
     if workerConfig.InstanceFlag != "" {
         dockerConfig.AddFlag(workerConfig.InstanceFlag, worker.String())
@@ -196,8 +191,11 @@ type WorkerStatus struct {
 
 func (self *Manager) workerGet(worker *Worker, detail bool) (WorkerStatus, error) {
     workerStatus := WorkerStatus{
-        Config:     worker.Config.name,
         Instance:   worker.Instance,
+    }
+
+    if worker.Config != nil {
+        workerStatus.Config = worker.Config.String()
     }
 
     if detail {
@@ -254,7 +252,9 @@ func (self *Manager) workerGet(worker *Worker, detail bool) (WorkerStatus, error
             workerStatus.ConfigError = fmt.Sprintf("invalid %s RateConfig=%v value type %T: %#v", worker.Config.Type, worker.Config.RateConfig, rateValue, rateValue)
         }
 
-        if worker.Config.StatsInstanceFromConfig == "" {
+        if worker.Config == nil {
+            workerStatus.StatsInstance = ""
+        } else if worker.Config.StatsInstanceFromConfig == "" {
             workerStatus.StatsInstance = worker.String()
         } else if configValue, exists := configMap[worker.Config.StatsInstanceFromConfig]; !exists {
             workerStatus.ConfigError = fmt.Sprintf("Invalid %s StatsInstanceFromConfig %v: not found", worker.Config, worker.Config.StatsInstanceFromConfig)

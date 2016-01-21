@@ -14,9 +14,10 @@ import (
 )
 
 type Options struct {
-    StatsReader     stats.ReaderConfig
-    Config          config.Options
-    DockerEndpoint  string
+    Stats           stats.ReaderOptions `group:"Stats Reader"`
+    Config          config.Options      `group:"Config"`
+
+    DockerEndpoint  string              `long:"docker-endpoint"`
 
     Logger          *log.Logger
 }
@@ -65,16 +66,18 @@ func New(options Options) (*Manager, error) {
 }
 
 func (self *Manager) init(options Options) error {
-    if options.Config.Redis.Addr == "" {
-        return fmt.Errorf("missing --config-redis-addr")
+    if options.Config.Empty() {
+        return fmt.Errorf("Missing --config options")
     } else if configRedis, err := config.NewRedis(options.Config); err != nil {
         return fmt.Errorf("config.NewRedis %v: %v", options.Config, err)
     } else {
         self.configRedis = configRedis
     }
 
-    if statsReader, err := stats.NewReader(options.StatsReader); err != nil {
-        return fmt.Errorf("stats.NewReader %v: %v", options.StatsReader, err)
+    if options.Stats.Empty() {
+        return fmt.Errorf("Missing --stats options")
+    } else if statsReader, err := stats.NewReader(options.Stats); err != nil {
+        return fmt.Errorf("stats.NewReader %v: %v", options.Stats, err)
     } else {
         self.statsReader = statsReader
     }
