@@ -79,3 +79,10 @@ func (self InfluxURL) BatchPointsConfig() influxdb.BatchPointsConfig {
         Database:   self.Database(),
     }
 }
+
+func (self InfluxURL) Query(command string) influxdb.Query {
+    return influxdb.Query{
+        Command:    command,
+        Database:   self.Database(),
+    }
+}

@@ -10,47 +10,38 @@ import (
     "time"
 )
 
-type ReaderConfig struct {
-    InfluxDB        influxdb.HTTPConfig
-    Database        string
+type ReaderOptions struct {
+    InfluxURL   InfluxURL       `long:"influxdb-url" value-name:"http://[USER:[PASSWORD]@]HOST[:PORT]/DATABASE" env:"INFLUXDB_URL"`
+}
+
+func (self ReaderOptions) Empty() bool {
+    return self.InfluxURL.Empty()
 }
 
 type Reader struct {
-    config          ReaderConfig
+    options         ReaderOptions
     log             *log.Logger
 
     influxdbClient      influxdb.Client
 }
 
-func NewReader(config ReaderConfig) (*Reader, error) {
-    if config.InfluxDB.UserAgent == "" {
-        config.InfluxDB.UserAgent = INFLUXDB_USER_AGENT
-    }
-
+func NewReader(options ReaderOptions) (*Reader, error) {
     self := &Reader{
-        config:     config,
+        options:    options,
         log:        log.New(os.Stderr, fmt.Sprintf("stats.Reader: "), 0),
     }
 
-    if err := self.init(config); err != nil {
+    if influxdbClient, err := options.InfluxURL.Connect(); err != nil {
         return nil, err
+    } else {
+        self.influxdbClient = influxdbClient
     }
 
     return self, nil
 }
 
-func (self *Reader) init(config ReaderConfig) error {
-    if influxdbClient, err := influxdb.NewHTTPClient(config.InfluxDB); err != nil {
-        return err
-    } else {
-        self.influxdbClient = influxdbClient
-    }
-
-    return nil
-}
-
 func (self *Reader) String() string {
-    return fmt.Sprintf("%v/%v/", self.config.InfluxDB.Addr, self.config.Database)
+    return fmt.Sprintf("%v/%v/", self.options.InfluxURL)
 }
 
 // List types
@@ -60,10 +51,7 @@ type SeriesMeta struct {
 }
 
 func (self *Reader) ListTypes() (metas []SeriesMeta, err error) {
-    query := influxdb.Query{
-        Database: self.config.Database,
-        Command:  fmt.Sprintf("SHOW FIELD KEYS"),
-    }
+    query := self.options.InfluxURL.Query("SHOW FIELDS KEYS")
 
     response, err := self.influxdbClient.Query(query)
     if err != nil {
@@ -107,9 +95,7 @@ type SeriesKey struct {
 }
 
 func (self *Reader) ListSeries(filter SeriesKey) (seriesList []SeriesKey, err error) {
-    query := influxdb.Query{Database: self.config.Database}
-
-    query.Command = "SHOW SERIES"
+    query := self.options.InfluxURL.Query("SHOW SERIES")
 
     if filter.Type != "" {
         // XXX: holy SQL injection batman
@@ -182,10 +168,7 @@ type SeriesStats struct {
 }
 
 func (self *Reader) GetStats(series SeriesKey, field string, duration time.Duration) (stats SeriesStats, err error) {
-    query := influxdb.Query{
-        Database: self.config.Database,
-        Command:  fmt.Sprintf("SELECT MEAN(\"%s\") AS mean, MIN(\"%s\") AS min, MAX(\"%s\") AS max, LAST(\"%s\") AS last FROM \"%s\" WHERE time > now() - %v AND hostname='%s' AND instance='%s'", field, field, field, field, series.Type, duration, series.Hostname, series.Instance),
-    }
+    query := self.options.InfluxURL.Query(fmt.Sprintf("SELECT MEAN(\"%s\") AS mean, MIN(\"%s\") AS min, MAX(\"%s\") AS max, LAST(\"%s\") AS last FROM \"%s\" WHERE time > now() - %v AND hostname='%s' AND instance='%s'", field, field, field, field, series.Type, duration, series.Hostname, series.Instance))
 
     self.log.Printf("%v\n", query.Command)
 
@@ -275,10 +258,7 @@ func (self *Reader) GetSeries(series SeriesKey, fields []string, duration time.D
         queryFields = strings.Join(fields, ", ")
     }
 
-    query := influxdb.Query{
-        Database: self.config.Database,
-        Command:  fmt.Sprintf("SELECT %s FROM \"%s\" WHERE time > now() - %vs", queryFields, series.Type, duration.Seconds()),
-    }
+    query := self.options.InfluxURL.Query(fmt.Sprintf("SELECT %s FROM \"%s\" WHERE time > now() - %vs", queryFields, series.Type, duration.Seconds()))
 
     if series.Hostname != "" {
         query.Command += fmt.Sprintf(" AND hostname='%s'", series.Hostname)

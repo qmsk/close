@@ -14,6 +14,8 @@ type WriterOptions struct {
 
     Hostname    string          `long:"stats-hostname" env:"HOSTNAME"`
 
+    Instance    string          `long:"stats-instance" env:"CLOSE_INSTANCE"`
+
     // Collection interval
     Interval    time.Duration   `long:"stats-interval" value-name:"SECONDS" default:"1s"`
 
@@ -91,7 +93,13 @@ func (self *Writer) write(stats Stats) {
     }
 
     id := stats.StatsID()
-    id.Hostname = self.options.Hostname
+    if id.Hostname == "" {
+        id.Hostname = self.options.Hostname
+    }
+
+    if id.Instance == "" {
+        id.Instance = self.options.Instance
+    }
 
     tags := map[string]string{
         "hostname":   id.Hostname,
