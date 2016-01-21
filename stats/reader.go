@@ -51,7 +51,7 @@ type SeriesMeta struct {
 }
 
 func (self *Reader) ListTypes() (metas []SeriesMeta, err error) {
-    query := self.options.InfluxURL.Query("SHOW FIELDS KEYS")
+    query := self.options.InfluxURL.Query("SHOW FIELD KEYS")
 
     response, err := self.influxdbClient.Query(query)
     if err != nil {
