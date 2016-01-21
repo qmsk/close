@@ -8,8 +8,8 @@ import (
 var idRegexp = regexp.MustCompile(`^([a-zA-Z0-9_]+)/([a-zA-Z0-9_:-]+)$`)
 
 type ID struct {
-    Type        string  `json:"type" long:"config-type"`
-    Instance    string  `json:"instance" long:"config-instance" env:"CLOSE_INSTANCE"`
+    Type        string  `json:"type"`
+    Instance    string  `json:"instance"`
 }
 
 func (self ID) String() string {

@@ -14,7 +14,7 @@ const SUB_TTL = 10 * time.Second
 
 type SubOptions struct {
     Options
-    ID
+    Instance    string  `long:"config-instance" env:"CLOSE_INSTANCE"`
 }
 
 type Sub struct {
@@ -25,16 +25,6 @@ type Sub struct {
 
     expire      time.Time
     stopChan    chan bool
-}
-
-func NewSub(options SubOptions) (*Sub, error) {
-    if redis, err := NewRedis(options.Options); err != nil {
-        return nil, err
-    } else if sub, err := redis.GetSub(options.ID); err != nil {
-        return nil, err
-    } else {
-        return sub, nil
-    }
 }
 
 func newSub(redis *Redis, id ID) (*Sub, error) {
