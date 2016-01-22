@@ -2,19 +2,18 @@ package icmp
 
 import (
     "golang.org/x/net/icmp"
-    "golang.org/x/net/ipv4"
     "close/stats"
     "close/config"
     "os"
     "log"
     "fmt"
     "time"
-    "net"
     "close/worker"
 )
 
 type PingConfig struct {
     Target      string              `json:"target" long:"target"`
+    Proto       string              `json:"proto" long:"protocol" value-name:"ipv4|ipv6" default:"ipv4"`
     ID          int                 `json:"id" long:"id"`
     Interval    time.Duration       `json:"interval" long:"interval" value-name:"<count>(ns|us|ms|s|m|h)" default:"1s"`
 }
@@ -65,10 +64,9 @@ type Pinger struct {
 
     log         *log.Logger
 
-    targetAddr  *net.UDPAddr
-    icmpConn    *icmp.PacketConn
+    conn        *Conn
 
-    configC     chan config.Config
+    configC     chan  config.Config
     statsC      chan  stats.Stats
     receiverC   chan  pingResult
 }
@@ -113,29 +111,6 @@ func (p *Pinger) ConfigSub(configSub *config.Sub) error {
     }
 }
 
-func (p *Pinger) resolveTarget(target string) (*net.UDPAddr, error) {
-    if target == "" {
-        return nil, fmt.Errorf("No target given")
-    }
-
-    if ipAddr, err := net.ResolveIPAddr("ip", target); err != nil {
-        return nil, err
-    } else {
-        // unprivileged icmp mode uses SOCK_DGRAM
-        udpAddr := &net.UDPAddr{IP: ipAddr.IP, Zone: ipAddr.Zone}
-
-        return udpAddr, nil
-    }
-}
-
-func (p *Pinger) icmpListen(targetAddr *net.UDPAddr) (*icmp.PacketConn, error) {
-    if ip4 := targetAddr.IP.To4(); ip4 != nil {
-        return icmp.ListenPacket("udp4", "")
-    } else {
-        return nil, fmt.Errorf("Unsupported address: %v", targetAddr)
-    }
-}
-
 // Apply configuration to state
 // TODO: teardown old state?
 func (p *Pinger) apply(config PingConfig) error {
@@ -143,16 +118,10 @@ func (p *Pinger) apply(config PingConfig) error {
         config.ID = os.Getpid()
     }
 
-    if targetAddr, err := p.resolveTarget(config.Target); err != nil {
-        return fmt.Errorf("resolveTarget: %v", err)
+    if conn, err := NewConn(config); err != nil {
+        return err
     } else {
-        p.targetAddr = targetAddr
-    }
-
-    if icmpConn, err := p.icmpListen(p.targetAddr); err != nil {
-        return fmt.Errorf("icmpListen: %v", err)
-    } else {
-        p.icmpConn = icmpConn
+        p.conn = conn
     }
 
     p.receiverC = make(chan pingResult)
@@ -160,7 +129,7 @@ func (p *Pinger) apply(config PingConfig) error {
     // good
     p.config = config
 
-    go p.receiver(p.receiverC, p.icmpConn)
+    go p.receiver(p.receiverC, p.conn)
 
     return nil
 }
@@ -223,40 +192,24 @@ func (p *Pinger) Stop() {
     p.log.Printf("stopping...\n")
 
     // causes recevier() to close(receiverC)
-    p.icmpConn.Close()
+    p.conn.IcmpConn.Close()
 }
 
-// Now this is called only from manager, so it's okay it's not thread safe
 func (p *Pinger) send(id uint16, seq uint16) error {
-    wm := icmp.Message {
-        Type: ipv4.ICMPTypeEcho,
-        Code: 0,
-        Body: &icmp.Echo {
-            ID:     int(id),
-            Seq:    int(seq),
-            Data:   []byte("HELLO 1"),
-        },
-    }
+    wm := p.conn.NewMessage(id, seq)
 
-    wb, err := wm.Marshal(nil)
-    if err != nil {
-        return fmt.Errorf("icmp Message.Marshal: %v", err)
-    }
-
-    n, err := p.icmpConn.WriteTo(wb, p.targetAddr)
-    if n != len(wb) || err != nil {
-        return fmt.Errorf("icmp.PacketConn %v: WriteTo %v: %v", p.icmpConn, p.targetAddr, err)
+    if err := p.conn.Write(wm); err != nil {
+        return fmt.Errorf("icmp.PacketConn %v: WriteTo %v: %v", p.conn.IcmpConn, p.conn.TargetAddr, err)
     }
 
     return nil
 }
 
-func (p *Pinger) receiver(receiverC chan pingResult, icmpConn *icmp.PacketConn) {
+func (p *Pinger) receiver(receiverC chan pingResult, conn *Conn) {
     defer close(receiverC)
 
-    // IANA ICMP v4 protocol is 1
-    // TODO: get protocol from icmpConn, for IPv6?
-    icmpProto := 1
+    icmpProto := conn.Proto.ianaProto
+    icmpConn := conn.IcmpConn
 
     for {
         buf := make([]byte, 1500)
