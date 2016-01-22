@@ -51,8 +51,9 @@
             <span class="glyphicon glyphicon-refresh" title="Refresh Stats"></span>
         </button>
         <h2>Stats</h2>
-        <div ng-repeat="data in statsData">
-            <flot dataset="data" options="chartOptions" width="400px" height="100px"></flot>
+        <div ng-repeat="stat in statsData">
+            <h3>{{stat.series.field}}</h3>
+            <flot dataset="[stat.data]" options="chartOptions" width="400px" height="100px"></flot>
         </div>
     </div>
 </div>

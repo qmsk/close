@@ -9,7 +9,8 @@ closeApp.config(function($routeProvider){
     $routeProvider
         .when('/workers', {
             templateUrl: '/close/workers.html',
-            controller: 'WorkersCtrl'
+            controller: 'WorkersCtrl',
+            reloadOnSearch: false
         })
         .when('/workers/:config/:instance', {
             templateUrl: '/close/worker.html',
@@ -33,21 +34,13 @@ closeApp.config(function($routeProvider){
         });
 });
 
-function mapStatsData(series) {
-    return series.points.map(function(point){
-        var date = new Date(point.time);
-
-        return [date.getTime(), point.value];
-    });
-}
-
 closeApp.controller('HeaderController', function($scope, $location) {
     $scope.navActive = function(prefix) {
         return $location.path().startsWith(prefix);
     };
 });
 
-closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $http) {
+closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $http, Stats) {
     $scope.busy = true;
     $scope.get = function(){
         $http.get('/api/').then(
@@ -61,8 +54,17 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
                 if (r.data.config && r.data.config.Workers) {
                     // XXX: multiple configs?!
                     $.each(r.data.config.Workers, function(configName, workerConfig){
-                        if (workerConfig.RateStats) {
-                            $scope.statsChart(workerConfig.RateStats);
+                        var match = workerConfig.RateStats.match(/((\w+)\/)?(\w+)/);
+
+                        if (!match) {
+
+                        } else if (match[1]) {
+                            $scope.statsChart(match[2], match[3]);
+
+                        } else if (match[1]) {
+                            $scope.statsChart(workerConfig.StatsType, match[3]);
+                        } else {
+
                         }
                     });
                 }
@@ -102,11 +104,13 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
 
     // XXX: copy-pasta
     $scope.statsDuration = $routeParams.duration || "10s";
-    $scope.statsChart = function(stats) {
-        if (stats) {
-            $scope.stats = stats;
+    $scope.statsChart = function(statsType, statsField) {
+        if (statsType && statsField) {
+            $scope.statsType = statsType;
+            $scope.statsField = statsField;
         } else {
-            stats = $scope.stats
+            statsType = $scope.statsType;
+            statsField = $scope.statsField;
         }
         // update view state
         $location.search('duration', $scope.statsDuration);
@@ -117,9 +121,9 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
         $scope.chartData = [];
         $scope.chartAlert = null;
 
-        $http.get('/api/stats/' + stats, {params: statsParams}).then(
-            function success(r){
-                if (!r.data || r.data.length == 0) {
+        Stats.get(statsType, statsField, {duration: $scope.statsDuration}).then(
+            function success(stats){
+                if (!stats || stats.length == 0) {
                     $scope.chartAlert = "No Data";
                     return;
                 }
@@ -127,19 +131,10 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
                 $scope.chartOptions = {
                     xaxis: { mode: "time" },
                 };
-                $scope.chartData = r.data.map(function(series){
-                    var label = series.type + "." + series.field + "@" + series.hostname + ":" + series.instance;
-
-                    console.log("stats: " + label);
-
-                    return {
-                        label: label,
-                        data: mapStatsData(series)
-                    };
-                });
+                $scope.chartData = stats;
             },
-            function error(response){
-                $scope.chartAlert = r.data;
+            function error(err){
+                $scope.chartAlert = err;
             }
         );
     }
@@ -147,7 +142,7 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
     $scope.get();
 });
 
-closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams) {
+closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams, Stats) {
     $scope.config = $routeParams.config;
     $scope.instance = $routeParams.instance;
 
@@ -185,23 +180,18 @@ closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams) {
             return;
         }
 
-        $scope.chartOptions = {
-            xaxis: { mode: "time" },
-        };
-        $http.get('/api/stats/' + statsType + '/', {params:{instance: statsInstance}}).then(
-            function success(r) {
+        // all fields
+        Stats.get(statsType, null, {instance: statsInstance}).then(
+            function success(stats) {
                 $scope.error = null;
-                if (r.data) {
-                    $scope.statsData = r.data.map(function(series){
-                        return [{
-                            label: series.field,
-                            data: mapStatsData(series)
-                        }];
-                    });
-                }
+
+                $scope.chartOptions = {
+                    xaxis: { mode: "time" },
+                };
+                $scope.statsData = stats;
             },
-            function error(r) {
-                $scope.error = r.data;
+            function error(err) {
+                $scope.error = err;
             }
         );
     }
@@ -244,141 +234,4 @@ closeApp.controller('DockerCtrl', function($scope, $routeParams, $http) {
     $http.get('/api/docker/' + $scope.dockerID + '/logs').success(function(data){
         $scope.dockerLogs = data;
     });
-});
-
-closeApp.controller('StatsCtrl', function($scope, $location, $routeParams, $http) {
-    $http.get('/api/stats').success(function(data){
-        // [ {type: field:} ]
-        $scope.statsMeta = $.map(data, function(meta){
-            return meta.fields.map(function(field){
-                return {type: meta.type, field: field};
-            });
-        });
-    });
-
-    $scope.statsActive = function(fieldMeta) {
-        return fieldMeta.type == $scope.type && fieldMeta.field == $scope.field;
-    }
-
-    /*
-     * Select given {type: field:} for viewing
-     */
-    $scope.statsChart = function(fieldMeta) {
-        if (fieldMeta) {
-            $scope.type = fieldMeta.type;
-            $scope.field = fieldMeta.field;
-        } else if ($scope.type && $scope.field){
-
-        } else {
-            $scope.type = $routeParams.type;
-            $scope.field = $routeParams.field;
-            $scope.statsDuration = $routeParams.duration || "10s";
-        }
-
-        // update view state
-        $location.search('type', $scope.type);
-        $location.search('field', $scope.field);
-        $location.search('duration', $scope.statsDuration);
-
-        // update
-        var statsURL = '/api/stats/' + $scope.type + '/' + $scope.field;
-        var statsParams = {duration: $scope.statsDuration};
-
-        console.log("get stats: " + statsURL + "?" + statsParams);
-
-        $scope.chartData = [];
-        $scope.chartAlert = null;
-
-        $http.get(statsURL, {params: statsParams}).then(
-            function success(r){
-                if (!r.data || r.data.length == 0) {
-                    $scope.chartAlert = "No Data";
-                    return;
-                }
-
-                $scope.chartOptions = {
-                    xaxis: { mode: "time" },
-                };
-                $scope.chartData = r.data.map(function(series){
-                    var label = series.type + "." + series.field + "@" + series.hostname + ":" + series.instance;
-
-                    console.log("stats: " + label);
-
-                    return {
-                        label: label,
-                        data: mapStatsData(series)
-                    };
-                });
-                    
-                console.log("stats length=" + $scope.chartData.length);
-            },
-            function error(response){
-                $scope.chartAlert = r.data;
-            }
-        );
-    }
-
-    // init
-    $scope.statsChart();
-});
-
-closeApp.factory('Logs', function LogsFactory($websocket) {
-    var Logs = {
-        url:        'ws://' + window.location.host + '/logs',
-        Error:      null,
-        Messages:   [],   
-    };
-    var ws;
-
-    try {
-        ws = $websocket(Logs.url);
-    } catch (err) {
-        Logs.Error = "WS failed: " + err;
-        return Logs;
-    }
-
-    Logs.message = function(msg){
-        msg.id = "log-" + Logs.Messages.length;
-
-        Logs.Messages.push(msg)  
-    };
-    Logs.log = function(line){
-        Logs.message({line: line});
-    };
-
-    ws.onOpen(function(e){
-        Logs.log("WebSocket Open");
-        Logs.Error = null;
-    });
-    ws.onClose(function(e){
-        Logs.log("WebSocket Close: " + e.reason);
-        Logs.Error = e; // XXX: .reason;
-    });
-    ws.onError(function(e){
-        Logs.log("WebSocket Error");
-    });
-    ws.onMessage(function(msg){
-        Logs.message(JSON.parse(msg.data));
-    });
-
-    Logs.status = function() {
-        switch (ws.readyState) {
-            case WebSocket.CONNECTING:
-                return "Connecting..";
-            case WebSocket.OPEN:
-                return "Open";
-            case WebSocket.CLOSING:
-                return "Closing...";
-            case WebSocket.CLOSED:
-                return "Closed";
-            default:
-                return "unknown " + ws.readyState + "?";
-        }
-    }
-
-    return Logs;
-});
-
-closeApp.controller('LogsController', function($scope, Logs) {
-    $scope.Logs = Logs;
 });
