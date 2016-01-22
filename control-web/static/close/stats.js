@@ -61,72 +61,110 @@ closeApp.factory('Stats', function($http){
                     });
                 },
                 function error(r) {
-                    return r.data.Error;
+                    if (r.data && r.data.Error) {
+                        return r.data.Error;
+                    } else {
+                        return r;
+                    }
                 }
             );
         },
     };
 });
 
+/*
+ * Controller for ng-include="'/close/stats-chart.html'"
+ *
+ * From parent scope:
+ *  statsMeta:  {type field}
+ */
+closeApp.controller('StatsChartCtrl', function($scope, $location, Stats) {
+    $scope.height = "400px";
+
+    $scope.duration = $location.search()['duration'];
+    if (!$scope.duration) {
+        $scope.duration = "10s";
+    }
+
+    $scope.changeDuration = function() {
+        $location.search('duration', $scope.duration);
+
+        $scope.update();
+    }
+
+    /*
+     * Select given {type: field:} for viewing
+     */
+    $scope.update = function() {
+        var meta = $scope.statsMeta;
+
+        // view state
+        $scope.chartOptions = {};
+        $scope.chartData = [];
+        $scope.chartAlert = null;
+
+        if (!meta) {
+            return
+        };
+
+        Stats.get(meta.type, meta.field, {instance: meta.instance, duration: $scope.duration}).then(
+            function success(stats){
+                if (!stats || stats.length == 0) {
+                    $scope.chartAlert = "No Data";
+                    return;
+                } else {
+                    $scope.chartAlert = false;
+                }
+
+                $scope.chartOptions = {
+                    xaxis: { mode: "time" },
+                };
+                $scope.chartData = stats;
+            },
+            function error(err){
+                $scope.chartAlert = err;
+            }
+        );
+    };
+
+    $scope.$watch('statsMeta', $scope.update);
+});
+
 closeApp.controller('StatsCtrl', function($scope, $location, $routeParams, Stats) {
     Stats.index().then(
-        function success(statsMeta) {
+        function success(statsIndex) {
             // [ {type: field:} ]
-            $scope.statsMeta = statsMeta;
+            $scope.statsIndex = statsIndex;
         },
         function error(err) {
             $scope.chartAlert = err;
         }
     );
 
-    $scope.statsActive = function(fieldMeta) {
-        return fieldMeta.type == $scope.type && fieldMeta.field == $scope.field;
+    $scope.statsMeta = null;
+    $scope.statsActive = function(meta) {
+        return $scope.statsMeta && meta.type == $scope.statsMeta.type && meta.field == $scope.statsMeta.field;
     }
 
     /*
      * Select given {type: field:} for viewing
      */
-    $scope.statsChart = function(fieldMeta) {
-        if (fieldMeta) {
-            $scope.type = fieldMeta.type;
-            $scope.field = fieldMeta.field;
-        } else if ($scope.type && $scope.field){
-
+    $scope.select = function(meta) {
+        if (meta) {
+            $scope.statsMeta = meta;
+        } else if ($scope.statsMeta){
+            meta = $scope.statsMeta;
+        } else if ($routeParams.type && $routeParams.field) {
+            meta = $scope.statsMeta = {type: $routeParams.type, field: $routeParams.field};
         } else {
-            $scope.type = $routeParams.type;
-            $scope.field = $routeParams.field;
-            $scope.statsDuration = $routeParams.duration || "10s";
+            return;
         }
 
         // update view state
-        $location.search('type', $scope.type);
-        $location.search('field', $scope.field);
-        $location.search('duration', $scope.statsDuration);
-
-        // update
-        $scope.chartData = [];
-        $scope.chartAlert = null;
-
-        if ($scope.type && $scope.field) {
-            Stats.get($scope.type, $scope.field, {duration: $scope.statsDuration}).then(
-                function success(stats){
-                    if (!stats || stats.length == 0) {
-                        $scope.chartAlert = "No Data";
-                        return;
-                    }
-
-                    $scope.chartOptions = {
-                        xaxis: { mode: "time" },
-                    };
-                    $scope.chartData = stats;
-                },
-                function error(err){
-                    $scope.chartAlert = err;
-                }
-            );
-        }
+        $location.search('type', meta.type);
+        $location.search('field', meta.field);
     }
 
     // init
-    $scope.statsChart();
+    $scope.select();
 });

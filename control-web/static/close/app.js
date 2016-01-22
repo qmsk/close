@@ -57,14 +57,13 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
                         var match = workerConfig.RateStats.match(/((\w+)\/)?(\w+)/);
 
                         if (!match) {
-
+                            $scope.statsMeta = null;
                         } else if (match[1]) {
-                            $scope.statsChart(match[2], match[3]);
-
-                        } else if (match[1]) {
-                            $scope.statsChart(workerConfig.StatsType, match[3]);
+                            $scope.statsMeta = {type: match[2], field: match[3]};
+                        } else if (match[3]) {
+                            $scope.statsMeta = {type: workerConfig.StatsType, field: match[3]};
                         } else {
-
+                            $scope.statsMeta = null;
                         }
                     });
                 }
@@ -98,43 +97,6 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
             },
             function error(r){
                 $scope.configAlert = r.data;
-            }
-        );
-    }
-
-    // XXX: copy-pasta
-    $scope.statsDuration = $routeParams.duration || "10s";
-    $scope.statsChart = function(statsType, statsField) {
-        if (statsType && statsField) {
-            $scope.statsType = statsType;
-            $scope.statsField = statsField;
-        } else {
-            statsType = $scope.statsType;
-            statsField = $scope.statsField;
-        }
-        // update view state
-        $location.search('duration', $scope.statsDuration);
-
-        // update
-        var statsParams = {duration: $scope.statsDuration};
-
-        $scope.chartData = [];
-        $scope.chartAlert = null;
-
-        Stats.get(statsType, statsField, {duration: $scope.statsDuration}).then(
-            function success(stats){
-                if (!stats || stats.length == 0) {
-                    $scope.chartAlert = "No Data";
-                    return;
-                }
-
-                $scope.chartOptions = {
-                    xaxis: { mode: "time" },
-                };
-                $scope.chartData = stats;
-            },
-            function error(err){
-                $scope.chartAlert = err;
             }
         );
     }

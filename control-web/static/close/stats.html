@@ -1,5 +1,5 @@
 <div class="page-header"> 
-    <h2>Stats</h2>
+    <h1>Stats</h2>
 </div>
 
 <div class="row">
@@ -13,11 +13,11 @@
                 </tr>
             </thead>
             <tbody>
-                <tr ng-repeat="meta in statsMeta" ng-class="{active: statsActive(meta)}">
+                <tr ng-repeat="meta in statsIndex" ng-class="{active: statsActive(meta)}">
                     <td>{{meta.type}}</td>
                     <td>{{meta.field}}</td>
                     <td>
-                        <button ng-click="statsChart(meta)">
+                        <button ng-click="select(meta)">
                             <span class="glyphicon glyphicon-zoom-in"></span>
                         </button>
                     </td>
@@ -25,9 +25,5 @@
             </tbody>
         </table>
     </div>
-    <div class="col-md-6 chart">
-        <h2 ng-if="fieldMeta">{{fieldMeta.type}}.{{fieldMeta.field}}</h2>
-
-        <ng-include src="'/close/stats-chart.html'"></ng-include>
-    </div>
+    <div class="col-md-6 chart" ng-include="'/close/stats-chart.html'"></div>
 </div>
