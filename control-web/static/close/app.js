@@ -1,4 +1,5 @@
 var closeApp = angular.module('closeApp', [
+        'close.stats',
         'ngRoute',
         'angular-flot',
         'angular-websocket',
@@ -196,4 +197,43 @@ closeApp.controller('DockerCtrl', function($scope, $routeParams, $http) {
     $http.get('/api/docker/' + $scope.dockerID + '/logs').success(function(data){
         $scope.dockerLogs = data;
     });
+});
+
+closeApp.controller('StatsCtrl', function($scope, $location, $routeParams, Stats) {
+    Stats.index().then(
+        function success(statsIndex) {
+            // [ {type: field:} ]
+            $scope.statsIndex = statsIndex;
+        },
+        function error(err) {
+            $scope.chartAlert = err;
+        }
+    );
+
+    $scope.statsMeta = null;
+    $scope.statsActive = function(meta) {
+        return $scope.statsMeta && meta.type == $scope.statsMeta.type && meta.field == $scope.statsMeta.field;
+    }
+
+    /*
+     * Select given {type: field:} for viewing
+     */
+    $scope.select = function(meta) {
+        if (meta) {
+            $scope.statsMeta = meta;
+        } else if ($scope.statsMeta){
+            meta = $scope.statsMeta;
+        } else if ($routeParams.type && $routeParams.field) {
+            meta = $scope.statsMeta = {type: $routeParams.type, field: $routeParams.field};
+        } else {
+            return;
+        }
+
+        // update view state
+        $location.search('type', meta.type);
+        $location.search('field', meta.field);
+    }
+
+    // init
+    $scope.select();
 });
