@@ -85,7 +85,7 @@ angular.module('close.stats', [
             statsMeta:  '=statsMeta',
             height:     '@height',
         },
-        templateUrl:    '/stats/chart.html',
+        templateUrl:    '/close/stats/chart.html',
         controller:     function($scope, $location, Stats) {
             //$scope.height = "400px";
 
