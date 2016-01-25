@@ -124,11 +124,26 @@ angular.module('close.stats', [
                         } else {
                             $scope.chartAlert = false;
                         }
+                    
+                        $scope.chartMap = {};
+                        $scope.chartCount = 0;
+                        $.each(stats, function(i, stat){
+                            var chartData = $scope.chartMap[stat.series.field];
 
+                            if (chartData == undefined) {
+                                $scope.chartCount++;
+                                chartData = $scope.chartMap[stat.series.field] = [];
+                            }
+                            
+                            chartData.field = stat.series.field;
+                            chartData.push(stat);
+                        });
                         $scope.chartOptions = {
+                            legend: {
+                                show: $scope.chartCount == 1,
+                            },
                             xaxis: { mode: "time" },
                         };
-                        $scope.chartData = stats;
                     },
                     function error(err){
                         $scope.chartAlert = err;

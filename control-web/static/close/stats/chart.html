@@ -1,11 +1,14 @@
 <div class="stats-chart">
-    <h2>{{statsMeta.type}}.{{statsMeta.field}}</h2>
+    <h2>{{statsMeta.type}}.{{statsMeta.field}}@{{statsMeta.instance}}</h2>
 
     <div ng-if="chartAlert" class="alert alert-warning">
         {{chartAlert}}
     </div>
 
-    <flot dataset="chartData" options="chartOptions" width="100%" height="{{height}}"></flot>
+    <div ng-repeat="chartData in chartMap">
+        <h3 ng-if="chartCount > 1">{{chartData.field}}</h3>
+        <flot dataset="chartData" options="chartOptions" width="100%" height="{{height}}"></flot>
+    </div>
 
     <div class="btn-toolbar pull-right">
         <!-- TODO: use http://angular-ui.github.io/bootstrap/#/buttons ? -->
