@@ -115,8 +115,10 @@ closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams, Stats) {
                 $scope.worker = r.data;
                 $scope.workerConfig = r.data.worker_config;
                 $scope.configMap = r.data.config_map;
-
-                $scope.getStats();
+                $scope.statsMeta = {
+                    type:       $scope.workerConfig.StatsType,
+                    instance:   $scope.worker.stats_instance,
+                };
             },
             function error(r) {
                 $scope.error = r.data;
@@ -131,30 +133,6 @@ closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams, Stats) {
             },
             function error(r) {
                 $scope.error = r.data;
-            }
-        );
-    }
-
-    $scope.getStats = function() {
-        var statsType = $scope.workerConfig.StatsType;
-        var statsInstance = $scope.worker.stats_instance;
-
-        if (!(statsType && statsInstance)) {
-            return;
-        }
-
-        // all fields
-        Stats.get(statsType, null, {instance: statsInstance}).then(
-            function success(stats) {
-                $scope.error = null;
-
-                $scope.chartOptions = {
-                    xaxis: { mode: "time" },
-                };
-                $scope.statsData = stats;
-            },
-            function error(err) {
-                $scope.error = err;
             }
         );
     }

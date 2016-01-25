@@ -46,14 +46,5 @@
         </form>
     </div>
 
-    <div class="col-md-6">
-        <button ng-click="getStats()" class="pull-right">
-            <span class="glyphicon glyphicon-refresh" title="Refresh Stats"></span>
-        </button>
-        <h2>Stats</h2>
-        <div ng-repeat="stat in statsData">
-            <h3>{{stat.series.field}}</h3>
-            <flot dataset="[stat.data]" options="chartOptions" width="400px" height="100px"></flot>
-        </div>
-    </div>
+    <div stats-chart stats-meta="statsMeta" height="100px" class="col-md-6"></div>
 </div>
