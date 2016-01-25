@@ -66,3 +66,12 @@
 #logs .status .error {
     color: #ff2200;
 }
+
+/* Hide radio group buttons */
+.stats-chart .btn-toolbar {
+    margin-top: 1em;
+}
+
+.stats-chart .btn-group input[type=radio] {
+    display: none;
+}

@@ -92,7 +92,7 @@ angular.module('close.stats', [
             // XXX: use a global value
             $scope.duration = $location.search()['duration'];
             if (!$scope.duration) {
-                $scope.duration = "10s";
+                $scope.duration = "1m";
             }
 
             $scope.changeDuration = function() {
