@@ -24,7 +24,10 @@ type WorkerConfig struct {
     Type            string
     InstanceFlag    string
 
-    Stats           string      // default: .Type
+    /*
+     * Stats URL: type [ "/" field ] [ "?" ("instance=" ("$" | "$" configName ) ) [ "&" ... ] ]
+     */
+    Stats           string
 
     RateConfig      string
     RateStats       string
@@ -115,7 +118,10 @@ func (worker *Worker) parseStats(statsUrl string, configMap config.ConfigMap) (s
     } else {
         series.Hostname = urlHostname
     }
+
     if urlInstance := parseUrl.Query().Get("instance"); urlInstance == "" {
+        series.Instance = ""
+    } else if urlInstance == "$" {
         // config instance
         series.Instance = worker.String()
     } else if strings.HasPrefix(urlInstance, "$") {
@@ -126,7 +132,7 @@ func (worker *Worker) parseStats(statsUrl string, configMap config.ConfigMap) (s
         case json.Number:
             series.Instance = configValue.String()
         default:
-             return series, field, fmt.Errorf("Invalid %v.StatsInstanceFromConfig=%v for %v: type %T: %#v", worker.Config, urlInstance, worker, configValue, configValue)
+            return series, field, fmt.Errorf("Invalid stats URL ?instance=%v: config type %T: %#v", urlInstance, worker, configValue, configValue)
         }
     } else {
         series.Instance = urlInstance
