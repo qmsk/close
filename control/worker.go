@@ -4,6 +4,10 @@ import (
     "close/config"
     "fmt"
     "encoding/json"
+    "close/stats"
+    "strings"
+    "time"
+    "net/url"
 )
 
 type WorkerConfig struct {
@@ -20,8 +24,7 @@ type WorkerConfig struct {
     Type            string
     InstanceFlag    string
 
-    StatsType       string      // default: .Type
-    StatsInstanceFromConfig string
+    Stats           string      // default: .Type
 
     RateConfig      string
     RateStats       string
@@ -88,23 +91,79 @@ func (worker *Worker) ConfigGetRate(configMap config.ConfigMap) (uint, error) {
  *
  * Returns "" if no configured stats instance.
  */
-func (worker *Worker) StatsInstance(configMap config.ConfigMap) (string, error) {
-    if worker.Config == nil {
-        return "", nil
+func (worker *Worker) parseStats(statsUrl string, configMap config.ConfigMap) (series stats.SeriesKey, field string, err error) {
+    parseUrl, err := url.Parse(statsUrl)
+    if err != nil {
+        return series, "", err
     }
-    if worker.Config.StatsInstanceFromConfig == "" {
-        // default to config instance
-        return worker.String(), nil
+    pathParts := strings.Split(parseUrl.Path, "/")
+
+    switch len(pathParts) {
+    case 0:
+        series.Type = worker.Config.Type
+    case 1:
+        series.Type = pathParts[0]
+    case 2:
+        series.Type = pathParts[0]
+        field = pathParts[1]
+    default:
+        return series, field, fmt.Errorf("Invalid stats path: %v", pathParts)
     }
 
-    // lookup from config
-    switch configValue := configMap[worker.Config.StatsInstanceFromConfig].(type) {
-    case string:
-        return configValue, nil
-    case json.Number:
-        return configValue.String(), nil
-    default:
-         return "", fmt.Errorf("Invalid %v.StatsInstanceFromConfig=%v for %v: type %T: %#v", worker.Config, worker.Config.StatsInstanceFromConfig, worker, configValue, configValue)
+    if urlHostname := parseUrl.Query().Get("hostname"); urlHostname == "" {
+        series.Hostname = ""
+    } else {
+        series.Hostname = urlHostname
+    }
+    if urlInstance := parseUrl.Query().Get("instance"); urlInstance == "" {
+        // config instance
+        series.Instance = worker.String()
+    } else if strings.HasPrefix(urlInstance, "$") {
+        // lookup from config
+        switch configValue := configMap[strings.TrimPrefix(urlInstance, "$")].(type) {
+        case string:
+            series.Instance = configValue
+        case json.Number:
+            series.Instance = configValue.String()
+        default:
+             return series, field, fmt.Errorf("Invalid %v.StatsInstanceFromConfig=%v for %v: type %T: %#v", worker.Config, urlInstance, worker, configValue, configValue)
+        }
+    } else {
+        series.Instance = urlInstance
+    }
+
+    return
+}
+
+func (worker *Worker) StatsMeta(configMap config.ConfigMap) (stats.SeriesKey, error) {
+    if worker.Config == nil || worker.Config.Stats == "" {
+        return stats.SeriesKey{}, nil
+    }
+
+    if seriesKey, field, err := worker.parseStats(worker.Config.Stats, configMap); err != nil {
+        return seriesKey, fmt.Errorf("parseStats %v: %v", worker.Config.Stats, err)
+    } else if field != "" {
+        return seriesKey, fmt.Errorf("WorkerConfig %v.Stats=%v: should not have field", worker.Config, worker.Config.Stats)
+    } else {
+        return seriesKey, err
+    }
+}
+
+func (worker *Worker) StatsGet(statsUrl string, configMap config.ConfigMap, statsReader *stats.Reader) (*stats.SeriesStats, error) {
+    duration := 10 * time.Second
+
+    if statsUrl == "" {
+        return nil, nil
+    }
+
+    if seriesKey, field, err := worker.parseStats(statsUrl, configMap); err != nil {
+        return nil, fmt.Errorf("parseStats %v: %v", statsUrl, err)
+    } else if rateStats, err := statsReader.GetStats(seriesKey, field, duration); err != nil {
+        return nil, fmt.Errorf("stats.Reader: GetStats seriesKey=%v field=%v duration=%v: %v", seriesKey, field, duration, err)
+    } else if len(rateStats) != 1 {
+        return nil, fmt.Errorf("stats.Reader: GetStats seriesKey=%v field=%v duration=%v: wrong number of results: %v", seriesKey, field, duration, rateStats)
+    } else {
+        return &rateStats[0], nil
     }
 }
 
@@ -244,9 +303,12 @@ type WorkerStatus struct {
     ConfigTTL       float64             `json:"config_ttl"` // seconds
     ConfigMap       config.ConfigMap    `json:"config_map,omitempty"`   // detail
 
-    RateConfig      uint        `json:"rate_config"`    // config
+    StatsMeta       stats.SeriesKey     `json:"stats_meta"`
 
-    StatsInstance   string      `json:"stats_instance"`
+    RateConfig      uint                `json:"rate_config,omitempty"`    // config
+    RateStats       *stats.SeriesStats  `json:"rate_stats,omitempty"`
+
+    LatencyStats    *stats.SeriesStats  `json:"latency_stats,omitempty"`
 }
 
 func (self *Manager) workerGet(worker *Worker, detail bool) (WorkerStatus, error) {
@@ -306,10 +368,23 @@ func (self *Manager) workerGet(worker *Worker, detail bool) (WorkerStatus, error
             workerStatus.RateConfig = rate
         }
 
-        if statsInstance, err := worker.StatsInstance(configMap); err != nil {
+        if seriesKey, err := worker.StatsMeta(configMap); err != nil {
+            workerStatus.StatsMeta = seriesKey
             workerStatus.ConfigError = err.Error()
         } else {
-            workerStatus.StatsInstance = statsInstance
+            workerStatus.StatsMeta = seriesKey
+        }
+
+        if rateStats, err := worker.StatsGet(worker.Config.RateStats, configMap, self.statsReader); err != nil {
+            workerStatus.ConfigError = err.Error()
+        } else {
+            workerStatus.RateStats = rateStats
+        }
+
+        if latencyStats, err := worker.StatsGet(worker.Config.LatencyStats, configMap, self.statsReader); err != nil {
+            workerStatus.ConfigError = err.Error()
+        } else {
+            workerStatus.LatencyStats = latencyStats
         }
     }
 

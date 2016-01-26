@@ -127,10 +127,6 @@ func (self *Manager) loadConfig(meta toml.MetaData, config Config) (err error) {
     for workerName, workerConfig := range config.Workers {
         workerConfig.name = workerName
 
-        if workerConfig.StatsType == "" {
-            workerConfig.StatsType = workerConfig.Type
-        }
-
         self.log.Printf("loadConfig: worker %#v", workerConfig)
     }
 

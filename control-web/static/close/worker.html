@@ -13,7 +13,7 @@
                 <span class="glyphicon glyphicon-refresh" title="Refresh Config"></span>
             </button>
 
-            Config
+            Config: {{workerConfig.Type}}/{{worker.config_instance}}
         </h2>
         <form name="configForm" ng-submit="submitConfig()">
             <table class="table worker-config">
@@ -46,5 +46,39 @@
         </form>
     </div>
 
-    <div stats-chart stats-meta="statsMeta" height="100px" class="col-md-6"></div>
+    <div class="col-md-6">
+        <h2>Stats: {{worker.stats_meta.type}}:{{worker.stats_meta.instance}}</h2>
+        <stats-chart stats-meta="statsMeta" height="100px" />
+    </div>
+
+    <div class="col-md-3" ng-if="worker.rate_config && worker.rate_stats">
+        <h2>Rate</h2>
+        <dl class="dl-horizontal">
+            <dt>Config</dt>
+            <dd>{{worker.rate_config |rate}}</dd>
+            <dt>Min</dt>
+            <dd>{{worker.rate_stats.min |rate}}</dd>
+            <dt>Mean</dt>
+            <dd>{{worker.rate_stats.mean |rate}}</dd>
+            <dt>Max</dt>
+            <dd>{{worker.rate_stats.max |rate}}</dd>
+            <dt>Last</dt>
+            <dd>{{worker.rate_stats.last |rate}}</dd>
+        </dl>
+    </div>
+    <div class="col-md-3" ng-if="worker.latency_stats">
+        <h2>Latency</h2>
+        <dl class="dl-horizontal">
+            <dt>Min</dt>
+            <dd>{{worker.latency_stats.min |latency}}</dd>
+            <dt>Mean</dt>
+            <dd>{{worker.latency_stats.mean |latency}}</dd>
+            <dt>Max</dt>
+            <dd>{{worker.latency_stats.max |latency}}</dd>
+            <dt>Last</dt>
+            <dd>{{worker.latency_stats.last |latency}}</dd>
+        </dl>
+    </div>
+
+
 </div>

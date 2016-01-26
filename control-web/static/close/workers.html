@@ -71,6 +71,7 @@
                 <th>Docker</th>
                 <th>Config</th>
                 <th>Rate</th>
+                <th>Latency</th>
                 <th></th>
             </tr>
         </thead>
@@ -109,7 +110,13 @@
                     </span>
                     <span ng-if="worker.config_ttl">TTL={{worker.config_ttl}}</span>
                 </td>
-                <td>{{worker.rate_config}}</td>
+                <td>
+                    <span ng-if="worker.rate_stats">{{worker.rate_stats.min |rate}} / {{worker.rate_stats.mean |rate}} / {{worker.rate_stats.max |rate}}</span>
+                    <span ng-if="worker.rate_config">@ {{worker.rate_config |rate}}</span>
+                </td>
+                <td>
+                    <span ng-if="worker.latency_stats">{{worker.latency_stats.min |latency}} / {{worker.latency_stats.mean |latency}} / {{worker.latency_stats.max |latency}}</span>
+                </td>
                 <td>
 
                 </td>

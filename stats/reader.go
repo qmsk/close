@@ -91,8 +91,8 @@ func (self *Reader) ListTypes() (metas []SeriesMeta, err error) {
 /* Dynamic list of InfluxDB measurement-series. Each of these series may have multiple fields */
 type SeriesKey struct {
     Type        string  `json:"type"`
-    Hostname    string  `json:"hostname"`
-    Instance    string  `json:"instance"`
+    Hostname    string  `json:"hostname,omitempty"`
+    Instance    string  `json:"instance,omitempty"`
 }
 
 func (self *Reader) ListSeries(filter SeriesKey) (seriesList []SeriesKey, err error) {

@@ -44,23 +44,40 @@ closeApp.controller('HeaderController', function($scope, $location) {
 /*
  * Parse a "[<type>/]<field>" expression into a statsMeta object ({type: field:}), or null.
  */
-function parseWorkerStats(statsType, statsExpr){
-    if (!statsExpr) {
+function parseWorkerStats(statsUrl){
+    if (!statsUrl) {
         return null;
     }
 
-    var match = statsExpr.match(/((\w+)\/)?(\w+)/);
+    var match = statsUrl.match(/(\w+)\/(\w+)(\?.+)?/);
 
     if (!match) {
         return null;
-    } else if (match[1]) {
-        return {type: match[2], field: match[3]};
-    } else if (match[3]) {
-        return {type: statsType, field: match[3]};
     } else {
-        return null;
+        return {type: match[1], field: match[2]};
     }
 }
+
+closeApp.filter('rate', function(){
+    return function rateFilter(input) {
+        if (input < 100) {
+            return input.toFixed(2) + "ps";
+        } else if (input < 10000) {
+            return (input / 1000).toFixed(2) + "kps";
+        } else {
+            return (input / 1000 / 1000).toFixed(2) + "mps";
+        }
+    };
+});
+closeApp.filter('latency', function(){
+    return function latencyFilter(input) {
+        if (input > 1.0) {
+            return input.toFixed(2) + "s";
+        } else {
+            return (input * 1000.0).toFixed(2) + "ms";
+        }
+    };
+});
 
 closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $http, Stats) {
     $scope.busy = true;
@@ -78,7 +95,7 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
                     $scope.workerStats = $.map(r.data.config.Workers, function(workerConfig, configName){
                         var workerStats = [];
 
-                        if ((rateStats = parseWorkerStats(workerConfig.StatsType, workerConfig.RateStats))) {
+                        if ((rateStats = parseWorkerStats(workerConfig.RateStats))) {
                             workerStats.push({
                                 workerConfig:   configName,
                                 title:          "Rate",
@@ -87,7 +104,7 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
                                 ylabel:         "Rate",
                             });
                         }
-                        if ((latencyStats = parseWorkerStats(workerConfig.StatsType, workerConfig.LatencyStats))) {
+                        if ((latencyStats = parseWorkerStats(workerConfig.LatencyStats))) {
                             workerStats.push({
                                 workerConfig:   configName,
                                 title:          "Latency",
@@ -147,10 +164,7 @@ closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams, Stats) {
                 $scope.worker = r.data;
                 $scope.workerConfig = r.data.worker_config;
                 $scope.configMap = r.data.config_map;
-                $scope.statsMeta = {
-                    type:       $scope.workerConfig.StatsType,
-                    instance:   $scope.worker.stats_instance,
-                };
+                $scope.statsMeta = r.data.stats_meta;
             },
             function error(r) {
                 $scope.error = r.data;
