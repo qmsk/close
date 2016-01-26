@@ -56,123 +56,6 @@ func (self Worker) String() string {
     return fmt.Sprintf("%v:%s", self.Config, self.Instance)
 }
 
-/*
- * Get current configuration.
- *
- * TODO: do this in parallel for all worker instances using a pipelined redis get..
- */
-func (worker *Worker) ConfigGet() (config.ConfigMap, error) {
-    return worker.configSub.Get()
-}
-
-/*
- * Get configured rate from configMap.
- *
- * Returns 0 if no configured rate.
- */
-func (worker *Worker) ConfigGetRate(configMap config.ConfigMap) (uint, error) {
-    if worker.Config == nil || worker.Config.RateConfig == "" {
-        return 0, nil
-    }
-
-    switch rateValue := configMap[worker.Config.RateConfig].(type) {
-    case json.Number:
-        if intValue, err := rateValue.Int64(); err != nil {
-            return 0, err
-        } else if intValue < 0 {
-            return 0, fmt.Errorf("Negative rate %v[%v]: %v", worker, worker.Config.RateConfig, rateValue)
-        } else {
-            return uint(intValue), nil
-        }
-    default:
-        return 0, fmt.Errorf("Invalid %v.RateConfig=%v value type %T: %#v", worker.Config, worker.Config.RateConfig, rateValue, rateValue)
-    }
-}
-
-/*
- * Get configured stats instance.
- *
- * Returns "" if no configured stats instance.
- */
-func (worker *Worker) parseStats(statsUrl string, configMap config.ConfigMap) (series stats.SeriesKey, field string, err error) {
-    parseUrl, err := url.Parse(statsUrl)
-    if err != nil {
-        return series, "", err
-    }
-    pathParts := strings.Split(parseUrl.Path, "/")
-
-    switch len(pathParts) {
-    case 0:
-        series.Type = worker.Config.Type
-    case 1:
-        series.Type = pathParts[0]
-    case 2:
-        series.Type = pathParts[0]
-        field = pathParts[1]
-    default:
-        return series, field, fmt.Errorf("Invalid stats path: %v", pathParts)
-    }
-
-    if urlHostname := parseUrl.Query().Get("hostname"); urlHostname == "" {
-        series.Hostname = ""
-    } else {
-        series.Hostname = urlHostname
-    }
-
-    if urlInstance := parseUrl.Query().Get("instance"); urlInstance == "" {
-        series.Instance = ""
-    } else if urlInstance == "$" {
-        // config instance
-        series.Instance = worker.String()
-    } else if strings.HasPrefix(urlInstance, "$") {
-        // lookup from config
-        switch configValue := configMap[strings.TrimPrefix(urlInstance, "$")].(type) {
-        case string:
-            series.Instance = configValue
-        case json.Number:
-            series.Instance = configValue.String()
-        default:
-            return series, field, fmt.Errorf("Invalid stats URL ?instance=%v: config type %T: %#v", urlInstance, worker, configValue, configValue)
-        }
-    } else {
-        series.Instance = urlInstance
-    }
-
-    return
-}
-
-func (worker *Worker) StatsMeta(configMap config.ConfigMap) (stats.SeriesKey, error) {
-    if worker.Config == nil || worker.Config.Stats == "" {
-        return stats.SeriesKey{}, nil
-    }
-
-    if seriesKey, field, err := worker.parseStats(worker.Config.Stats, configMap); err != nil {
-        return seriesKey, fmt.Errorf("parseStats %v: %v", worker.Config.Stats, err)
-    } else if field != "" {
-        return seriesKey, fmt.Errorf("WorkerConfig %v.Stats=%v: should not have field", worker.Config, worker.Config.Stats)
-    } else {
-        return seriesKey, err
-    }
-}
-
-func (worker *Worker) StatsGet(statsUrl string, configMap config.ConfigMap, statsReader *stats.Reader) (*stats.SeriesStats, error) {
-    duration := 10 * time.Second
-
-    if statsUrl == "" {
-        return nil, nil
-    }
-
-    if seriesKey, field, err := worker.parseStats(statsUrl, configMap); err != nil {
-        return nil, fmt.Errorf("parseStats %v: %v", statsUrl, err)
-    } else if rateStats, err := statsReader.GetStats(seriesKey, field, duration); err != nil {
-        return nil, fmt.Errorf("stats.Reader: GetStats seriesKey=%v field=%v duration=%v: %v", seriesKey, field, duration, err)
-    } else if len(rateStats) != 1 {
-        return nil, fmt.Errorf("stats.Reader: GetStats seriesKey=%v field=%v duration=%v: wrong number of results: %v", seriesKey, field, duration, rateStats)
-    } else {
-        return &rateStats[0], nil
-    }
-}
-
 func (self *Manager) discoverWorker(dockerContainer *DockerContainer) (*Worker, error) {
     workerConfig := self.config.Workers[dockerContainer.Type]
 
@@ -285,6 +168,284 @@ func (self *Manager) WorkerDown(config *WorkerConfig) error {
     return nil
 }
 
+/*
+ * ListWorkers() needs to query stats for a lot of workers, but often only for a couple different types...
+ * aggregate and cache those queries.
+ */
+type workerCache struct {
+    manager         *Manager
+    eager           bool
+
+    configCache     map[*Worker]config.ConfigMap
+    statsCache      map[string]stats.SeriesStats    // %s/%s?instance=%s
+    statsIndex      map[string]bool                 // statsUrl
+}
+
+func makeWorkerCache(manager *Manager, eager bool) workerCache {
+    cache := workerCache{
+        manager:        manager,
+        eager:          eager,
+
+        configCache:    make(map[*Worker]config.ConfigMap),
+        statsCache:     make(map[string]stats.SeriesStats),
+        statsIndex:     make(map[string]bool),
+    }
+
+    return cache
+}
+
+/*
+ * Get current configuration for worker.
+ *
+ * TODO: do this in parallel for all worker instances using a pipelined redis get..
+ */
+func (cache *workerCache) ConfigGet(worker *Worker) (config.ConfigMap, error) {
+    if configMap, exists := cache.configCache[worker]; exists {
+        return configMap, nil
+    } else if configMap, err := worker.configSub.Get(); err != nil {
+        return nil, err
+    } else {
+        cache.configCache[worker] = configMap
+
+        return configMap, nil
+    }
+}
+
+/*
+ * Get configured rate from configMap.
+ *
+ * Returns 0 if no configured rate.
+ */
+func (cache *workerCache) ConfigGetRate(worker *Worker) (uint, error) {
+    if worker.Config.RateConfig == "" {
+        return 0, nil
+    } else if configMap, err := cache.ConfigGet(worker); err != nil {
+        return 0, err
+    } else {
+        switch rateValue := configMap[worker.Config.RateConfig].(type) {
+        case json.Number:
+            if intValue, err := rateValue.Int64(); err != nil {
+                return 0, err
+            } else if intValue < 0 {
+                return 0, fmt.Errorf("Negative rate %v[%v]: %v", worker, worker.Config.RateConfig, rateValue)
+            } else {
+                return uint(intValue), nil
+            }
+        default:
+            return 0, fmt.Errorf("Invalid %v.RateConfig=%v value type %T: %#v", worker.Config, worker.Config.RateConfig, rateValue, rateValue)
+        }
+    }
+}
+
+/*
+ * Get configured stats instance.
+ *
+ * Returns "" if no configured stats instance.
+ */
+func (cache *workerCache) parseStats(worker *Worker, statsUrl string) (series stats.SeriesKey, field string, err error) {
+    parseUrl, err := url.Parse(statsUrl)
+    if err != nil {
+        return series, "", err
+    }
+    pathParts := strings.Split(parseUrl.Path, "/")
+
+    switch len(pathParts) {
+    case 0:
+        series.Type = worker.Config.Type
+    case 1:
+        series.Type = pathParts[0]
+    case 2:
+        series.Type = pathParts[0]
+        field = pathParts[1]
+    default:
+        return series, field, fmt.Errorf("Invalid stats path: %v", pathParts)
+    }
+
+    if urlHostname := parseUrl.Query().Get("hostname"); urlHostname == "" {
+        series.Hostname = ""
+    } else {
+        series.Hostname = urlHostname
+    }
+
+    if urlInstance := parseUrl.Query().Get("instance"); urlInstance == "" {
+        series.Instance = ""
+    } else if urlInstance == "$" {
+        // config instance
+        series.Instance = worker.String()
+    } else if strings.HasPrefix(urlInstance, "$") {
+        configMap, err := cache.ConfigGet(worker)
+        if err != nil {
+            return series, field, err
+        }
+
+        // lookup from config
+        switch configValue := configMap[strings.TrimPrefix(urlInstance, "$")].(type) {
+        case string:
+            series.Instance = configValue
+        case json.Number:
+            series.Instance = configValue.String()
+        default:
+            return series, field, fmt.Errorf("Invalid stats URL ?instance=%v: config type %T: %#v", urlInstance, worker, configValue, configValue)
+        }
+    } else {
+        series.Instance = urlInstance
+    }
+
+    return
+}
+
+func (cache *workerCache) StatsMeta(worker *Worker) (stats.SeriesKey, error) {
+    if worker.Config == nil || worker.Config.Stats == "" {
+        return stats.SeriesKey{}, nil
+    }
+
+    if seriesKey, field, err := cache.parseStats(worker, worker.Config.Stats); err != nil {
+        return seriesKey, fmt.Errorf("parseStats %v: %v", worker.Config.Stats, err)
+    } else if field != "" {
+        return seriesKey, fmt.Errorf("WorkerConfig %v.Stats=%v: should not have field", worker.Config, worker.Config.Stats)
+    } else {
+        return seriesKey, err
+    }
+}
+
+func (cache *workerCache) StatsGet(worker *Worker, statsUrl string) (*stats.SeriesStats, error) {
+    duration := 10 * time.Second
+
+    if statsUrl == "" {
+        return nil, nil
+    }
+
+    seriesKey, field, err := cache.parseStats(worker, statsUrl)
+    if err != nil {
+        return nil, fmt.Errorf("parseStats %v: %v", statsUrl, err)
+    }
+
+    // get from warm cache
+    cacheIndex := fmt.Sprintf("%s/%s", seriesKey.Type, field)
+    cacheKey := fmt.Sprintf("%s/%s?instance=%s", seriesKey.Type, field, seriesKey.Instance)
+
+    if stat, exists := cache.statsCache[cacheKey]; exists {
+        return &stat, nil
+    } else if cache.statsIndex[cacheIndex] {
+        // negative cache
+        return nil, nil
+    } else if cache.eager {
+        // prefetch all instances into cache, and mark index
+        seriesKey.Instance = ""
+    } else {
+        // normal single-fetch into cache
+    }
+
+    if stats, err := cache.manager.statsReader.GetStats(seriesKey, field, duration); err != nil {
+        return nil, fmt.Errorf("stats.Reader: GetStats seriesKey=%v field=%v duration=%v: %v", seriesKey, field, duration, err)
+    } else {
+        for _, stat := range stats {
+            statKey := fmt.Sprintf("%s/%s?instance=%s", stat.Type, stat.Field, stat.Instance)
+
+            cache.statsCache[statKey] = stat
+
+            cache.manager.log.Printf("StatsGet %v: cache %v\n", cacheKey, statKey)
+        }
+
+        if cache.eager {
+            // mark index as cached
+            cache.statsIndex[cacheIndex] = true
+        }
+    }
+
+    // get from hot cache
+    if stat, found := cache.statsCache[cacheKey]; !found {
+        return nil, fmt.Errorf("StatsGet %v %v: Not found %v", worker, statsUrl, cacheKey)
+    } else {
+        return &stat, nil
+    }
+}
+
+func (cache *workerCache) getStatus(worker *Worker, detail bool) (WorkerStatus, error) {
+    workerStatus := WorkerStatus{
+        Instance:   worker.Instance,
+    }
+
+    if worker.Config != nil {
+        workerStatus.Config = worker.Config.String()
+    }
+
+    if detail {
+        workerStatus.WorkerConfig = worker.Config
+    }
+
+    if dockerContainer, err := cache.manager.DockerGet(worker.dockerContainer.String()); err != nil {
+        return workerStatus, fmt.Errorf("ListWorkers %v: DockerGet %v: %v", worker, worker.dockerContainer, err)
+    } else if dockerContainer == nil {
+        workerStatus.Docker = ""
+        workerStatus.DockerStatus = ""
+        workerStatus.State = WorkerDown
+    } else {
+        workerStatus.Docker = dockerContainer.String()
+        workerStatus.DockerStatus = dockerContainer.Status
+
+        if dockerContainer.State.Running {
+            workerStatus.State = WorkerUp
+        } else if dockerContainer.State.ExitCode == 0 {
+            workerStatus.State = WorkerDown
+        } else {
+            workerStatus.State = WorkerError
+        }
+
+        if detail {
+            workerStatus.DockerContainer = dockerContainer
+        }
+    }
+
+    if configTTL, err := worker.configSub.Check(); err != nil {
+        if workerStatus.State == WorkerUp {
+            workerStatus.State = WorkerWait
+        }
+    } else {
+        workerStatus.ConfigInstance = worker.String()
+        workerStatus.ConfigTTL = configTTL.Seconds()
+    }
+
+    // current running config
+    if configMap, err := cache.ConfigGet(worker); err != nil {
+        cache.manager.log.Printf("getWorker %v: ConfigGet: %v\n", worker, err)
+
+        workerStatus.ConfigError = err.Error()
+    } else {
+        if detail {
+            workerStatus.ConfigMap = configMap
+        }
+
+        if rate, err := cache.ConfigGetRate(worker); err != nil {
+            workerStatus.ConfigError = err.Error()
+        } else {
+            workerStatus.RateConfig = rate
+        }
+
+        if seriesKey, err := cache.StatsMeta(worker); err != nil {
+            workerStatus.StatsMeta = seriesKey
+            workerStatus.ConfigError = err.Error()
+        } else {
+            workerStatus.StatsMeta = seriesKey
+        }
+
+        if rateStats, err := cache.StatsGet(worker, worker.Config.RateStats); err != nil {
+            workerStatus.ConfigError = err.Error()
+        } else {
+            workerStatus.RateStats = rateStats
+        }
+
+        if latencyStats, err := cache.StatsGet(worker, worker.Config.LatencyStats); err != nil {
+            workerStatus.ConfigError = err.Error()
+        } else {
+            workerStatus.LatencyStats = latencyStats
+        }
+    }
+
+    return workerStatus, nil
+}
+
+
 type WorkerState string
 
 var WorkerDown      WorkerState     = "down"    // not running, clean exit
@@ -318,93 +479,11 @@ type WorkerStatus struct {
     LatencyStats    *stats.SeriesStats  `json:"latency_stats,omitempty"`
 }
 
-func (self *Manager) workerGet(worker *Worker, detail bool) (WorkerStatus, error) {
-    workerStatus := WorkerStatus{
-        Instance:   worker.Instance,
-    }
-
-    if worker.Config != nil {
-        workerStatus.Config = worker.Config.String()
-    }
-
-    if detail {
-        workerStatus.WorkerConfig = worker.Config
-    }
-
-    if dockerContainer, err := self.DockerGet(worker.dockerContainer.String()); err != nil {
-        return workerStatus, fmt.Errorf("ListWorkers %v: DockerGet %v: %v", worker, worker.dockerContainer, err)
-    } else if dockerContainer == nil {
-        workerStatus.Docker = ""
-        workerStatus.DockerStatus = ""
-        workerStatus.State = WorkerDown
-    } else {
-        workerStatus.Docker = dockerContainer.String()
-        workerStatus.DockerStatus = dockerContainer.Status
-
-        if dockerContainer.State.Running {
-            workerStatus.State = WorkerUp
-        } else if dockerContainer.State.ExitCode == 0 {
-            workerStatus.State = WorkerDown
-        } else {
-            workerStatus.State = WorkerError
-        }
-
-        if detail {
-            workerStatus.DockerContainer = dockerContainer
-        }
-    }
-
-    if configTTL, err := worker.configSub.Check(); err != nil {
-        if workerStatus.State == WorkerUp {
-            workerStatus.State = WorkerWait
-        }
-    } else {
-        workerStatus.ConfigInstance = worker.String()
-        workerStatus.ConfigTTL = configTTL.Seconds()
-    }
-
-    // current running config
-    if configMap, err := worker.ConfigGet(); err != nil {
-        self.log.Printf("ListWorkers %v: ConfigGet: %v\n", worker, err)
-
-        workerStatus.ConfigError = err.Error()
-    } else {
-        if detail {
-            workerStatus.ConfigMap = configMap
-        }
-
-        if rate, err := worker.ConfigGetRate(configMap); err != nil {
-            workerStatus.ConfigError = err.Error()
-        } else {
-            workerStatus.RateConfig = rate
-        }
-
-        if seriesKey, err := worker.StatsMeta(configMap); err != nil {
-            workerStatus.StatsMeta = seriesKey
-            workerStatus.ConfigError = err.Error()
-        } else {
-            workerStatus.StatsMeta = seriesKey
-        }
-
-        if rateStats, err := worker.StatsGet(worker.Config.RateStats, configMap, self.statsReader); err != nil {
-            workerStatus.ConfigError = err.Error()
-        } else {
-            workerStatus.RateStats = rateStats
-        }
-
-        if latencyStats, err := worker.StatsGet(worker.Config.LatencyStats, configMap, self.statsReader); err != nil {
-            workerStatus.ConfigError = err.Error()
-        } else {
-            workerStatus.LatencyStats = latencyStats
-        }
-    }
-
-    return workerStatus, nil
-}
-
 func (self *Manager) ListWorkers() (workers []WorkerStatus, err error) {
+    cache := makeWorkerCache(self, /* eager */ true)
+
     for _, worker := range self.workers {
-        if workerStatus, err := self.workerGet(worker, false); err != nil {
+        if workerStatus, err := cache.getStatus(worker, false); err != nil {
             return workers, err
         } else {
             workers = append(workers, workerStatus)
@@ -415,11 +494,13 @@ func (self *Manager) ListWorkers() (workers []WorkerStatus, err error) {
 }
 
 func (self *Manager) WorkerGet(configName string, instance string) (*WorkerStatus, error) {
+    cache := makeWorkerCache(self, /* not eager */ false)
+
     workerName := fmt.Sprintf("%s:%s", configName, instance)
 
     if worker, found := self.workers[workerName]; !found {
         return nil, nil
-    } else if workerStatus, err := self.workerGet(worker, true); err != nil {
+    } else if workerStatus, err := cache.getStatus(worker, true); err != nil {
         return nil, err
     } else {
         return &workerStatus, nil
