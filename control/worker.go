@@ -25,6 +25,8 @@ type WorkerConfig struct {
 
     RateConfig      string
     RateStats       string
+
+    LatencyStats    string
 }
 
 func (self WorkerConfig) String() string {
@@ -46,6 +48,64 @@ func (self Worker) configID() config.ID {
 
 func (self Worker) String() string {
     return fmt.Sprintf("%v:%s", self.Config, self.Instance)
+}
+
+/*
+ * Get current configuration.
+ *
+ * TODO: do this in parallel for all worker instances using a pipelined redis get..
+ */
+func (worker *Worker) ConfigGet() (config.ConfigMap, error) {
+    return worker.configSub.Get()
+}
+
+/*
+ * Get configured rate from configMap.
+ *
+ * Returns 0 if no configured rate.
+ */
+func (worker *Worker) ConfigGetRate(configMap config.ConfigMap) (uint, error) {
+    if worker.Config == nil || worker.Config.RateConfig == "" {
+        return 0, nil
+    }
+
+    switch rateValue := configMap[worker.Config.RateConfig].(type) {
+    case json.Number:
+        if intValue, err := rateValue.Int64(); err != nil {
+            return 0, err
+        } else if intValue < 0 {
+            return 0, fmt.Errorf("Negative rate %v[%v]: %v", worker, worker.Config.RateConfig, rateValue)
+        } else {
+            return uint(intValue), nil
+        }
+    default:
+        return 0, fmt.Errorf("Invalid %v.RateConfig=%v value type %T: %#v", worker.Config, worker.Config.RateConfig, rateValue, rateValue)
+    }
+}
+
+/*
+ * Get configured stats instance.
+ *
+ * Returns "" if no configured stats instance.
+ */
+func (worker *Worker) StatsInstance(configMap config.ConfigMap) (string, error) {
+    if worker.Config == nil {
+        return "", nil
+    }
+    if worker.Config.StatsInstanceFromConfig == "" {
+        // default to config instance
+        return worker.String(), nil
+    }
+
+    // lookup from config
+    switch configValue := configMap[worker.Config.StatsInstanceFromConfig].(type) {
+    case string:
+        return configValue, nil
+    case json.Number:
+        return configValue.String(), nil
+    default:
+         return "", fmt.Errorf("Invalid %v.StatsInstanceFromConfig=%v for %v: type %T: %#v", worker.Config, worker.Config.StatsInstanceFromConfig, worker, configValue, configValue)
+    }
 }
 
 func (self *Manager) discoverWorker(dockerContainer *DockerContainer) (*Worker, error) {
@@ -184,7 +244,7 @@ type WorkerStatus struct {
     ConfigTTL       float64             `json:"config_ttl"` // seconds
     ConfigMap       config.ConfigMap    `json:"config_map,omitempty"`   // detail
 
-    Rate            json.Number `json:"rate"`   // config
+    RateConfig      uint        `json:"rate_config"`    // config
 
     StatsInstance   string      `json:"stats_instance"`
 }
@@ -231,8 +291,8 @@ func (self *Manager) workerGet(worker *Worker, detail bool) (WorkerStatus, error
     }
 
     // current running config
-    if configMap, err := worker.configSub.Get(); err != nil {
-        self.log.Printf("ListWorkers %v: configSub.Get %v: %v\n", worker, worker.configSub, err)
+    if configMap, err := worker.ConfigGet(); err != nil {
+        self.log.Printf("ListWorkers %v: ConfigGet: %v\n", worker, err)
 
         workerStatus.ConfigError = err.Error()
     } else {
@@ -240,31 +300,16 @@ func (self *Manager) workerGet(worker *Worker, detail bool) (WorkerStatus, error
             workerStatus.ConfigMap = configMap
         }
 
-        switch rateValue := configMap[worker.Config.RateConfig].(type) {
-        case json.Number:
-            workerStatus.Rate = rateValue
-        // XXX: why isn't this always just json.Number?
-        case float64:
-            workerStatus.Rate = json.Number(fmt.Sprintf("%v", rateValue))
-        case nil:
-            // XXX: not yet set...
-        default:
-            workerStatus.ConfigError = fmt.Sprintf("invalid %s RateConfig=%v value type %T: %#v", worker.Config.Type, worker.Config.RateConfig, rateValue, rateValue)
+        if rate, err := worker.ConfigGetRate(configMap); err != nil {
+            workerStatus.ConfigError = err.Error()
+        } else {
+            workerStatus.RateConfig = rate
         }
 
-        if worker.Config == nil {
-            workerStatus.StatsInstance = ""
-        } else if worker.Config.StatsInstanceFromConfig == "" {
-            workerStatus.StatsInstance = worker.String()
-        } else if configValue, exists := configMap[worker.Config.StatsInstanceFromConfig]; !exists {
-            workerStatus.ConfigError = fmt.Sprintf("Invalid %s StatsInstanceFromConfig %v: not found", worker.Config, worker.Config.StatsInstanceFromConfig)
-        } else if statsInstance, ok := configValue.(string); ok {
-            workerStatus.StatsInstance = statsInstance
-        } else if statsInstance, ok := configValue.(json.Number); ok {
-            // XXX: not as floating point!
-            workerStatus.StatsInstance = statsInstance.String()
+        if statsInstance, err := worker.StatsInstance(configMap); err != nil {
+            workerStatus.ConfigError = err.Error()
         } else {
-            workerStatus.ConfigError = fmt.Sprintf("Invalid %s StatsInstanceFromConfig %v: type %T: %#v", worker.Config, worker.Config.StatsInstanceFromConfig, configValue, configValue)
+            workerStatus.StatsInstance = statsInstance
         }
     }
 
