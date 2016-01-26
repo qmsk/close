@@ -1,0 +1,33 @@
+#!/bin/bash
+
+set -ue
+
+log() {
+    echo "$@" >&2
+}
+
+docker() {
+    log "docker $@"
+
+    /usr/bin/docker "$@"
+}
+
+DATE="$(date +%Y%m%d-%H%M%S)"
+TAG="${1:-$DATE}"
+IMAGE="registry.docker.catcp/close"
+
+log "Building $IMAGE:$TAG..."
+
+# This is the lets-build-a-docker-parent-image-on-docker-swarm dance.
+# Needed to ensure that building the -icmp-ping image picks up the right version of the base image, regardless of what node it gets scheduled on..
+docker build -t $IMAGE:$TAG .
+docker push $IMAGE:$TAG
+docker pull $IMAGE:$TAG
+docker tag -f $IMAGE:$TAG $IMAGE:latest
+docker push $IMAGE:latest
+
+docker build -t $IMAGE-icmp-ping:$TAG icmp-ping/
+docker push $IMAGE-icmp-ping:$TAG
+docker pull $IMAGE-icmp-ping:$TAG
+
+log "Built $IMAGE:$TAG $IMAGE-icmp-ping:$TAG"
