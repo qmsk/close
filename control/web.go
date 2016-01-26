@@ -212,18 +212,9 @@ func (self *Manager) GetStatsList(w rest.ResponseWriter, req *rest.Request) {
   }
 ]
  */
-type APIStats struct {
-    stats.SeriesKey
-    Field       string                  `json:"field"`
-
-    Tab         *stats.SeriesTab        `json:"tab,omitempty"`
-    Points      []stats.SeriesPoint     `json:"points"`
-}
-
 func (self *Manager) GetStats(w rest.ResponseWriter, req *rest.Request) {
     var fields []string
     var duration time.Duration
-    var tabMap map[string]stats.SeriesTab
 
     if req.PathParam("field") != "" {
         // TODO: figure out some syntax for multiple fields?
@@ -245,43 +236,11 @@ func (self *Manager) GetStats(w rest.ResponseWriter, req *rest.Request) {
         duration = parseDuration
     }
 
-    // get summary info for one field?
-    if len(fields) != 1 {
-        tabMap = nil
-    } else if getStats, err := self.statsReader.GetStats(seriesKey, fields[0], duration); err != nil {
-        rest.Error(w, err.Error(), 400)
-        return
-    } else {
-        tabMap = make(map[string]stats.SeriesTab)
-
-        for _, stats := range getStats {
-            tabMap[stats.String()] = stats.SeriesTab
-        }
-    }
-
     // apply
-    var list []APIStats
-
-    if getSeries, err := self.statsReader.GetSeries(seriesKey, fields, duration); err != nil {
+    if statsSeries, err := self.statsReader.GetSeries(seriesKey, fields, duration); err != nil {
         rest.Error(w, err.Error(), 500)
-        return
     } else {
-        for _, seriesData := range getSeries {
-            apiStats := APIStats{
-                SeriesKey:  seriesData.SeriesKey,
-                Field:      seriesData.Field,
-
-                Points:     seriesData.Points,
-            }
-
-            // merge in StatsTab
-            if tab, exists := tabMap[seriesData.String()]; exists {
-                apiStats.Tab = &tab
-            }
-
-            list = append(list, apiStats)
-        }
-        w.WriteJson(list)
+        w.WriteJson(statsSeries)
     }
 }
 
