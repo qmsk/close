@@ -84,12 +84,15 @@ angular.module('close.stats', [
         scope: {
             statsMeta:  '=statsMeta',
             height:     '@height',
+            unit:       '=?',
+            ylabel:     '@?',
         },
         templateUrl:    '/close/stats/chart.html',
         controller:     function($scope, $location, Stats) {
             //$scope.height = "400px";
 
-            // XXX: use a global value
+            /* Duration */
+            // XXX: use a global value, shared across all charts in the view..
             $scope.duration = $location.search()['duration'];
             if (!$scope.duration) {
                 $scope.duration = "1m";
@@ -100,6 +103,26 @@ angular.module('close.stats', [
 
                 $scope.update();
             }
+
+            /* Tick formatter */
+            if ($scope.unit) { switch ($scope.unit) {
+            case "s":
+                $scope.tickDecimals = 5; // .xx ms
+                $scope.tickFormatter = function durationFormatter(val, axis) {
+                    if (axis.max > 1.0) {
+                        return val.toFixed(axis.tickDecimals - 3) + " s";
+                    } else {
+                        return (val * 1000.0).toFixed(axis.tickDecimals - 3) + " ms";
+                    }
+                };
+                break;
+            default:
+                $scope.tickDecimals = 2;
+                $scope.tickFormatter = function unitFormatter(val, axis) {
+                    return val.toFixed(axis.tickDecimals) + " " + $scope.unit;
+                };
+                break;
+            } }
 
             /*
              * Select given {type: field:} for viewing
@@ -125,6 +148,7 @@ angular.module('close.stats', [
                             $scope.chartAlert = false;
                         }
                     
+                        /* Group by field; render a separate chart for each field */
                         $scope.chartMap = {};
                         $.each(stats, function(i, stat){
                             var chartData = $scope.chartMap[stat.series.field];
@@ -136,11 +160,22 @@ angular.module('close.stats', [
                             chartData.field = stat.series.field;
                             chartData.push(stat);
                         });
+
                         $scope.chartOptions = {
+                            axisLabels: {
+
+                            },
                             legend: {
                                 show: !$scope.statsMeta.instance,
                             },
-                            xaxis: { mode: "time" },
+                            xaxis: {
+                                mode: "time",
+                            },
+                            yaxis: {
+                                axisLabel:      $scope.ylabel,
+                                tickFormatter:  $scope.tickFormatter,
+                                tickDecimals:   $scope.tickDecimals,
+                            },
                         };
                     },
                     function error(err){

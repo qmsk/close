@@ -118,4 +118,7 @@
     </table>
 </div>
 
-<div ng-repeat="statsMeta in workerStats" stats-chart height="400px" stats-meta="statsMeta"></div>
+<div ng-repeat="workerStat in workerStats">
+    <h2>{{workerStat.title}}: {{workerStat.workerConfig}}</h2>
+    <stats-chart height="400px" stats-meta="workerStat.statsMeta" unit="workerStat.statsUnit" ylabel="{{workerStat.ylabel}}"></stats-chart>
+</div>

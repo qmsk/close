@@ -25,5 +25,9 @@
             </tbody>
         </table>
     </div>
-    <div stats-chart height="400px" stats-meta="statsMeta" class="col-md-6 chart" ></div>
+    <div class="col-md-6 chart" ng-if="statsMeta">
+        <h2>{{statsMeta.type}}.{{statsMeta.field}}</h2>
+        
+        <stats-chart height="400px" stats-meta="statsMeta"></stats-chart>
+    </div>
 </div>

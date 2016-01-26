@@ -5,5 +5,14 @@
     "angular-flot": "0.0.15",
     "angular-websocket": "1.0.14",
     "angularjs-scroll-glue": "^2.0.4"
+  },
+  "scripts": {
+      "install": "napa"
+  },
+  "napa": {
+    "flot-axislabels": "https://github.com/markrcote/flot-axislabels.git#release-2.0.1"
+  },
+  "devDependencies": {
+    "napa": "^2.2.0"
   }
 }

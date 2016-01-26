@@ -78,10 +78,22 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
                         var workerStats = [];
 
                         if ((rateStats = parseWorkerStats(workerConfig.StatsType, workerConfig.RateStats))) {
-                            workerStats.push(rateStats);
+                            workerStats.push({
+                                workerConfig:   configName,
+                                title:          "Rate",
+                                statsMeta:      rateStats,
+                                statsUnit:      "/s",
+                                ylabel:         "Rate",
+                            });
                         }
                         if ((latencyStats = parseWorkerStats(workerConfig.StatsType, workerConfig.LatencyStats))) {
-                            workerStats.push(latencyStats);
+                            workerStats.push({
+                                workerConfig:   configName,
+                                title:          "Latency",
+                                statsMeta:      latencyStats,
+                                statsUnit:      "s",
+                                ylabel:         "Latency",
+                            });
                         }
 
                         return workerStats
@@ -144,6 +156,7 @@ closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams, Stats) {
             }
     );
 
+    /* ConfigController */
     $scope.getConfig = function() {
         $http.get('/api/config/' + $scope.workerConfig.Type + '/' + $scope.worker.config_instance).then(
             function success (r) {
