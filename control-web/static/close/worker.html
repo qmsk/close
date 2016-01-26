@@ -7,6 +7,37 @@
 </div>
 
 <div class="row">
+    <div class="col-md-3" ng-if="worker.rate_config && worker.rate_stats">
+        <h2>Rate</h2>
+        <dl class="dl-horizontal">
+            <dt>Config</dt>
+            <dd>{{worker.rate_config |rate}}</dd>
+            <dt>Min</dt>
+            <dd>{{worker.rate_stats.min |rate}}</dd>
+            <dt>Mean</dt>
+            <dd>{{worker.rate_stats.mean |rate}}</dd>
+            <dt>Max</dt>
+            <dd>{{worker.rate_stats.max |rate}}</dd>
+            <dt>Last</dt>
+            <dd>{{worker.rate_stats.last |rate}}</dd>
+        </dl>
+    </div>
+    <div class="col-md-3" ng-if="worker.latency_stats">
+        <h2>Latency</h2>
+        <dl class="dl-horizontal">
+            <dt>Min</dt>
+            <dd>{{worker.latency_stats.min |latency}}</dd>
+            <dt>Mean</dt>
+            <dd>{{worker.latency_stats.mean |latency}}</dd>
+            <dt>Max</dt>
+            <dd>{{worker.latency_stats.max |latency}}</dd>
+            <dt>Last</dt>
+            <dd>{{worker.latency_stats.last |latency}}</dd>
+        </dl>
+    </div>
+</div>
+
+<div class="row">
     <div class="col-md-6">
         <h2>
             <button class="btn btn-default pull-right" ng-click="getConfig()">
@@ -50,41 +81,12 @@
         <h2>Stats: {{worker.stats_meta.type}}:{{worker.stats_meta.instance}}</h2>
         <stats-chart stats-meta="statsMeta" height="100px" />
     </div>
+</div>
 
+<div class="row">
     <div class="col-md-6">
         <h2>Docker: {{dockerContainer.name}} @{{dockerContainer.node}}</h2>
 
         <div ng-include="'/close/docker-container.html'"></div>
     </div>
-
-    <div class="col-md-3" ng-if="worker.rate_config && worker.rate_stats">
-        <h2>Rate</h2>
-        <dl class="dl-horizontal">
-            <dt>Config</dt>
-            <dd>{{worker.rate_config |rate}}</dd>
-            <dt>Min</dt>
-            <dd>{{worker.rate_stats.min |rate}}</dd>
-            <dt>Mean</dt>
-            <dd>{{worker.rate_stats.mean |rate}}</dd>
-            <dt>Max</dt>
-            <dd>{{worker.rate_stats.max |rate}}</dd>
-            <dt>Last</dt>
-            <dd>{{worker.rate_stats.last |rate}}</dd>
-        </dl>
-    </div>
-    <div class="col-md-3" ng-if="worker.latency_stats">
-        <h2>Latency</h2>
-        <dl class="dl-horizontal">
-            <dt>Min</dt>
-            <dd>{{worker.latency_stats.min |latency}}</dd>
-            <dt>Mean</dt>
-            <dd>{{worker.latency_stats.mean |latency}}</dd>
-            <dt>Max</dt>
-            <dd>{{worker.latency_stats.max |latency}}</dd>
-            <dt>Last</dt>
-            <dd>{{worker.latency_stats.last |latency}}</dd>
-        </dl>
-    </div>
-
-
 </div>
