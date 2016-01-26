@@ -74,6 +74,7 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
                 $scope.busy = false;
 
                 if (r.data.config && r.data.config.Workers) {
+                    // XXX: need to merge workers with identical statsMetas into one chart, since without ?instance= each such chart will render all workers...
                     $scope.workerStats = $.map(r.data.config.Workers, function(workerConfig, configName){
                         var workerStats = [];
 

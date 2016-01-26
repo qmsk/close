@@ -141,7 +141,9 @@ func (self *Manager) PostConfig(w rest.ResponseWriter, req *rest.Request) {
 }
 
 /*
- * Query metadata about available stats types.
+ * Query a list of available stats types (InfluxDB measurements and their fields).
+ *
+ * This information is static, it only changes if the code changes to introduce new types/fields (or old measurememts are dropped).
  *
     [
       {
@@ -161,8 +163,11 @@ func (self *Manager) GetStatsTypes(w rest.ResponseWriter, req *rest.Request) {
 }
 
 /*
- * Query available stast series, for a given type.
+ * Query a list of stats series, optionally for a given type (InfluxDB series (tag-sets), for a given measurement).
  *
+ * This information is dynamic, it changes if new workers are started.
+ *
+ * TODO: cleanup/hide old series that are no longer active, i.e. expire after some time?
 [
   {
     "type": "udp_recv",
@@ -174,7 +179,7 @@ func (self *Manager) GetStatsTypes(w rest.ResponseWriter, req *rest.Request) {
 func (self *Manager) GetStatsList(w rest.ResponseWriter, req *rest.Request) {
     // XXX: sanitize type, vulernable to InfluxQL injection...
     filter := stats.SeriesKey{
-        Type:       req.PathParam("type"),
+        Type:       req.PathParam("type"),      /* Optional */
         Hostname:   req.FormValue("hostname"),
         Instance:   req.FormValue("instance"),
     }
@@ -186,12 +191,42 @@ func (self *Manager) GetStatsList(w rest.ResponseWriter, req *rest.Request) {
     }
 }
 
+/*
+ * Query stats series for data points, for either a given field or all fields.
+ *
+ * Each field is returned separately.
+ *
+ * This information is temporal, it changes continuously for active series.
+[
+  {
+    "type": "udp_send",
+    "hostname": "close-client-openvpn-1",
+    "instance": "15042208547977655843",
+    "field": "rate",
+    "points": [
+      {
+        "time": "2016-01-26T10:01:12.108997292Z",
+        "value": 10.00012210149086
+      }
+    ]
+  }
+]
+ */
+type APIStats struct {
+    stats.SeriesKey
+    Field       string                  `json:"field"`
+
+    Tab         *stats.SeriesTab        `json:"tab,omitempty"`
+    Points      []stats.SeriesPoint     `json:"points"`
+}
+
 func (self *Manager) GetStats(w rest.ResponseWriter, req *rest.Request) {
     var fields []string
     var duration time.Duration
+    var tabMap map[string]stats.SeriesTab
 
     if req.PathParam("field") != "" {
-        // TODO: figureout some syntax
+        // TODO: figure out some syntax for multiple fields?
         fields = []string{req.PathParam("field")}
     }
 
@@ -210,11 +245,43 @@ func (self *Manager) GetStats(w rest.ResponseWriter, req *rest.Request) {
         duration = parseDuration
     }
 
-    // apply
-    if result, err := self.statsReader.GetSeries(seriesKey, fields, duration); err != nil {
-        rest.Error(w, err.Error(), 500)
+    // get summary info for one field?
+    if len(fields) != 1 {
+        tabMap = nil
+    } else if getStats, err := self.statsReader.GetStats(seriesKey, fields[0], duration); err != nil {
+        rest.Error(w, err.Error(), 400)
+        return
     } else {
-        w.WriteJson(result)
+        tabMap = make(map[string]stats.SeriesTab)
+
+        for _, stats := range getStats {
+            tabMap[stats.String()] = stats.SeriesTab
+        }
+    }
+
+    // apply
+    var list []APIStats
+
+    if getSeries, err := self.statsReader.GetSeries(seriesKey, fields, duration); err != nil {
+        rest.Error(w, err.Error(), 500)
+        return
+    } else {
+        for _, seriesData := range getSeries {
+            apiStats := APIStats{
+                SeriesKey:  seriesData.SeriesKey,
+                Field:      seriesData.Field,
+
+                Points:     seriesData.Points,
+            }
+
+            // merge in StatsTab
+            if tab, exists := tabMap[seriesData.String()]; exists {
+                apiStats.Tab = &tab
+            }
+
+            list = append(list, apiStats)
+        }
+        w.WriteJson(list)
     }
 }
 
