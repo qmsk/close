@@ -1,7 +1,9 @@
 <div class="page-header"> 
-    <button ng-click="get()" class="pull-right">
-        <span class="glyphicon glyphicon-refresh"></span>
-    </button>
+    <div class="btn-toolbar pull-right">
+        <button class="btn btn-default" ng-click="get()">
+            <span class="glyphicon glyphicon-refresh"></span>
+        </button>
+    </div>
     
     <h1>Workers</h1>
 </div>
@@ -57,9 +59,14 @@
 </div>
 
 <div>
-    <button ng-click="stopWorkers()" class="pull-right">
-        <span class="glyphicon glyphicon-off"></span>
-    </button>
+    <div class="btn-toolbar pull-right">
+        <button class="btn btn-default" ng-click="stopWorkers()">
+            <span class="glyphicon glyphicon-off"></span>
+        </button>
+        <button class="btn btn-default" ng-click="get()">
+            <span class="glyphicon glyphicon-refresh"></span>
+        </button>
+    </div>
     <h2>Worker Status</h2>
 
     <table class="table workers">
