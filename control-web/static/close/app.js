@@ -41,6 +41,27 @@ closeApp.controller('HeaderController', function($scope, $location) {
     };
 });
 
+/*
+ * Parse a "[<type>/]<field>" expression into a statsMeta object ({type: field:}), or null.
+ */
+function parseWorkerStats(statsType, statsExpr){
+    if (!statsExpr) {
+        return null;
+    }
+
+    var match = statsExpr.match(/((\w+)\/)?(\w+)/);
+
+    if (!match) {
+        return null;
+    } else if (match[1]) {
+        return {type: match[2], field: match[3]};
+    } else if (match[3]) {
+        return {type: statsType, field: match[3]};
+    } else {
+        return null;
+    }
+}
+
 closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $http, Stats) {
     $scope.busy = true;
     $scope.get = function(){
@@ -53,19 +74,17 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
                 $scope.busy = false;
 
                 if (r.data.config && r.data.config.Workers) {
-                    // XXX: multiple configs?!
-                    $.each(r.data.config.Workers, function(configName, workerConfig){
-                        var match = workerConfig.RateStats.match(/((\w+)\/)?(\w+)/);
+                    $scope.workerStats = $.map(r.data.config.Workers, function(workerConfig, configName){
+                        var workerStats = [];
 
-                        if (!match) {
-                            $scope.statsMeta = null;
-                        } else if (match[1]) {
-                            $scope.statsMeta = {type: match[2], field: match[3]};
-                        } else if (match[3]) {
-                            $scope.statsMeta = {type: workerConfig.StatsType, field: match[3]};
-                        } else {
-                            $scope.statsMeta = null;
+                        if ((rateStats = parseWorkerStats(workerConfig.StatsType, workerConfig.RateStats))) {
+                            workerStats.push(rateStats);
                         }
+                        if ((latencyStats = parseWorkerStats(workerConfig.StatsType, workerConfig.LatencyStats))) {
+                            workerStats.push(latencyStats);
+                        }
+
+                        return workerStats
                     });
                 }
             },
