@@ -293,10 +293,11 @@ type WorkerStatus struct {
 
     WorkerConfig    *WorkerConfig   `json:"worker_config,omitempty"`    // detail
 
-    Docker          string      `json:"docker"`
-    DockerStatus    string      `json:"docker_status"`
+    Docker          string              `json:"docker"`
+    DockerStatus    string              `json:"docker_status"`
+    DockerContainer *DockerContainer    `json:"docker_container,omitempty"` // detail
 
-    State           WorkerState `json:"state"`
+    State           WorkerState         `json:"state"`
 
     ConfigInstance  string              `json:"config_instance"`
     ConfigError     string              `json:"config_error,omitempty"`
@@ -340,6 +341,10 @@ func (self *Manager) workerGet(worker *Worker, detail bool) (WorkerStatus, error
             workerStatus.State = WorkerDown
         } else {
             workerStatus.State = WorkerError
+        }
+
+        if detail {
+            workerStatus.DockerContainer = dockerContainer
         }
     }
 

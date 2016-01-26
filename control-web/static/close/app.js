@@ -165,6 +165,7 @@ closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams, Stats) {
                 $scope.workerConfig = r.data.worker_config;
                 $scope.configMap = r.data.config_map;
                 $scope.statsMeta = r.data.stats_meta;
+                $scope.dockerContainer = r.data.docker_container;
             },
             function error(r) {
                 $scope.error = r.data;

@@ -1,0 +1,19 @@
+<div class="docker-container">
+    <h2>Status</h2>
+    <div class="alert" ng-class="{'alert-success': dockerContainer.state.Running, 'alert-warning': !dockerContainer.state.Running}">
+        {{dockerContainer.status}}
+    </div>
+
+    <h2>Config</h2>
+
+    <h3>Image</h3>
+    <p class="image">{{dockerContainer.config.image}}</p>
+
+    <h3>Command</h3>
+    <ul class="command list-inline">
+        <li class="env" ng-repeat="env in dockerContainer.config.env">{{env}}</li>
+        <li class="exec">{{dockerContainer.config.command}}</li>
+        <li class="arg" ng-repeat="arg in dockerContainer.config.args">{{arg}}</li>
+    </ul>
+</div>
+

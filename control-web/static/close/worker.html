@@ -51,6 +51,12 @@
         <stats-chart stats-meta="statsMeta" height="100px" />
     </div>
 
+    <div class="col-md-6">
+        <h2>Docker: {{dockerContainer.name}} @{{dockerContainer.node}}</h2>
+
+        <div ng-include="'/close/docker-container.html'"></div>
+    </div>
+
     <div class="col-md-3" ng-if="worker.rate_config && worker.rate_stats">
         <h2>Rate</h2>
         <dl class="dl-horizontal">

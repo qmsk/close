@@ -1,12 +1,10 @@
-.config textarea {
-    width: 100%;
-    height: 400px;
+
+#view {
+    /* For #logs */
+    margin-bottom: 10%;
 }
 
-.docker-container .command {
-    font-family: monospace;
-}
-
+/* panic.html */
 .panic {
     text-align: center;
 
@@ -37,9 +35,26 @@
     color: #fefefe;
 }
 
-#view {
-    /* For #logs */
-    margin-bottom: 10%;
+/* workers.html */
+.config textarea {
+    width: 100%;
+    height: 400px;
+}
+
+/* docker-container.html */
+.docker-container .image {
+    font-family: monospace;
+}
+
+.docker-container .command {
+    font-family: monospace;
+}
+
+.docker-container .command .env {
+    font-style: italic;
+}
+.docker-container .command .exec {
+    font-weight: bold;
 }
 
 /* Bottom-of-page status window */
