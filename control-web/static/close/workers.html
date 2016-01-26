@@ -31,7 +31,7 @@
             </tr>
         </thead>
         <tbody>
-            <tr ng-repeat="client in clients | orderBy:['config', 'id']">
+            <tr ng-repeat="client in clients | orderBy:['config', 'instance']">
                 <td>
                     <span class="label label-default" ng-if="client.state == 'down'">
                         <span class="glyphicon glyphicon-off" title="Down"></span>
@@ -76,7 +76,7 @@
             </tr>
         </thead>
         <tbody>
-            <tr ng-repeat="worker in workers | orderBy:['config', 'id']">
+            <tr ng-repeat="worker in workers | orderBy:['config', 'instance']">
                 <td>
                     <span class="label label-default" ng-if="worker.state == 'down'">
                         <span class="glyphicon glyphicon-off" title="Down"></span>
@@ -111,11 +111,11 @@
                     <span ng-if="worker.config_ttl">TTL={{worker.config_ttl}}</span>
                 </td>
                 <td>
-                    <span ng-if="worker.rate_stats">{{worker.rate_stats.min |rate}} / {{worker.rate_stats.mean |rate}} / {{worker.rate_stats.max |rate}}</span>
+                    <span ng-if="worker.rate_stats">{{worker.rate_stats.min |rate}} &lt; {{worker.rate_stats.mean |rate}} &lt; {{worker.rate_stats.max |rate}}</span>
                     <span ng-if="worker.rate_config">@ {{worker.rate_config |rate}}</span>
                 </td>
                 <td>
-                    <span ng-if="worker.latency_stats">{{worker.latency_stats.min |latency}} / {{worker.latency_stats.mean |latency}} / {{worker.latency_stats.max |latency}}</span>
+                    <span ng-if="worker.latency_stats">{{worker.latency_stats.min |latency}} &lt; {{worker.latency_stats.mean |latency}} &lt; {{worker.latency_stats.max |latency}}</span>
                 </td>
                 <td>
 

@@ -61,11 +61,11 @@ function parseWorkerStats(statsUrl){
 closeApp.filter('rate', function(){
     return function rateFilter(input) {
         if (input < 100) {
-            return input.toFixed(2) + "ps";
+            return input.toFixed(2) + "/s";
         } else if (input < 10000) {
-            return (input / 1000).toFixed(2) + "kps";
+            return (input / 1000).toFixed(2) + "k/s";
         } else {
-            return (input / 1000 / 1000).toFixed(2) + "mps";
+            return (input / 1000 / 1000).toFixed(2) + "m/s";
         }
     };
 });
