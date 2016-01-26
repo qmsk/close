@@ -38,9 +38,11 @@
 }
 
 #view {
+    /* For #logs */
     margin-bottom: 10%;
 }
 
+/* Bottom-of-page status window */
 #logs {
     position: fixed;
     bottom: 0px;
@@ -52,6 +54,8 @@
 
     padding: 0.5em;
     overflow: auto;
+
+    z-index: 10;
 }
 
 #logs p {
