@@ -30,9 +30,9 @@ type PingStats struct {
 }
 
 func (self PingStats) StatsID() stats.ID {
+    // use default Instance:
     return stats.ID{
         Type:       "icmp_ping",
-        Instance:   fmt.Sprintf("%d", self.ID),
     }
 }
 
@@ -115,6 +115,7 @@ func (p *Pinger) ConfigSub(configSub *config.Sub) error {
 // TODO: teardown old state?
 func (p *Pinger) apply(config PingConfig) error {
     if config.ID == 0 {
+        // XXX: this is going to be 1 when running within docker..
         config.ID = os.Getpid()
     }
 
