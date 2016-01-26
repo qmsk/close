@@ -1,12 +1,12 @@
 <div class="stats-chart">
-    <h2>{{statsMeta.type}}.{{statsMeta.field}}@{{statsMeta.instance}}</h2>
+    <h2 ng-if="statsMeta">{{statsMeta.type}}<span ng-if="statsMeta.field">.{{statsMeta.field}}</span><span ng-if="statsMeta.instance">@{{statsMeta.instance}}</span></h2>
 
     <div ng-if="chartAlert" class="alert alert-warning">
         {{chartAlert}}
     </div>
 
     <div ng-repeat="chartData in chartMap">
-        <h3 ng-if="chartCount > 1">{{chartData.field}}</h3>
+        <h3 ng-if="!statsMeta.field">{{chartData.field}}</h3>
         <flot dataset="chartData" options="chartOptions" width="100%" height="{{height}}"></flot>
     </div>
 

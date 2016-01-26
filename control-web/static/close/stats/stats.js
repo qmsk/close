@@ -126,12 +126,10 @@ angular.module('close.stats', [
                         }
                     
                         $scope.chartMap = {};
-                        $scope.chartCount = 0;
                         $.each(stats, function(i, stat){
                             var chartData = $scope.chartMap[stat.series.field];
 
                             if (chartData == undefined) {
-                                $scope.chartCount++;
                                 chartData = $scope.chartMap[stat.series.field] = [];
                             }
                             
@@ -140,7 +138,7 @@ angular.module('close.stats', [
                         });
                         $scope.chartOptions = {
                             legend: {
-                                show: $scope.chartCount == 1,
+                                show: !$scope.statsMeta.instance,
                             },
                             xaxis: { mode: "time" },
                         };
