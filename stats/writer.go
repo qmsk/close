@@ -126,11 +126,16 @@ func (self *Writer) statsWriter(intervalChan <-chan time.Time, statsChan chan St
     }
 }
 
+func (self *Writer) Interval() time.Duration {
+    return self.options.Interval
+}
+
 func (self *Writer) IntervalTick() (<-chan time.Time) {
     return time.Tick(self.options.Interval)
 }
 
 // Return a channel which normally blocks on writes, but accepts a write every tick-interval
+// XXX: this does not guarantee any minimum interval for the initial stats cycle, and is thus mostly broken..
 func (self *Writer) IntervalStatsWriter() (chan Stats) {
     tickChan := self.IntervalTick()
     statsChan := make(chan Stats)
