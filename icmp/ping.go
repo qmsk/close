@@ -66,7 +66,7 @@ type Pinger struct {
 
     conn        *Conn
 
-    configC     chan  config.Config
+    configC     chan  config.ConfigPush
     statsC      chan  stats.Stats
     receiverC   chan  pingResult
 }
@@ -177,12 +177,14 @@ func (p *Pinger) Run() error {
                 delete(startTimes, result.Seq)
             }
 
-        case configConfig := <-p.configC:
-            config := configConfig.(*PingConfig)
+        case configPush := <-p.configC:
+            config := configPush.Config.(*PingConfig)
 
             p.log.Printf("config: %v\n", config)
 
             // TODO: apply()
+
+            configPush.SendError(fmt.Errorf("Not implemented"))
 
 //      case <-expiryTicker.C:
         }

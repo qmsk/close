@@ -115,7 +115,7 @@ type Send struct {
 
     sockSend  SockSend
 
-    configChan  chan config.Config
+    configChan  chan config.ConfigPush
 
     statsChan       chan stats.Stats
     statsInterval   time.Duration
@@ -319,10 +319,15 @@ func (self *Send) Run() error {
             stats.Rate = RateStats{}
             stats.Send = SockStats{}
 
-        case configConfig := <-self.configChan:
-            config := configConfig.(*SendConfig)
+        case configPush := <-self.configChan:
+            config := configPush.Config.(*SendConfig)
 
             self.log.Printf("config: %v\n", config)
+
+            if config.ID != self.config.ID {
+                configPush.SendError(fmt.Errorf("Cannot change ID"))
+                continue
+            }
 
             if config.Rate != self.config.Rate || config.Count != self.config.Count {
                 self.log.Printf("config rate=%d count=%d\n", config.Rate, config.Count)
@@ -338,6 +343,8 @@ func (self *Send) Run() error {
 
                 self.config.Size = config.Size
             }
+
+            configPush.SendAck(self.config)
         }
     }
 }
