@@ -92,7 +92,8 @@ func (self SendStats) String() string {
     // achieved througput with IP+UDP headers
     sendMbps := float64(self.Send.Bytes) / 1000 / 1000 * 8 / self.Duration().Seconds()
 
-    return fmt.Sprintf("send %9d with %5d underruns @ %10.2f/s = %8.2fMb/s +%5d errors @ %6.2f%% rate %6.2f%% util",
+    return fmt.Sprintf("%6.3f send %9d with %5d underruns @ %10.2f/s = %8.2fMb/s +%5d errors @ %6.2f%% rate %6.2f%% util",
+        self.Duration().Seconds(),
         self.Send.Packets, self.Rate.UnderrunCount,
         sendRate, sendMbps, self.Send.Errors,
         self.RateError() * 100,
@@ -118,7 +119,6 @@ type Send struct {
 
     statsChan       chan stats.Stats
     statsInterval   time.Duration
-
 }
 
 func NewSend(config SendConfig) (*Send, error) {
@@ -236,7 +236,8 @@ func (self *Send) initIP(config SendConfig) error {
 }
 
 func (self *Send) StatsWriter(statsWriter *stats.Writer) error {
-    self.statsChan = statsWriter.IntervalStatsWriter()
+    self.statsChan = statsWriter.StatsWriter()
+    self.statsInterval = statsWriter.Interval()
 
     return nil
 }
@@ -282,7 +283,12 @@ func (self *Send) Run() error {
     rateTick := rateClock.Start(self.config.Rate, self.config.Count)
 
     for {
+        statsChan := self.statsChan
         stats.Time = time.Now()
+        if statsChan != nil && stats.Duration() < self.statsInterval {
+            // minimum duration, otherwise we report absurdly high instantaneous rates
+            statsChan = nil
+        }
 
         select {
         case _, running := <-rateTick:
@@ -307,7 +313,7 @@ func (self *Send) Run() error {
 
             payload.Seq++
 
-        case self.statsChan <- stats:
+        case statsChan <- stats:
             // reset
             stats.Start = stats.Time
             stats.Rate = RateStats{}
