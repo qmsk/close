@@ -23,7 +23,7 @@ type Sub struct {
     path    string
     log     *log.Logger
 
-    expire      time.Time
+    setChan     chan []byte
     stopChan    chan bool
 }
 
@@ -91,60 +91,64 @@ func (self *Sub) get(config Config) error {
 }
 
 // update config in redis
+// requires register() to be running
 func (self *Sub) set(config Config) error {
     if jsonBuf, err := json.Marshal(config); err != nil {
         return err
-    } else if res := self.redis.redisClient.Set(self.path, jsonBuf, 0); res.Err() != nil {
-        return res.Err()
     } else {
-        self.log.Printf("set: %v\n", config)
-        return nil
-    }
-}
+        self.setChan <- jsonBuf
 
-// get an existing redis config, or set it
-func (self *Sub) sync(config Config) error {
-    if exists, err := self.redis.redisClient.Exists(self.path).Result(); err != nil {
-        return err
-    } else if exists {
-        return self.get(config)
-    } else {
-        return self.set(config)
+        return nil
     }
 }
 
 // register config in redis, maintaining both the ZSet and the object expiry keepalive under TTL
 func (self *Sub) register() {
-    // registration set's path, vs self.path for our object
-    path := self.redis.path(self.id.Type, "")
+    // registration set's path
+    typePath := self.redis.path(self.id.Type, "")
+
+    // register top-level type
+    if err := self.redis.registerType(self.id.Type); err != nil {
+        self.log.Printf("failed to register type %v: %v\n", self.id.Type, err)
+        // XXX: just continue?!
+    }
 
     expire := time.Now().Add(SUB_TTL)
     refreshTimer := time.Tick(SUB_TTL / 2)
 
     for {
-        if res := self.redis.redisClient.ExpireAt(self.path, expire); res.Err() != nil {
-            self.log.Printf("refresh ExpireAt %v: %v\n", expire, res.Err())
-
-        } else if res := self.redis.redisClient.ZAdd(path, redis.Z{Score: float64(expire.Unix()), Member: self.path}); res.Err() != nil {
-            self.log.Printf("refresh ZAdd %v: %v\n", path, res.Err())
-        }
-
         select {
+        case jsonBuf, open := <-self.setChan:
+            if !open {
+                return
+            }
+
+            setTime := time.Now()
+
+            if res := self.redis.redisClient.Set(self.path, jsonBuf, expire.Sub(setTime)); res.Err() != nil {
+                self.log.Printf("Set: %v\n", self.path, res.Err())
+            }
+
         case t := <-refreshTimer:
-            // update expiry for next iteration
+            // update expiry
             expire = t.Add(SUB_TTL)
 
-        case <-self.stopChan:
-            // unregister
-            self.redis.redisClient.ZRem(path, self.path)
-            break
+            if res := self.redis.redisClient.ExpireAt(self.path, expire); res.Err() != nil {
+                self.log.Printf("refresh ExpireAt %v: %v\n", expire, res.Err())
+
+            } else if res := self.redis.redisClient.ZAdd(typePath, redis.Z{Score: float64(expire.Unix()), Member: self.path}); res.Err() != nil {
+                self.log.Printf("refresh ZAdd %v: %v\n", typePath, res.Err())
+            }
         }
     }
+
+    // unregister
+    self.redis.redisClient.ZRem(typePath, self.path)
 }
 
 // Stop refreshing the config in redis, and remove it
 func (self *Sub) Stop() error {
-    self.stopChan <- true
+    close(self.setChan)
 
     if res := self.redis.redisClient.Del(self.path); res.Err() != nil {
         return res.Err()
@@ -153,7 +157,7 @@ func (self *Sub) Stop() error {
     return nil
 }
 
-func (self *Sub) read(pubsub *redis.PubSub, configChan chan Config, config Config) {
+func (self *Sub) subscribe(pubsub *redis.PubSub, configChan chan ConfigPush, config Config) {
     defer close(configChan)
 
     for {
@@ -163,15 +167,38 @@ func (self *Sub) read(pubsub *redis.PubSub, configChan chan Config, config Confi
         } else if err := json.Unmarshal([]byte(msg.Payload), config); err != nil {
             self.log.Printf("read JSON: %v\n", err)
             continue
-        } else {
-            configChan <- config
         }
 
-        // XXX: only update config after it has been applied!
-        if err := self.set(config); err != nil {
-            self.log.Printf("read -> set: %v\n", err)
-            continue
+        configPush := ConfigPush{
+            ID:     self.id,
+            Config: config,
+
+            ackChan:    make(chan Config),
+            errChan:    make(chan error),
         }
+
+        // apply and wait
+        configChan <- configPush
+
+        select {
+        case config := <-configPush.ackChan:
+            configPush.Config = config
+
+            if err := self.set(config); err != nil {
+                self.log.Printf("subscribe -> set: %v\n", err)
+                configPush.Error = err
+            }
+
+        case err := <-configPush.errChan:
+            configPush.Error = err
+
+            self.log.Printf("subscribe -> err: %v\n", err)
+        }
+
+        close(configPush.ackChan)
+        close(configPush.errChan)
+
+        // TODO: PUBLISH
     }
 }
 
@@ -179,21 +206,16 @@ func (self *Sub) read(pubsub *redis.PubSub, configChan chan Config, config Confi
 // Read updates from redis, storing them into the given Config
 // Each updated Config is delivered on the given chan
 // Once the config has been sent, it is updated into redis
-func (self *Sub) Start(config Config) (chan Config, error) {
-    // sync object
-    if err := self.sync(config); err != nil {
+func (self *Sub) Start(config Config) (chan ConfigPush, error) {
+    // register into redis
+    self.setChan = make(chan []byte)
+
+    go self.register() // XXX: don't deadlock set() on errors...
+
+    // sync config
+    if err := self.set(config); err != nil {
         return nil, err
     }
-
-    // register top-level type
-    if err := self.redis.registerType(self.id.Type); err != nil {
-        return nil, err
-    }
-
-    // register the object
-    self.stopChan = make(chan bool)
-
-    go self.register()
 
     // subscribe for updates
     pubsub, err := self.redis.redisClient.Subscribe(self.path)
@@ -201,9 +223,9 @@ func (self *Sub) Start(config Config) (chan Config, error) {
         return nil, err
     }
 
-    configChan := make(chan Config)
+    configChan := make(chan ConfigPush)
 
-    go self.read(pubsub, configChan, config)
+    go self.subscribe(pubsub, configChan, config)
 
     // running
     return configChan, nil
