@@ -48,19 +48,19 @@ func (options *Options) Parse() {
     } else if workerConfig, found := options.workers[command.Name]; !found {
         log.Fatalf("Invalid command: %v\n", command)
     } else {
-        log.Printf("Parse worker: %v\n", workerConfig)
-
         options.workerType = command.Name
         options.workerConfig = workerConfig
     }
+
+    log.Printf("Command %v: %#v\n", options.workerType, options.workerConfig)
 }
 
 func Main(options Options) {
     worker, err := options.workerConfig.Worker()
     if err != nil {
-        log.Fatalf("%T: Apply: %v\n", options.workerConfig, err)
+        log.Fatalf("Apply %T: %v\n", options.workerConfig, err)
     } else {
-        log.Printf("%T: Apply: %v\n", options.workerConfig, worker)
+        log.Printf("Apply %T: %T %v\n", options.workerConfig, worker, worker)
     }
 
     // config
@@ -73,7 +73,7 @@ func Main(options Options) {
     } else if err := worker.ConfigSub(configSub); err != nil {
         log.Fatalf("Worker %v: ConfigSub %v: %v\n", worker, configSub, err)
     } else {
-        log.Printf("Worker %v: ConfigSub %v\n", worker, configSub)
+        log.Printf("ConfigSub %v\n", configSub)
     }
 
     // stats
@@ -84,7 +84,7 @@ func Main(options Options) {
     } else if err := worker.StatsWriter(statsWriter); err != nil {
         log.Fatalf("Worker %v: StatsWriter %v: %v\n", worker, statsWriter, err)
     } else {
-        log.Printf("Worker %v: StatsWriter %v\n", worker, statsWriter)
+        log.Printf("StatsWriter %v\n", statsWriter)
     }
 
     // run
