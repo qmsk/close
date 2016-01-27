@@ -43,7 +43,7 @@ func (self RedisURL) Empty() bool {
 func (self RedisURL) RedisOptions() (redisOptions redis.Options) {
     redisOptions.Network = self.Scheme
 
-    if _, port, err := net.SplitHostPort(self.Host); err != nil && port != "" {
+    if _, port, err := net.SplitHostPort(self.Host); err == nil && port != "" {
         redisOptions.Addr = self.Host
     } else {
         redisOptions.Addr = net.JoinHostPort(self.Host, REDIS_PORT)
