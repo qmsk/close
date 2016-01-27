@@ -25,13 +25,13 @@ type Recv struct {
 }
 
 type RecvState struct {
-    id              uint64
+    id              ID
     seq             uint64
     stats           RecvStats
 }
 
 type RecvStats struct {
-    ID              uint64          // from recv ID
+    ID              ID              // from recv ID
     Time            time.Time       // stats were init/reset
     Duration        time.Duration   // stats were collected
 
@@ -48,7 +48,7 @@ type RecvStats struct {
 func (self RecvStats) StatsID() stats.ID {
     return stats.ID{
         Type:       "udp_recv",
-        Instance:   fmt.Sprintf("%016x", self.ID),
+        Instance:   self.ID.String(),
     }
 }
 
@@ -140,7 +140,7 @@ func (self *Recv) StatsWriter(statsWriter *stats.Writer) error {
 }
 
 func (self *Recv) Run() error {
-    recvStates := make(map[uint64]*RecvState)
+    recvStates := make(map[ID]*RecvState)
     recvChan := self.sockRecv.recvChan()
 
     for {

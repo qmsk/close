@@ -20,7 +20,7 @@ type SendConfig struct {
     SourcePort      uint    `long:"source-port" value-name:"0-65535" description:"Use raw IP socket with given randomized source port"`
     SourcePortBits  uint    `long:"source-port-bits" value-name:"0-16" description:"Randomize low-order bits of source-port"`
 
-    ID              uint64  `json:"id" long:"id"`       // 64-bit ID, or random
+    ID              string  `json:"id" long:"id"`       // 64-bit hex ID, or random
     Rate            uint    `json:"rate" long:"rate"`   // 0 - unrated
     Count           uint    `json:"count" long:"count"` // 0 - infinite
     Size            uint    `json:"size" long:"size"`   // target size of UDP payload
@@ -31,7 +31,7 @@ func (self SendConfig) Worker() (worker.Worker, error) {
 }
 
 type SendStats struct {
-    ID              uint64          // send id, to correlated with RecvStats
+    ID              ID              // send id, to correlated with RecvStats
     Start           time.Time       // stats were reset
     Time            time.Time       // stats were updated
 
@@ -43,7 +43,7 @@ type SendStats struct {
 func (self SendStats) StatsID() stats.ID {
     return stats.ID{
         Type:       "udp_send",
-        Instance:   fmt.Sprintf("%d", self.ID),
+        Instance:   self.ID.String(),
     }
 }
 
@@ -110,6 +110,7 @@ type Send struct {
     srcAddr     net.IP
     srcAddrBits uint
     srcPort     RandPort
+    id          ID
 
     sockSend  SockSend
 
@@ -159,12 +160,19 @@ func (self *Send) apply(config SendConfig) error {
     }
 
     // generate ID from source addr, unless given
-    if config.ID != 0 {
-
-    } else if id, err := genID(self.srcAddr, self.srcPort.Port()); err != nil {
-        return fmt.Errorf("genID %v %v: %v", self.srcAddr, self.srcPort.Port(), err)
+    if config.ID == "" {
+        if id, err := genID(self.srcAddr, self.srcPort.Port()); err != nil {
+            return fmt.Errorf("genID %v %v: %v", self.srcAddr, self.srcPort.Port(), err)
+        } else {
+            config.ID = id.String()
+            self.id = id
+        }
     } else {
-        config.ID = id
+        if id, err := parseID(config.ID); err != nil {
+            return fmt.Errorf("parseID %v: %v", config.ID, err)
+        } else {
+            self.id = id
+        }
     }
 
     // randomize source
@@ -248,7 +256,7 @@ func (self *Send) ConfigSub(configSub *config.Sub) error {
 // Returns once complete, or error
 func (self *Send) Run() error {
     payload := Payload{
-        ID:     uint64(self.config.ID),
+        ID:     self.id,
         Seq:    0,
     }
 
