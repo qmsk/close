@@ -8,7 +8,7 @@ import (
 )
 
 type Options struct {
-    RedisURL        RedisURL        `long:"redis-url" value-name:"redis://[:PASSWORD@]HOST[:PORT][/PREFIX]" env:"REDIS_URL"`
+    RedisURL        RedisURL        `long:"redis-url" value-name:"tcp://[:PASSWORD@]HOST[:PORT][/PREFIX]" env:"REDIS_URL"`
 }
 
 func (self Options) Empty() bool {
