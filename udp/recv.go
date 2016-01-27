@@ -172,7 +172,7 @@ func (self *Recv) Run() error {
 
 // First packet received for Payload.ID
 func (self *Recv) makeState(packet Packet) *RecvState {
-    log.Printf("Start from %v:%v: %8x@%v\n", packet.SrcIP, packet.SrcPort, packet.Payload.ID, packet.Payload.Seq)
+    log.Printf("Start from %v:%v: %v@%v\n", packet.SrcIP, packet.SrcPort, packet.Payload.ID, packet.Payload.Seq)
 
     // skip first packet
     return &RecvState{
