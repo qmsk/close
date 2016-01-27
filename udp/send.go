@@ -133,6 +133,10 @@ func NewSend(config SendConfig) (*Send, error) {
     return send, nil
 }
 
+func (self *Send) String() string {
+    return fmt.Sprintf("%v -> %v", self.id, self.dstAddr)
+}
+
 func (self *Send) Config() config.Config {
     return &self.config
 }

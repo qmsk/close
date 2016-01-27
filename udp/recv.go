@@ -113,6 +113,10 @@ func NewRecv(config RecvConfig) (*Recv, error) {
     return recv, nil
 }
 
+func (self *Recv) String() string {
+    return fmt.Sprintf("%v", self.sockRecv)
+}
+
 func (self *Recv) Config() *RecvConfig {
     return &self.config
 }

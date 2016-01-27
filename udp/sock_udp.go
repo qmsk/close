@@ -8,7 +8,7 @@ import (
 )
 
 type SockUDP struct {
-    udpAddr     net.UDPAddr
+    udpAddr     *net.UDPAddr
     udpConn     *net.UDPConn
 
     stats       *SockStats
@@ -16,6 +16,10 @@ type SockUDP struct {
 
 func (self *SockUDP) init() {
     self.stats = &SockStats{}
+}
+
+func (self *SockUDP) String() string {
+    return fmt.Sprintf("%v", self.udpAddr)
 }
 
 func (self *SockUDP) initDial(addr string) error {
@@ -26,7 +30,7 @@ func (self *SockUDP) initDial(addr string) error {
     } else if udpConn, err := net.DialUDP("udp", nil, udpAddr); err != nil {
         return fmt.Errorf("Dial UDP %v: %v", udpAddr, err)
     } else {
-        self.udpAddr = *udpAddr
+        self.udpAddr = udpAddr
         self.udpConn = udpConn
     }
 
@@ -41,7 +45,7 @@ func (self *SockUDP) initListen(addr string) error {
     } else if udpConn, err := net.ListenUDP("udp", udpAddr); err != nil {
         return fmt.Errorf("Listen UDP %v: %v", udpAddr, err)
     } else {
-        self.udpAddr = *udpAddr
+        self.udpAddr = udpAddr
         self.udpConn = udpConn
     }
 
