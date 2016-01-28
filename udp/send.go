@@ -245,16 +245,46 @@ func (self *Send) StatsWriter(statsWriter *stats.Writer) error {
 
 // pull runtime configuration from config source
 func (self *Send) ConfigSub(configSub *config.Sub) error {
-    // copy for updates
-    updateConfig := self.config
-
-    if configChan, err := configSub.Start(&updateConfig); err != nil {
+    // initial config
+    if configChan, err := configSub.Start(self.config); err != nil {
         return err
     } else {
         self.configChan = configChan
     }
 
     return nil
+}
+
+// Update self.config from configSub.Push()
+func (self *Send) configPush(configPush config.ConfigPush) (config.Config, error) {
+    config := self.config // copy
+
+    if err := configPush.Unmarshal(&config); err != nil {
+        return nil, err
+    }
+
+    self.log.Printf("configPush: %v\n", config)
+
+    if config.ID != self.config.ID {
+        return nil, fmt.Errorf("Cannot change ID")
+    }
+
+    if config.Rate != self.config.Rate || config.Count != self.config.Count {
+        self.log.Printf("config rate=%d count=%d\n", config.Rate, config.Count)
+
+        self.rateClock.Set(config.Rate, config.Count)
+
+        self.config.Rate = config.Rate
+        self.config.Count = config.Count
+    }
+
+    if config.Size != self.config.Size {
+        self.log.Printf("config size=%d\n", config.Size)
+
+        self.config.Size = config.Size
+    }
+
+    return self.config, nil
 }
 
 // Generate a sequence of *Packet
@@ -317,32 +347,13 @@ func (self *Send) Run() error {
             stats.Rate = RateStats{}
             stats.Send = SockStats{}
 
-        case configPush := <-self.configChan:
-            config := configPush.Config.(*SendConfig)
-
-            self.log.Printf("config: %v\n", config)
-
-            if config.ID != self.config.ID {
-                configPush.SendError(fmt.Errorf("Cannot change ID"))
-                continue
-            }
-
-            if config.Rate != self.config.Rate || config.Count != self.config.Count {
-                self.log.Printf("config rate=%d count=%d\n", config.Rate, config.Count)
-
-                rateClock.Set(config.Rate, config.Count)
-
-                self.config.Rate = config.Rate
-                self.config.Count = config.Count
-            }
-
-            if config.Size != self.config.Size {
-                self.log.Printf("config size=%d\n", config.Size)
-
-                self.config.Size = config.Size
-            }
-
-            configPush.SendAck(self.config)
+        case configPush, open := <-self.configChan:
+            if !open {
+                // XXX: killed?
+                return nil
+            } else {
+                configPush.ApplyFunc(self.configPush)
+           }
         }
     }
 }

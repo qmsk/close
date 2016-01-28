@@ -135,6 +135,20 @@ func (p *Pinger) apply(config PingConfig) error {
     return nil
 }
 
+func (p *Pinger) configPush(configPush config.ConfigPush) (config.Config, error) {
+    config := p.config // copy
+
+    if err := configPush.Unmarshal(&config); err != nil {
+        return nil, err
+    }
+
+    p.log.Printf("config: %v\n", config)
+
+    // TODO: apply()
+
+    return nil, fmt.Errorf("Not implemented")
+}
+
 // mainloop
 func (p *Pinger) Run() error {
     if p.statsC != nil {
@@ -177,14 +191,13 @@ func (p *Pinger) Run() error {
                 delete(startTimes, result.Seq)
             }
 
-        case configPush := <-p.configC:
-            config := configPush.Config.(*PingConfig)
-
-            p.log.Printf("config: %v\n", config)
-
-            // TODO: apply()
-
-            configPush.SendError(fmt.Errorf("Not implemented"))
+        case configPush, open := <-p.configC:
+            if !open {
+                // XXX: killed?
+                return nil
+            } else {
+                configPush.ApplyFunc(p.configPush)
+            }
 
 //      case <-expiryTicker.C:
         }
