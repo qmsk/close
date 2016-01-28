@@ -113,7 +113,8 @@ type Send struct {
     srcPort     RandPort
     id          ID
 
-    sockSend  SockSend
+    rateClock   RateClock
+    sockSend    SockSend
 
     configChan  chan config.ConfigPush
 
@@ -275,12 +276,9 @@ func (self *Send) Run() error {
     self.sockSend.useStats(&stats.Send)
 
     // Rate
-    var rateClock RateClock
+    self.rateClock.initStats(&stats.Rate)
 
-    rateClock.init()
-    rateClock.useStats(&stats.Rate)
-
-    rateTick := rateClock.Start(self.config.Rate, self.config.Count)
+    rateTick := self.rateClock.Start(self.config.Rate, self.config.Count)
 
     for {
         statsChan := self.statsChan
@@ -352,6 +350,5 @@ func (self *Send) Run() error {
 func (self *Send) Stop() {
     self.log.Printf("stopping...\n")
 
-    // XXX:
-    panic("stop")
+    self.rateClock.Stop()
 }

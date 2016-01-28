@@ -24,7 +24,7 @@ func (self *RateClock) init() {
     self.stats = &RateStats{}
 }
 
-func (self *RateClock) useStats(stats *RateStats) {
+func (self *RateClock) initStats(stats *RateStats) {
     self.stats = stats
 }
 
@@ -76,6 +76,7 @@ func (self *RateClock) Set(rate uint, count uint) {
     self.offset = 0
 }
 
+// Stop running, closing the chan returned by Start()
 func (self *RateClock) Stop() {
     // XXX
     self.stop = self.offset
