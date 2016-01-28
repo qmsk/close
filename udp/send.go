@@ -263,7 +263,7 @@ func (self *Send) configPush(configPush config.ConfigPush) (config.Config, error
         return nil, err
     }
 
-    self.log.Printf("configPush: %v\n", config)
+    self.log.Printf("configPush: %#v\n", config)
 
     if config.ID != self.config.ID {
         return nil, fmt.Errorf("Cannot change ID")

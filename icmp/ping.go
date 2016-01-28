@@ -142,7 +142,7 @@ func (p *Pinger) configPush(configPush config.ConfigPush) (config.Config, error)
         return nil, err
     }
 
-    p.log.Printf("config: %v\n", config)
+    p.log.Printf("config: %#v\n", config)
 
     // TODO: apply()
 
