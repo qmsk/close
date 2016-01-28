@@ -41,7 +41,7 @@ func (self InfluxURL) Empty() bool {
 }
 
 func (self InfluxURL) httpConfig() (httpConfig influxdb.HTTPConfig) {
-    if _, port, err := net.SplitHostPort(self.Host); err != nil && port != "" {
+    if _, port, err := net.SplitHostPort(self.Host); err == nil && port != "" {
         httpConfig.Addr = fmt.Sprintf("%s://%s", self.Scheme, self.Host)
     } else {
         httpConfig.Addr = fmt.Sprintf("%s://%s", self.Scheme, net.JoinHostPort(self.Host, INFLUXDB_PORT))
