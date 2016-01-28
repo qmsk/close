@@ -32,6 +32,7 @@ func (self ConfigPush) Unmarshal(config interface{}) error {
     }
 }
 
+// Send this ConfigPush over the given chan, read the result and return it.
 func (self ConfigPush) apply(configChan chan ConfigPush) (ConfigReturn, error) {
     self.retChan = make(chan ConfigReturn)
 

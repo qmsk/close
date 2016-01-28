@@ -146,6 +146,7 @@ func (self *Sub) register(config Config) {
                 return
             }
 
+            // call into worker mainloop via configChan
             configReturn, err := configPush.apply(self.configChan)
 
             if err != nil {
