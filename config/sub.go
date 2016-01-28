@@ -220,7 +220,7 @@ func (self *Sub) Push(config Config) error {
     if jsonBuf, err := json.Marshal(config); err != nil {
         return err
     } else {
-        configPush.Config = json.RawMessage(jsonBuf)
+        configPush.Config = (*json.RawMessage)(&jsonBuf)
     }
 
     if jsonBuf, err := json.Marshal(configPush); err != nil {

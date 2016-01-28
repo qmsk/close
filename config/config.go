@@ -12,7 +12,8 @@ type Config interface{}
 type ConfigMap map[string]interface{}
 
 type ConfigPush struct {
-    Config      json.RawMessage `json:"config,omitempty"`
+    // this needs to be a pointer for .MarshalJSON()
+    Config      *json.RawMessage    `json:"config,omitempty"`
 
     retChan     chan ConfigReturn
 }
@@ -24,7 +25,7 @@ type ConfigReturn struct {
 }
 
 func (self ConfigPush) Unmarshal(config interface{}) error {
-    if err := json.Unmarshal(self.Config, config); err != nil {
+    if err := json.Unmarshal(*self.Config, config); err != nil {
         return fmt.Errorf("unmarshal %v: %v", self.Config, err)
     } else {
         return nil
