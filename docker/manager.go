@@ -54,11 +54,27 @@ func NewManager(options Options) (*Manager, error) {
     return manager, nil
 }
 
-func (manager *Manager) List() (containers []*Container, err error) {
+// Get short container status for given class
+func (manager *Manager) List(filter ID) (containers []ContainerStatus, err error) {
+    labelFilter := []string{}
+
+    if filter.Class == "" {
+        labelFilter = append(labelFilter, "close")
+    } else {
+        labelFilter = append(labelFilter, fmt.Sprintf("close=%s", filter.Class))
+    }
+
+    if filter.Type != "" {
+        labelFilter = append(labelFilter, fmt.Sprintf("close.type=%s", filter.Type))
+    }
+    if filter.Instance != "" {
+        labelFilter = append(labelFilter, fmt.Sprintf("close.instance=%s", filter.Instance))
+    }
+
     opts := docker.ListContainersOptions{
         All:        true,
         Filters:    map[string][]string{
-            "label":    []string{"close"},
+            "label":    labelFilter,
         },
     }
 
@@ -66,17 +82,27 @@ func (manager *Manager) List() (containers []*Container, err error) {
         return nil, err
     } else {
         for _, listContainer := range listContainers {
-            if container, err := manager.Get(listContainer.ID); err != nil {
-                return nil, err
-            } else {
-                containers = append(containers, container)
+            container := ContainerStatus{}
+
+            // ID
+            if err := container.parseID(listContainer.Names[0], listContainer.Labels); err != nil {
+                return nil, fmt.Errorf("parseID %s: %v", listContainer.Names, err)
             }
+
+            // Status + Config
+            if err := container.fromDockerList(listContainer); err != nil {
+                return nil, err
+            }
+
+
+            containers = append(containers, container)
         }
     }
 
     return containers, nil
 }
 
+// Get complete container state for given container
 func (manager *Manager) Get(id string) (*Container, error) {
     dockerContainer, err := manager.dockerClient.InspectContainer(id)
     if _, ok := err.(*docker.NoSuchContainer); ok {
@@ -86,16 +112,17 @@ func (manager *Manager) Get(id string) (*Container, error) {
         return nil, fmt.Errorf("dockerClient.InspectContainer %v: %v", id, err)
     }
 
-    container := Container{
-        Config: configFromDocker(dockerContainer),
-    }
+    container := Container{}
 
     // ID
     if err := container.parseID(dockerContainer.Name, dockerContainer.Config.Labels); err != nil {
         return nil, fmt.Errorf("parseID %s: %v", dockerContainer.Name, err)
     }
 
-    container.updateStatus(dockerContainer)
+    // Status + Config
+    if err := container.update(dockerContainer); err != nil {
+        return nil, err
+    }
 
     return &container, nil
 }
@@ -128,8 +155,6 @@ func (manager *Manager) Up(id ID, config Config) (*Container, error) {
     }
 
     if container == nil {
-        container = &Container{ID:id, Config: config}
-
         // does not exist; create
         createOptions := docker.CreateContainerOptions{
             Name:   container.String(),
@@ -168,8 +193,15 @@ func (manager *Manager) Up(id ID, config Config) (*Container, error) {
         if dockerContainer, err := manager.dockerClient.CreateContainer(createOptions); err != nil {
             return nil, err
         } else {
-            // status
-            container.updateStatus(dockerContainer)
+            container = &Container{}
+
+            if err := container.parseID(dockerContainer.Name, dockerContainer.Config.Labels); err != nil {
+                return nil, fmt.Errorf("parseID %s: %v", dockerContainer.Name, err)
+            }
+
+            if err := container.update(dockerContainer); err != nil {
+                return nil, err
+            }
         }
     }
 
@@ -187,18 +219,16 @@ func (manager *Manager) Up(id ID, config Config) (*Container, error) {
     return container, nil
 }
 
-func (manager *Manager) Down(container *Container) error {
-    manager.log.Printf("Down %v: stopping..\n", container)
+func (manager *Manager) Down(id ID) error {
+    manager.log.Printf("Down %v: stopping..\n", id)
 
-    if err := manager.dockerClient.StopContainer(container.ContainerID, DOCKER_STOP_TIMEOUT); err == nil {
+    if err := manager.dockerClient.StopContainer(id.String(), DOCKER_STOP_TIMEOUT); err == nil {
 
     } else if err, isNotRunning := err.(*docker.ContainerNotRunning); isNotRunning {
         // skip
     } else {
         return err
     }
-
-    container.State.Running = false // XXX
 
     return nil
 }

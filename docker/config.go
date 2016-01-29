@@ -51,8 +51,8 @@ func (self *Config) AddMount(name string, bind string, readonly bool) {
     self.Mounts = append(self.Mounts, mount)
 }
 
-func (self *Config) SetNetworkContainer(container *Container) {
-    self.NetworkMode = fmt.Sprintf("container:%s", container.String())
+func (self *Config) SetNetworkContainer(id ID) {
+    self.NetworkMode = fmt.Sprintf("container:%s", id.String())
 }
 
 func configFromDocker(dockerContainer *docker.Container) Config {
