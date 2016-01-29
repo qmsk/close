@@ -3,7 +3,7 @@ package control
 import (
     "bytes"
     "close/config"
-    "github.com/fsouza/go-dockerclient"
+    "close/docker"
     "fmt"
     "io"
     "log"
@@ -16,8 +16,7 @@ import (
 type Options struct {
     Stats           stats.ReaderOptions `group:"Stats Reader"`
     Config          config.Options      `group:"Config"`
-
-    DockerEndpoint  string              `long:"docker-endpoint"`
+    Docker          docker.Options      `group:"Docker"`
 
     Logger          *log.Logger
 }
@@ -34,8 +33,7 @@ type Manager struct {
 
     configRedis     *config.Redis
     statsReader     *stats.Reader
-    dockerClient    *docker.Client
-    dockerName      string
+    docker          *docker.Manager
 
     // state
     // XXX: these are unsafe against concurrent web requests
@@ -82,24 +80,10 @@ func (self *Manager) init(options Options) error {
         self.statsReader = statsReader
     }
 
-    if options.DockerEndpoint == "" {
-        if dockerClient, err := docker.NewClientFromEnv(); err != nil {
-            return fmt.Errorf("docker.NewClientFromEnv: %v", err)
-        } else {
-            self.dockerClient = dockerClient
-        }
+    if dockerManager, err := docker.NewManager(options.Docker); err != nil {
+        return fmt.Errorf("docker.NewManager %v: %v", options.Docker, err)
     } else {
-        if dockerClient, err := docker.NewClient(options.DockerEndpoint); err != nil {
-            return fmt.Errorf("docker.NewClient: %v", err)
-        } else {
-            self.dockerClient = dockerClient
-        }
-    }
-
-    if dockerInfo, err := self.dockerClient.Info(); err != nil {
-        return fmt.Errorf("dockerClient.Info: %v", err)
-    } else {
-        self.dockerName = dockerInfo.Get("name")
+        self.docker = dockerManager
     }
 
     return nil
@@ -181,7 +165,7 @@ func (self *Manager) DumpConfig() (string, error) {
 // Must be run after loadConfig() to recognize any containers..
 // Allows Start() to re-use existing containers, and cleanup undesired containers
 func (self *Manager) Discover() (err error) {
-    if dockerContainers, err := self.DockerList(); err != nil {
+    if dockerContainers, err := self.docker.List(); err != nil {
         return fmt.Errorf("DockerList: %v", err)
     } else {
         for _, dockerContainer := range dockerContainers {
@@ -265,7 +249,7 @@ func (self *Manager) Stop() (err error) {
 func (self *Manager) Panic() (error) {
     self.log.Printf("Panic!\n");
 
-    err := self.DockerPanic()
+    err := self.docker.Panic()
 
     self.clients = make(map[string]*Client)
     self.workers = make(map[string]*Worker)

@@ -1,12 +1,12 @@
-package control
+package docker
 
 import (
     "testing"
 )
 
-func TestDockerConfigEquals(t *testing.T) {
-    config0 := DockerConfig{Image: "test"}
-    config1 := DockerConfig{Image: "test", Command: "test", Args: []string{"-test"}, Env: []string{"TEST1=test", "TEST2=test"}}
+func TestConfigEquals(t *testing.T) {
+    config0 := Config{Image: "test"}
+    config1 := Config{Image: "test", Command: "test", Args: []string{"-test"}, Env: []string{"TEST1=test", "TEST2=test"}}
     config2 := config1
 
     // self-equality

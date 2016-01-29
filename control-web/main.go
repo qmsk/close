@@ -39,6 +39,7 @@ func main() {
     controlOptions := options.Options
 
     controlOptions.Logger = logs.Logger("Manager: ")
+    controlOptions.Docker.Logger = logs.Logger("Docker: ")
 
     manager, err := control.New(controlOptions)
     if err != nil {

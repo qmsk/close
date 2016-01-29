@@ -77,7 +77,7 @@ func (self *Manager) GetWorker(w rest.ResponseWriter, req *rest.Request) {
 }
 
 func (self *Manager) GetDockerList(w rest.ResponseWriter, req *rest.Request) {
-    if list, err := self.DockerList(); err != nil {
+    if list, err := self.docker.List(); err != nil {
         rest.Error(w, err.Error(), 500)
     } else {
         w.WriteJson(list)
@@ -85,7 +85,7 @@ func (self *Manager) GetDockerList(w rest.ResponseWriter, req *rest.Request) {
 }
 
 func (self *Manager) GetDocker(w rest.ResponseWriter, req *rest.Request) {
-    if list, err := self.DockerGet(req.PathParam("id")); err != nil {
+    if list, err := self.docker.Get(req.PathParam("id")); err != nil {
         rest.Error(w, err.Error(), 500)
     } else if list == nil {
         rest.Error(w, "Not Found", 404)
@@ -95,7 +95,7 @@ func (self *Manager) GetDocker(w rest.ResponseWriter, req *rest.Request) {
 }
 
 func (self *Manager) GetDockerLogs(w rest.ResponseWriter, req *rest.Request) {
-    if list, err := self.DockerLogs(req.PathParam("id")); err != nil {
+    if list, err := self.docker.Logs(req.PathParam("id")); err != nil {
         rest.Error(w, err.Error(), 500)
     } else {
         w.WriteJson(list)

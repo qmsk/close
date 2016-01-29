@@ -2,6 +2,7 @@ package control
 
 import (
     "close/config"
+    "close/docker"
     "fmt"
     "encoding/json"
     "close/stats"
@@ -44,7 +45,7 @@ type Worker struct {
     Config          *WorkerConfig
     Instance        string
 
-    dockerContainer *DockerContainer
+    dockerContainer *docker.Container
     configSub       *config.Sub
 }
 
@@ -56,7 +57,7 @@ func (self Worker) String() string {
     return fmt.Sprintf("%v:%s", self.Config, self.Instance)
 }
 
-func (self *Manager) discoverWorker(dockerContainer *DockerContainer) (*Worker, error) {
+func (self *Manager) discoverWorker(dockerContainer *docker.Container) (*Worker, error) {
     workerConfig := self.config.Workers[dockerContainer.Type]
 
     if workerConfig == nil {
@@ -87,9 +88,9 @@ func (self *Manager) workerUp(workerConfig *WorkerConfig, instance string) (*Wor
     }
 
     // docker
-    dockerID := DockerID{Class:"worker", Type: workerConfig.String(), Instance: instance}
+    dockerID := docker.ID{Class:"worker", Type: workerConfig.String(), Instance: instance}
 
-    dockerConfig := DockerConfig{
+    dockerConfig := docker.Config{
         Image:      workerConfig.Image,
         Command:    workerConfig.Command,
         Privileged: workerConfig.Privileged,
@@ -113,8 +114,8 @@ func (self *Manager) workerUp(workerConfig *WorkerConfig, instance string) (*Wor
         }
     }
 
-    if container, err := self.DockerUp(dockerID, dockerConfig); err != nil {
-        return worker, fmt.Errorf("DockerUp %v: %v", dockerID, err)
+    if container, err := self.docker.Up(dockerID, dockerConfig); err != nil {
+        return worker, fmt.Errorf("docker.Up %v: %v", dockerID, err)
     } else {
         worker.dockerContainer = container
     }
@@ -157,8 +158,8 @@ func (self *Manager) WorkerDown(config *WorkerConfig) error {
     // sweep
     for key, worker := range self.workers {
         if worker.Config == config {
-            if err := self.DockerDown(worker.dockerContainer); err != nil {
-                return fmt.Errorf("WorkerDown %v: DockerDown %v: %v", config, worker.dockerContainer, err)
+            if err := self.docker.Down(worker.dockerContainer); err != nil {
+                return fmt.Errorf("WorkerDown %v: docker.Down %v: %v", config, worker.dockerContainer, err)
             }
 
             delete(self.workers, key)
@@ -374,8 +375,8 @@ func (cache *workerCache) getStatus(worker *Worker, detail bool) (WorkerStatus, 
         workerStatus.WorkerConfig = worker.Config
     }
 
-    if dockerContainer, err := cache.manager.DockerGet(worker.dockerContainer.String()); err != nil {
-        return workerStatus, fmt.Errorf("ListWorkers %v: DockerGet %v: %v", worker, worker.dockerContainer, err)
+    if dockerContainer, err := cache.manager.docker.Get(worker.dockerContainer.String()); err != nil {
+        return workerStatus, fmt.Errorf("ListWorkers %v: docker.Get %v: %v", worker, worker.dockerContainer, err)
     } else if dockerContainer == nil {
         workerStatus.Docker = ""
         workerStatus.DockerStatus = ""
@@ -462,7 +463,7 @@ type WorkerStatus struct {
 
     Docker          string              `json:"docker"`
     DockerStatus    string              `json:"docker_status"`
-    DockerContainer *DockerContainer    `json:"docker_container,omitempty"` // detail
+    DockerContainer *docker.Container    `json:"docker_container,omitempty"` // detail
 
     State           WorkerState         `json:"state"`
 
