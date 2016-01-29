@@ -157,7 +157,7 @@ func (manager *Manager) Up(id ID, config Config) (*Container, error) {
     if container == nil {
         // does not exist; create
         createOptions := docker.CreateContainerOptions{
-            Name:   container.String(),
+            Name:   id.String(),
             Config: &docker.Config{
                 Env:        config.Env,
                 Cmd:        config.Argv(),
@@ -173,7 +173,7 @@ func (manager *Manager) Up(id ID, config Config) (*Container, error) {
 
         if config.NetworkMode == "" {
             // match hostname from container name, unless running with NetworkMode=container:*
-            createOptions.Config.Hostname = container.String()
+            createOptions.Config.Hostname = id.String()
         }
 
         // XXX: .Config.Mounts = ... doesn't work? fake it!
@@ -191,6 +191,7 @@ func (manager *Manager) Up(id ID, config Config) (*Container, error) {
         manager.log.Printf("Up %v: create...\n", container)
 
         if dockerContainer, err := manager.dockerClient.CreateContainer(createOptions); err != nil {
+            // XXX: dockerContainer is nil?
             return nil, err
         } else {
             container = &Container{}
@@ -213,7 +214,9 @@ func (manager *Manager) Up(id ID, config Config) (*Container, error) {
     } else {
         manager.log.Printf("Up %v: started\n", container)
 
-        container.State.Running = true // XXX
+        // XXX: should watch containers and get their state from there..
+        container.State = "running"
+        container.ContainerState.Running = true
     }
 
     return container, nil
