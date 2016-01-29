@@ -26,28 +26,28 @@ func (self ClientConfig) String() string {
 }
 
 type Client struct {
-    Config      *ClientConfig
-    Instance    string
+    Config          *ClientConfig
+    Instance        string
 
-    dockerContainer *docker.Container
+    dockerID        docker.ID
 }
 
 func (self Client) String() string {
     return fmt.Sprintf("%v:%s", self.Config, self.Instance)
 }
 
-func (self *Manager) discoverClient(dockerContainer *docker.Container) (*Client, error) {
-    clientConfig := self.config.Clients[dockerContainer.Type]
+func (self *Manager) discoverClient(dockerID docker.ID) (*Client, error) {
+    clientConfig := self.config.Clients[dockerID.Type]
 
     if clientConfig == nil {
-        return nil, fmt.Errorf("Unknown client config type: %v", dockerContainer.Type)
+        return nil, fmt.Errorf("Unknown client config type: %v", dockerID.Type)
     }
 
     client := &Client{
         Config:     clientConfig,
-        Instance:   dockerContainer.Instance,
+        Instance:   dockerID.Instance,
 
-        dockerContainer:    dockerContainer,
+        dockerID:   dockerID,
     }
 
     return client, nil
@@ -57,11 +57,11 @@ func (self *Manager) clientUp(config *ClientConfig, instance string) (*Client, e
     client := &Client{
         Config:     config,
         Instance:   instance,
+
+        dockerID:   docker.ID{Class:"client", Type: config.name, Instance: instance},
     }
 
     // docker
-    dockerID := docker.ID{Class:"client", Type: config.name, Instance: instance}
-
     dockerConfig := docker.Config{
         Image:      config.Image,
         Privileged: config.Privileged,
@@ -77,10 +77,10 @@ func (self *Manager) clientUp(config *ClientConfig, instance string) (*Client, e
         dockerConfig.AddMount(config.Volume, bind, config.VolumeReadonly)
     }
 
-    if container, err := self.docker.Up(dockerID, dockerConfig); err != nil {
+    if dockerContainer, err := self.docker.Up(client.dockerID, dockerConfig); err != nil {
         return nil, fmt.Errorf("docker.Up %v: %v", client, err)
     } else {
-        client.dockerContainer = container
+        self.log.Printf("docker.Up %v: %v", client, dockerContainer)
     }
 
     return client, nil
@@ -115,8 +115,8 @@ func (self *Manager) ClientUp(config *ClientConfig) error {
 func (self *Manager) ClientDown(config *ClientConfig) error {
     for key, client := range self.clients {
         if client.Config == config {
-            if err := self.docker.Down(client.dockerContainer); err != nil {
-                return fmt.Errorf("ClientDown %v: docker.Down %v: %v", config, client.dockerContainer, err)
+            if err := self.docker.Down(client.dockerID); err != nil {
+                return fmt.Errorf("ClientDown %v: docker.Down %v: %v", config, client.dockerID, err)
             }
 
             delete(self.clients, key)
@@ -159,7 +159,7 @@ func (self *Manager) ListClients() (clients []ClientStatus, err error) {
             Instance:       client.Instance,
         }
 
-        if dockerContainer, err := self.docker.Get(client.dockerContainer.String()); err != nil {
+        if dockerContainer, err := self.docker.Get(client.dockerID.String()); err != nil {
             return nil, err
         } else if dockerContainer == nil {
             clientStatus.Docker = ""

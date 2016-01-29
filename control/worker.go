@@ -45,7 +45,7 @@ type Worker struct {
     Config          *WorkerConfig
     Instance        string
 
-    dockerContainer *docker.Container
+    dockerID        docker.ID
     configSub       *config.Sub
 }
 
@@ -57,18 +57,18 @@ func (self Worker) String() string {
     return fmt.Sprintf("%v:%s", self.Config, self.Instance)
 }
 
-func (self *Manager) discoverWorker(dockerContainer *docker.Container) (*Worker, error) {
-    workerConfig := self.config.Workers[dockerContainer.Type]
+func (self *Manager) discoverWorker(dockerID docker.ID) (*Worker, error) {
+    workerConfig := self.config.Workers[dockerID.Type]
 
     if workerConfig == nil {
-        return nil, fmt.Errorf("Unknown worker config type: %v", dockerContainer.Type)
+        return nil, fmt.Errorf("Unknown worker config type: %v", dockerID.Type)
     }
 
     worker := &Worker{
         Config:     workerConfig,
-        Instance:   dockerContainer.Instance,
+        Instance:   dockerID.Instance,
 
-        dockerContainer:    dockerContainer,
+        dockerID:   dockerID,
     }
 
     if configSub, err := self.configRedis.GetSub(worker.configID()); err != nil {
@@ -85,11 +85,10 @@ func (self *Manager) workerUp(workerConfig *WorkerConfig, instance string) (*Wor
     worker := &Worker{
         Config:     workerConfig,
         Instance:   instance,
+        dockerID:   docker.ID{Class:"worker", Type: workerConfig.String(), Instance: instance},
     }
 
     // docker
-    dockerID := docker.ID{Class:"worker", Type: workerConfig.String(), Instance: instance}
-
     dockerConfig := docker.Config{
         Image:      workerConfig.Image,
         Command:    workerConfig.Command,
@@ -110,14 +109,14 @@ func (self *Manager) workerUp(workerConfig *WorkerConfig, instance string) (*Wor
         if client, err := self.GetClient(workerConfig.Client, instance); err != nil {
             return worker, fmt.Errorf("GetClient: %v", err)
         } else {
-            dockerConfig.SetNetworkContainer(client.dockerContainer)
+            dockerConfig.SetNetworkContainer(client.dockerID)
         }
     }
 
-    if container, err := self.docker.Up(dockerID, dockerConfig); err != nil {
-        return worker, fmt.Errorf("docker.Up %v: %v", dockerID, err)
+    if container, err := self.docker.Up(worker.dockerID, dockerConfig); err != nil {
+        return worker, fmt.Errorf("docker.Up %v: %v", worker.dockerID, err)
     } else {
-        worker.dockerContainer = container
+        self.log.Printf("docker.Up %v: %v", worker.dockerID, container)
     }
 
     if configSub, err := self.configRedis.GetSub(worker.configID()); err != nil {
@@ -158,8 +157,8 @@ func (self *Manager) WorkerDown(config *WorkerConfig) error {
     // sweep
     for key, worker := range self.workers {
         if worker.Config == config {
-            if err := self.docker.Down(worker.dockerContainer); err != nil {
-                return fmt.Errorf("WorkerDown %v: docker.Down %v: %v", config, worker.dockerContainer, err)
+            if err := self.docker.Down(worker.dockerID); err != nil {
+                return fmt.Errorf("WorkerDown %v: docker.Down %v: %v", config, worker.dockerID, err)
             }
 
             delete(self.workers, key)
@@ -375,8 +374,8 @@ func (cache *workerCache) getStatus(worker *Worker, detail bool) (WorkerStatus, 
         workerStatus.WorkerConfig = worker.Config
     }
 
-    if dockerContainer, err := cache.manager.docker.Get(worker.dockerContainer.String()); err != nil {
-        return workerStatus, fmt.Errorf("ListWorkers %v: docker.Get %v: %v", worker, worker.dockerContainer, err)
+    if dockerContainer, err := cache.manager.docker.Get(worker.dockerID.String()); err != nil {
+        return workerStatus, fmt.Errorf("ListWorkers %v: docker.Get %v: %v", worker, worker.dockerID, err)
     } else if dockerContainer == nil {
         workerStatus.Docker = ""
         workerStatus.DockerStatus = ""

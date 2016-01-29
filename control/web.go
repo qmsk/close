@@ -2,6 +2,7 @@ package control
 
 import (
     "close/config"
+    "close/docker"
     "github.com/ant0ine/go-json-rest/rest"
     "close/stats"
     "time"
@@ -77,7 +78,9 @@ func (self *Manager) GetWorker(w rest.ResponseWriter, req *rest.Request) {
 }
 
 func (self *Manager) GetDockerList(w rest.ResponseWriter, req *rest.Request) {
-    if list, err := self.docker.List(); err != nil {
+    filter := docker.ID{}
+
+    if list, err := self.docker.List(filter); err != nil {
         rest.Error(w, err.Error(), 500)
     } else {
         w.WriteJson(list)

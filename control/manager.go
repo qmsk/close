@@ -165,29 +165,29 @@ func (self *Manager) DumpConfig() (string, error) {
 // Must be run after loadConfig() to recognize any containers..
 // Allows Start() to re-use existing containers, and cleanup undesired containers
 func (self *Manager) Discover() (err error) {
-    if dockerContainers, err := self.docker.List(); err != nil {
+    if dockerContainers, err := self.docker.List(docker.ID{}); err != nil {
         return fmt.Errorf("DockerList: %v", err)
     } else {
-        for _, dockerContainer := range dockerContainers {
-            switch dockerContainer.Class {
+        for _, containerStatus := range dockerContainers {
+            switch containerStatus.Class {
             case "client":
-                if client, err := self.discoverClient(dockerContainer); err != nil {
-                    self.log.Printf("discoverClient %v: %v", dockerContainer, err)
+                if client, err := self.discoverClient(containerStatus.ID); err != nil {
+                    self.log.Printf("discoverClient %v: %v", containerStatus, err)
                 } else {
-                    self.log.Printf("Discover %v: client %v", dockerContainer, client)
+                    self.log.Printf("Discover %v: client %v", containerStatus, client)
 
                     self.clients[client.String()] = client
                 }
             case "worker":
-                if worker, err := self.discoverWorker(dockerContainer); err != nil {
-                    self.log.Printf("discoverWorker %v: %v", dockerContainer, err)
+                if worker, err := self.discoverWorker(containerStatus.ID); err != nil {
+                    self.log.Printf("discoverWorker %v: %v", containerStatus, err)
                 } else {
-                    self.log.Printf("Discover %v: worker %v", dockerContainer, worker)
+                    self.log.Printf("Discover %v: worker %v", containerStatus, worker)
 
                     self.workers[worker.String()] = worker
                 }
             default:
-                self.log.Printf("Discover %v: ignore unknown class: %v", dockerContainer, dockerContainer.Class)
+                self.log.Printf("Discover %v: ignore unknown class: %v", containerStatus, containerStatus.Class)
             }
         }
 
