@@ -170,12 +170,12 @@ func (self *Manager) ListClients() (clients []ClientStatus, err error) {
             clientStatus.Docker = dockerContainer.String()
             clientStatus.DockerStatus = dockerContainer.Status
 
-            if dockerContainer.State.Running {
+            if dockerContainer.IsUp() {
                 clientStatus.State = ClientUp
-            } else if dockerContainer.State.ExitCode == 0 {
-                clientStatus.State = ClientDown
-            } else {
+            } else if dockerContainer.IsError() {
                 clientStatus.State = ClientError
+            } else {
+                clientStatus.State = ClientDown
             }
         }
 
