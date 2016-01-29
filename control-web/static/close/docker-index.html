@@ -18,17 +18,17 @@
     <tbody>
         <tr ng-repeat="dockerContainer in dockerContainers | orderBy:['class', 'type', 'instance']">
             <td>
-                <span class="label label-success" ng-if="dockerContainer.state.Running && !dockerContainer.state.Paused">
+                <span class="label label-success" ng-if="dockerContainer.state == 'running'">
                     <span class="glyphicon glyphicon-play" title="Running"></span>
                 </span>
-                <span class="label label-info" ng-if="dockerContainer.state.Paused">
+                <span class="label label-info" ng-if="dockerContainer.state == 'paused'">
                     <span class="glyphicon glyphicon-pause" title="Running"></span>
                 </span>
-                <span class="label label-warning" ng-if="dockerContainer.state.ExitCode">
-                    <span class="glyphicon glyphicon-alert" title="Error"></span>
-                </span>
-                <span class="label label-default" ng-if="!dockerContainer.state.Running && !dockerContainer.state.ExitCode">
+                <span class="label label-default" ng-if="dockerContainer.state == 'exited'">
                     <span class="glyphicon glyphicon-stop" title="Stopped"></span>
+                </span>
+                <span class="label label-warning" ng-if="dockerContainer.exit_code != 0">
+                    <span class="glyphicon glyphicon-alert" title="Error"></span>
                 </span>
             </td>
             <td>{{dockerContainer.class}}</td>
