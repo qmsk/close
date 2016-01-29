@@ -137,14 +137,14 @@ func (manager *Manager) Up(id ID, config Config) (*Container, error) {
         // create
 
     } else if config.Equals(container.Config) {
-        manager.log.Printf("Up %v: exists\n", container)
+        manager.log.Printf("Up %v: exists\n", id)
 
     } else {
-        manager.log.Printf("Up %v: old-config %#v\n", container, container.Config)
-        manager.log.Printf("Up %v: new-config %#v\n", container, config)
+        manager.log.Printf("Up %v: old-config %#v\n", id, container.Config)
+        manager.log.Printf("Up %v: new-config %#v\n", id, config)
 
         // cleanup to replace with our config
-        manager.log.Printf("Up %v: destroy %v...\n", container, container.ID)
+        manager.log.Printf("Up %v: destroy %v...\n", id, container.ID)
 
         if err := manager.dockerClient.RemoveContainer(docker.RemoveContainerOptions{ID: container.ContainerID, Force: true}); err != nil {
             return container, fmt.Errorf("dockerClient.RemoveContainer %v: %v", container.ID, err)
@@ -188,20 +188,18 @@ func (manager *Manager) Up(id ID, config Config) (*Container, error) {
             }
         }
 
-        manager.log.Printf("Up %v: create...\n", container)
+        manager.log.Printf("Up %v: create...\n", id)
 
         if dockerContainer, err := manager.dockerClient.CreateContainer(createOptions); err != nil {
-            // XXX: dockerContainer is nil?
             return nil, err
         } else {
-            container = &Container{}
-
-            if err := container.parseID(dockerContainer.Name, dockerContainer.Config.Labels); err != nil {
-                return nil, fmt.Errorf("parseID %s: %v", dockerContainer.Name, err)
-            }
-
-            if err := container.update(dockerContainer); err != nil {
-                return nil, err
+            // XXX: the response is not actually a full docker.Container...
+            container = &Container{
+                ContainerStatus: ContainerStatus{
+                    ID:             id,
+                    ContainerID:    dockerContainer.ID,
+                },
+                Config:         config,
             }
         }
     }
