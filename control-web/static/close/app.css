@@ -77,6 +77,10 @@
     margin: 0 0;
 }
 
+#logs p.dropped {
+    color: #aaaaaa;
+}
+
 #logs .status {
     text-align: right;
     color: #aaaaaa;

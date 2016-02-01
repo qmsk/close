@@ -55,11 +55,15 @@
         <div id="view" class="container" ng-view></div>
 
         <div id="logs" ng-controller="LogsController" scroll-glue>
-            <p ng-repeat="msg in Logs.Messages" id="{{msg.id}}">{{msg.line}}</p>
+            <div ng-repeat="msg in Logs.Messages" id="{{msg.id}}">
+                <p class="dropped" ng-if="msg.dropped">... Dropped {{msg.dropped}} ...</p>
+                <p>{{msg.line}}</p>
+            </div>
             
             <div class="status">
                 <span>WebSocket {{Logs.status()}}</span>
                 <span class="error" ng-if="Logs.Error">({{Logs.Error}})</span>
+                <span class="dropped" ng-if="Logs.Dropped">| Dropped {{Logs.Dropped}}</span>
             </div>
         </div>
 

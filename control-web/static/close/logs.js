@@ -2,7 +2,8 @@ closeApp.factory('Logs', function LogsFactory($websocket) {
     var Logs = {
         url:        'ws://' + window.location.host + '/logs',
         Error:      null,
-        Messages:   [],   
+        Messages:   [],
+        Dropped:    0,
     };
     var ws;
 
@@ -14,6 +15,10 @@ closeApp.factory('Logs', function LogsFactory($websocket) {
     }
 
     Logs.message = function(msg){
+        if (msg.dropped) {
+            Logs.Dropped += msg.dropped;
+        }
+
         msg.id = "log-" + Logs.Messages.length;
 
         Logs.Messages.push(msg)  
