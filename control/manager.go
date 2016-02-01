@@ -13,6 +13,20 @@ import (
     "github.com/BurntSushi/toml"
 )
 
+type ManagerAPI interface {
+    Start() error
+    Stop() error
+    DumpConfig() (string, error)
+    ConfigList(config.ID) ([]ConfigItem, error)
+    ConfigGet(config.ID) (config.Config, error)
+    ConfigPush(config.ID, config.Config) error
+    ListClients() ([]ClientStatus, error)
+    ListWorkers() ([]WorkerStatus, error)
+    WorkerGet(string, string) (*WorkerStatus, error)
+    LoadConfigReader(io.Reader) error
+    Panic() (error)
+}
+
 type Options struct {
     Stats           stats.ReaderOptions `group:"Stats Reader"`
     Config          config.Options      `group:"Config"`

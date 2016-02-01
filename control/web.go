@@ -9,6 +9,17 @@ import (
     "time"
 )
 
+type WebApp struct {
+    manager       ManagerAPI
+    statsReader   *stats.Reader
+    docker        *docker.Manager
+    config        *Config
+}
+
+type JsonApp interface {
+    RestApp() (rest.App, error)
+}
+
 type APIGet struct {
     Config              Config          `json:"config"`
     ConfigText          string          `json:"config_text"`
@@ -17,25 +28,25 @@ type APIGet struct {
     Workers             []WorkerStatus  `json:"workers"`
 }
 
-func (self *Manager) Get(w rest.ResponseWriter, req *rest.Request) {
+func (self *WebApp) Get(w rest.ResponseWriter, req *rest.Request) {
     out := APIGet{}
 
-    if configText, err := self.DumpConfig(); err != nil {
+    if configText, err := self.manager.DumpConfig(); err != nil {
         rest.Error(w, err.Error(), 500)
         return
     } else {
-        out.Config = self.config
+        out.Config = *self.config
         out.ConfigText = configText
     }
 
-    if listClients, err := self.ListClients(); err != nil {
+    if listClients, err := self.manager.ListClients(); err != nil {
         rest.Error(w, err.Error(), 500)
         return
     } else {
         out.Clients = listClients
     }
 
-    if listWorkers, err := self.ListWorkers(); err != nil {
+    if listWorkers, err := self.manager.ListWorkers(); err != nil {
         rest.Error(w, err.Error(), 500)
         return
     } else {
@@ -45,13 +56,13 @@ func (self *Manager) Get(w rest.ResponseWriter, req *rest.Request) {
     w.WriteJson(out)
 }
 
-func (self *Manager) Post(w rest.ResponseWriter, req *rest.Request) {
-    if err := self.LoadConfigReader(req.Body); err != nil {
+func (self *WebApp) Post(w rest.ResponseWriter, req *rest.Request) {
+    if err := self.manager.LoadConfigReader(req.Body); err != nil {
         rest.Error(w, err.Error(), 400)
         return
     }
 
-    if errs := self.Start(); errs != nil {
+    if errs := self.manager.Start(); errs != nil {
         rest.Error(w, fmt.Sprintf("%v", errs), 500)
         return
     } else {
@@ -60,17 +71,17 @@ func (self *Manager) Post(w rest.ResponseWriter, req *rest.Request) {
     }
 }
 
-func (self *Manager) Delete(w rest.ResponseWriter, req *rest.Request) {
-    if errs := self.Stop(); errs != nil {
+func (self *WebApp) Delete(w rest.ResponseWriter, req *rest.Request) {
+    if err := self.manager.Stop(); err != nil {
         rest.Error(w, fmt.Sprintf("%v", errs), 500)
     } else {
         w.WriteHeader(200)
     }
 }
 
-func (self *Manager) GetWorker(w rest.ResponseWriter, req *rest.Request) {
-    if workerStatus, err := self.WorkerGet(req.PathParam("config"), req.PathParam("instance")); workerStatus == nil {
-        rest.Error(w, "Not Foud", 404)
+func (self *WebApp) GetWorker(w rest.ResponseWriter, req *rest.Request) {
+    if workerStatus, err := self.manager.WorkerGet(req.PathParam("config"), req.PathParam("instance")); workerStatus == nil {
+        rest.Error(w, "Not Found", 404)
     } else if err != nil {
         rest.Error(w, err.Error(), 500)
     } else {
@@ -78,7 +89,7 @@ func (self *Manager) GetWorker(w rest.ResponseWriter, req *rest.Request) {
     }
 }
 
-func (self *Manager) GetDockerList(w rest.ResponseWriter, req *rest.Request) {
+func (self *WebApp) GetDockerList(w rest.ResponseWriter, req *rest.Request) {
     filter := docker.ID{}
 
     if list, err := self.docker.List(filter); err != nil {
@@ -88,7 +99,7 @@ func (self *Manager) GetDockerList(w rest.ResponseWriter, req *rest.Request) {
     }
 }
 
-func (self *Manager) GetDocker(w rest.ResponseWriter, req *rest.Request) {
+func (self *WebApp) GetDocker(w rest.ResponseWriter, req *rest.Request) {
     if list, err := self.docker.Get(req.PathParam("id")); err != nil {
         rest.Error(w, err.Error(), 500)
     } else if list == nil {
@@ -98,7 +109,7 @@ func (self *Manager) GetDocker(w rest.ResponseWriter, req *rest.Request) {
     }
 }
 
-func (self *Manager) GetDockerLogs(w rest.ResponseWriter, req *rest.Request) {
+func (self *WebApp) GetDockerLogs(w rest.ResponseWriter, req *rest.Request) {
     if list, err := self.docker.Logs(req.PathParam("id")); err != nil {
         rest.Error(w, err.Error(), 500)
     } else {
@@ -106,27 +117,27 @@ func (self *Manager) GetDockerLogs(w rest.ResponseWriter, req *rest.Request) {
     }
 }
 
-func (self *Manager) GetConfigList(w rest.ResponseWriter, req *rest.Request) {
+func (self *WebApp) GetConfigList(w rest.ResponseWriter, req *rest.Request) {
     subFilter := config.ID{Type: req.PathParam("type")}
 
-    if list, err := self.ConfigList(subFilter); err != nil {
+    if list, err := self.manager.ConfigList(subFilter); err != nil {
         rest.Error(w, err.Error(), 500)
     } else {
         w.WriteJson(list)
     }
 }
 
-func (self *Manager) GetConfig(w rest.ResponseWriter, req *rest.Request) {
+func (self *WebApp) GetConfig(w rest.ResponseWriter, req *rest.Request) {
     if configID, err := config.ParseID(req.PathParam("type"), req.PathParam("instance")); err != nil {
         rest.Error(w, err.Error(), 400)
-    } else if config, err := self.ConfigGet(configID); err != nil {
+    } else if config, err := self.manager.ConfigGet(configID); err != nil {
         rest.Error(w, err.Error(), 500)
     } else {
         w.WriteJson(config)
     }
 }
 
-func (self *Manager) PostConfig(w rest.ResponseWriter, req *rest.Request) {
+func (self *WebApp) PostConfig(w rest.ResponseWriter, req *rest.Request) {
     configMap := make(config.ConfigMap)
 
     if err := req.DecodeJsonPayload(&configMap); err != nil {
@@ -136,7 +147,7 @@ func (self *Manager) PostConfig(w rest.ResponseWriter, req *rest.Request) {
 
     if configID, err := config.ParseID(req.PathParam("type"), req.PathParam("instance")); err != nil {
         rest.Error(w, err.Error(), 400)
-    } else if err := self.ConfigPush(configID, configMap); err != nil {
+    } else if err := self.manager.ConfigPush(configID, configMap); err != nil {
         rest.Error(w, err.Error(), 500)
     } else {
         // TODO: redirect to GET?
@@ -158,7 +169,7 @@ func (self *Manager) PostConfig(w rest.ResponseWriter, req *rest.Request) {
       }
     ]
  */
-func (self *Manager) GetStatsTypes(w rest.ResponseWriter, req *rest.Request) {
+func (self *WebApp) GetStatsTypes(w rest.ResponseWriter, req *rest.Request) {
     if list, err := self.statsReader.ListTypes(); err != nil {
         rest.Error(w, err.Error(), 500)
     } else {
@@ -180,7 +191,7 @@ func (self *Manager) GetStatsTypes(w rest.ResponseWriter, req *rest.Request) {
   },
 ]
  */
-func (self *Manager) GetStatsList(w rest.ResponseWriter, req *rest.Request) {
+func (self *WebApp) GetStatsList(w rest.ResponseWriter, req *rest.Request) {
     // XXX: sanitize type, vulernable to InfluxQL injection...
     filter := stats.SeriesKey{
         Type:       req.PathParam("type"),      /* Optional */
@@ -216,7 +227,7 @@ func (self *Manager) GetStatsList(w rest.ResponseWriter, req *rest.Request) {
   }
 ]
  */
-func (self *Manager) GetStats(w rest.ResponseWriter, req *rest.Request) {
+func (self *WebApp) GetStats(w rest.ResponseWriter, req *rest.Request) {
     var fields []string
     var duration time.Duration
 
@@ -248,8 +259,8 @@ func (self *Manager) GetStats(w rest.ResponseWriter, req *rest.Request) {
     }
 }
 
-func (self *Manager) PostPanic(w rest.ResponseWriter, req *rest.Request) {
-    if err := self.Panic(); err != nil {
+func (self *WebApp) PostPanic(w rest.ResponseWriter, req *rest.Request) {
+    if err := self.manager.Panic(); err != nil {
         rest.Error(w, err.Error(), 500)
         return
     }
@@ -259,45 +270,51 @@ func (self *Manager) PostPanic(w rest.ResponseWriter, req *rest.Request) {
 }
 
 func (self *Manager) RestApp() (rest.App, error) {
+    app := &WebApp {
+        manager:      self,
+        statsReader:  self.statsReader,
+        docker:       self.docker,
+        config:       &self.config,
+    }
     return rest.MakeRouter(
-        rest.Get("/",           self.Get),
-        rest.Post("/",          self.Post),         // Load + Start
-        rest.Delete("/workers", self.Delete),       // Stop
+        rest.Get("/",           app.Get),
+        rest.Post("/",          app.Post),         // Load + Start
+        rest.Delete("/workers", app.Delete),       // Stop
 
-        rest.Get("/workers/:config/:instance",  self.GetWorker),
+        rest.Get("/workers/:config/:instance",  app.GetWorker),
 
         // list active containers
-        rest.Get("/docker/", self.GetDockerList),
-        rest.Get("/docker/:id", self.GetDocker),
-        rest.Get("/docker/:id/logs", self.GetDockerLogs),
+        rest.Get("/docker/", app.GetDockerList),
+        rest.Get("/docker/:id", app.GetDocker),
+        rest.Get("/docker/:id/logs", app.GetDockerLogs),
 
         // list active config items, with TTL
-        rest.Get("/config/", self.GetConfigList),
-        rest.Get("/config/:type", self.GetConfigList),
+        rest.Get("/config/", app.GetConfigList),
+        rest.Get("/config/:type", app.GetConfigList),
 
         // get full config
-        rest.Get("/config/:type/:instance", self.GetConfig),
+        rest.Get("/config/:type/:instance", app.GetConfig),
 
         // publish config change to worker
-        rest.Post("/config/:type/:instance", self.PostConfig),
+        rest.Post("/config/:type/:instance", app.PostConfig),
 
         // static information about available stats types/fields
-        rest.Get("/stats", self.GetStatsTypes),
+        rest.Get("/stats", app.GetStatsTypes),
 
         // dynamic information about avilable stats series (hostname/instance)
-        rest.Get("/stats/", self.GetStatsList),
+        rest.Get("/stats/", app.GetStatsList),
 
         // ..filtered by type
-        rest.Get("/stats/:type", self.GetStatsList),
+        rest.Get("/stats/:type", app.GetStatsList),
 
         // data type's fields
         // may include multiple series, filtered by ?hostname=&instance=
-        rest.Get("/stats/:type/", self.GetStats),
+        rest.Get("/stats/:type/", app.GetStats),
 
         // data for type's specific field
         // may include multiple series, filtered by ?hostname=&instance=
-        rest.Get("/stats/:type/:field", self.GetStats),
+        rest.Get("/stats/:type/:field", app.GetStats),
 
-        rest.Post("/panic", self.PostPanic),
+        rest.Post("/panic", app.PostPanic),
     )
 }
