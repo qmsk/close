@@ -153,26 +153,28 @@ type ClientStatus struct {
 }
 
 func (self *Manager) ListClients() (clients []ClientStatus, err error) {
+    dockerCache := self.docker.NewCache(true)
+
     for _, client := range self.clients {
         clientStatus := ClientStatus{
             Config:         client.Config.name,
             Instance:       client.Instance,
         }
 
-        if dockerContainer, err := self.docker.Get(client.dockerID.String()); err != nil {
+        if dockerStatus, err := dockerCache.GetStatus(client.dockerID); err != nil {
             return nil, err
-        } else if dockerContainer == nil {
+        } else if dockerStatus == nil {
             clientStatus.Docker = ""
             clientStatus.DockerStatus = ""
             clientStatus.State = ClientDown
 
         } else {
-            clientStatus.Docker = dockerContainer.String()
-            clientStatus.DockerStatus = dockerContainer.Status
+            clientStatus.Docker = dockerStatus.ID.String()
+            clientStatus.DockerStatus = dockerStatus.Status
 
-            if dockerContainer.IsUp() {
+            if dockerStatus.IsUp() {
                 clientStatus.State = ClientUp
-            } else if dockerContainer.IsError() {
+            } else if dockerStatus.IsError() {
                 clientStatus.State = ClientError
             } else {
                 clientStatus.State = ClientDown

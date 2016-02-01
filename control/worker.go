@@ -173,11 +173,11 @@ func (self *Manager) WorkerDown(config *WorkerConfig) error {
  * aggregate and cache those queries.
  */
 type workerCache struct {
-    docker          *docker.Manager
     statsReader     *stats.Reader
     eager           bool
 
-    dockerStatus    map[docker.ID]docker.ContainerStatus   // DockerID.String()
+    dockerCache     *docker.Cache
+
     configCache     map[*Worker]config.ConfigMap
     statsCache      map[string]stats.SeriesStats        // %s/%s?instance=%s
     statsIndex      map[string]bool                     // statsUrl
@@ -186,10 +186,10 @@ type workerCache struct {
 func makeWorkerCache(manager *Manager, eager bool) workerCache {
     cache := workerCache{
         statsReader:    manager.statsReader,
-        docker:         manager.docker,
         eager:          eager,
 
-        dockerStatus:   make(map[docker.ID]docker.ContainerStatus),
+        dockerCache:    manager.docker.NewCache(eager),
+
         configCache:    make(map[*Worker]config.ConfigMap),
         statsCache:     make(map[string]stats.SeriesStats),
         statsIndex:     make(map[string]bool),
@@ -198,38 +198,6 @@ func makeWorkerCache(manager *Manager, eager bool) workerCache {
     return cache
 }
 
-/*
- * Return current docker container status.
- *
- * Cached for all containers using list if eager.
- */
-func (cache *workerCache) DockerStatus(dockerID docker.ID) (*docker.ContainerStatus, error) {
-    // TODO: negative cache?
-    if containerStatus, exists := cache.dockerStatus[dockerID]; exists {
-        return &containerStatus, nil
-    }
-
-    filter := dockerID
-
-    if cache.eager {
-        // all containers
-        filter = docker.ID{Class: dockerID.Class}
-    }
-
-    if dockerList, err := cache.docker.List(filter); err != nil {
-        return nil, err
-    } else {
-        for _, containerStatus := range dockerList {
-            cache.dockerStatus[containerStatus.ID] = containerStatus
-        }
-    }
-
-    if containerStatus, exists := cache.dockerStatus[dockerID]; exists {
-        return &containerStatus, nil
-    } else {
-        return nil, nil
-    }
-}
 
 /*
  * Get current configuration for worker.
@@ -409,7 +377,16 @@ func (cache *workerCache) getStatus(worker *Worker, detail bool) (WorkerStatus, 
         workerStatus.WorkerConfig = worker.Config
     }
 
-    if containerStatus, err := cache.DockerStatus(worker.dockerID); err != nil {
+    // docker
+    if !detail {
+
+    } else if dockerContainer, err := cache.dockerCache.GetContainer(worker.dockerID); err != nil {
+        return workerStatus, fmt.Errorf("ListWorkers %v: docker.Get %v: %v", worker, worker.dockerID, err)
+    } else {
+        workerStatus.DockerContainer = dockerContainer
+    }
+
+    if containerStatus, err := cache.dockerCache.GetStatus(worker.dockerID); err != nil {
         return workerStatus, fmt.Errorf("ListWorkers %v: DockerStatus %v: %v", worker, worker.dockerID, err)
     } else if containerStatus == nil {
         workerStatus.Docker = ""
@@ -426,14 +403,6 @@ func (cache *workerCache) getStatus(worker *Worker, detail bool) (WorkerStatus, 
         } else {
             workerStatus.State = WorkerDown
         }
-    }
-
-    if !detail {
-
-    } else if dockerContainer, err := cache.docker.Get(worker.dockerID.String()); err != nil {
-        return workerStatus, fmt.Errorf("ListWorkers %v: docker.Get %v: %v", worker, worker.dockerID, err)
-    } else {
-        workerStatus.DockerContainer = dockerContainer
     }
 
     if configTTL, err := worker.configSub.Check(); err != nil {
