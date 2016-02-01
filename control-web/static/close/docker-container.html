@@ -1,6 +1,6 @@
 <div class="docker-container">
     <h2>Status</h2>
-    <div class="alert" ng-class="{'alert-success': dockerContainer.state.Running, 'alert-warning': !dockerContainer.state.Running}">
+    <div class="alert" ng-class="{'alert-success': dockerContainer.state == 'running', 'alert-warning': dockerContainer.state == 'exited'}">
         {{dockerContainer.status}}
     </div>
 
