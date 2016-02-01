@@ -72,7 +72,7 @@ func (self *WebApp) Post(w rest.ResponseWriter, req *rest.Request) {
 }
 
 func (self *WebApp) Delete(w rest.ResponseWriter, req *rest.Request) {
-    if err := self.manager.Stop(); err != nil {
+    if errs := self.manager.Stop(); errs != nil {
         rest.Error(w, fmt.Sprintf("%v", errs), 500)
     } else {
         w.WriteHeader(200)

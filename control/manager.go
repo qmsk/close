@@ -14,8 +14,8 @@ import (
 )
 
 type ManagerAPI interface {
-    Start() error
-    Stop() error
+    Start() []error
+    Stop() []error
     DumpConfig() (string, error)
     ConfigList(config.ID) ([]ConfigItem, error)
     ConfigGet(config.ID) (config.Config, error)
