@@ -135,37 +135,37 @@ func (self *Manager) markWorkers() {
 }
 
 // Setup workers from config
-func (self *Manager) WorkerUp(workerConfig *WorkerConfig) error {
+func (self *Manager) WorkerUp(workerConfig *WorkerConfig) (errs []error) {
     self.log.Printf("WorkerUp %v: Start %d workers...\n", workerConfig, workerConfig.Count)
 
     for index := uint(1); index <= workerConfig.Count; index++ {
         instance := fmt.Sprintf("%d", index)
 
         if worker, err := self.workerUp(workerConfig, instance); err != nil {
-            return fmt.Errorf("WorkerUp %v: workerUp %v: %v", workerConfig, instance, err)
+            errs = append(errs, fmt.Errorf("WorkerUp %v: workerUp %v: %v", workerConfig, instance, err))
         } else {
             self.workers[worker.String()] = worker
         }
     }
 
-    return nil
+    return errs
 }
 
 // Stop running workers for given config
 // Call with config=nil to cleanup all unconfigured workers
-func (self *Manager) WorkerDown(config *WorkerConfig) error {
+func (self *Manager) WorkerDown(config *WorkerConfig) (errs []error) {
     // sweep
     for key, worker := range self.workers {
         if worker.Config == config {
             if err := self.docker.Down(worker.dockerID); err != nil {
-                return fmt.Errorf("WorkerDown %v: docker.Down %v: %v", config, worker.dockerID, err)
+                errs = append(errs, fmt.Errorf("WorkerDown %v: docker.Down %v: %v", config, worker.dockerID, err))
             }
 
             delete(self.workers, key)
         }
     }
 
-    return nil
+    return errs
 }
 
 /*

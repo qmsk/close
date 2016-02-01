@@ -196,53 +196,53 @@ func (self *Manager) Discover() (err error) {
 }
 
 // Start new configuration
-func (self *Manager) Start() error {
+func (self *Manager) Start() (errs []error) {
     self.log.Printf("Start config...\n");
 
     // reconfigure clients
     self.markClients()
     for _, clientConfig := range self.config.Clients {
-        if err := self.ClientUp(clientConfig); err != nil {
-            return err
+        if upErrs := self.ClientUp(clientConfig); upErrs != nil {
+            errs = append(errs, upErrs...)
         }
     }
 
     // cleanup any unconfigured clients
-    if err := self.ClientDown(nil); err != nil {
-        return err
+    if downErrs := self.ClientDown(nil); downErrs != nil {
+        errs = append(errs, downErrs...)
     }
 
     // reconfigure workers
     self.markWorkers()
     for _, workerConfig := range self.config.Workers {
-        if err := self.WorkerUp(workerConfig); err != nil {
-            return err
+        if upErrs := self.WorkerUp(workerConfig); upErrs != nil {
+            errs = append(errs, upErrs...)
         }
     }
 
     // cleanup any unconfigured workers
-    if err := self.WorkerDown(nil); err != nil {
-        return err
+    if downErrs := self.WorkerDown(nil); downErrs != nil {
+        errs = append(errs, downErrs...)
     }
 
-    self.log.Printf("Started\n");
+    self.log.Printf("Started: %d errors\n", len(errs));
 
-    return nil
+    return errs
 }
 
 // Stop current configuration
-func (self *Manager) Stop() (err error) {
+func (self *Manager) Stop() (errs []error) {
     self.markWorkers()
-    if workersErr := self.WorkerDown(nil); workersErr != nil {
-        err = workersErr
+    if workersErrs := self.WorkerDown(nil); workersErrs != nil {
+        errs = append(errs, workersErrs...)
     }
 
     self.markClients()
-    if clientsErr:= self.ClientDown(nil); clientsErr != nil {
-        err = clientsErr
+    if clientsErrs := self.ClientDown(nil); clientsErrs != nil {
+        errs = append(errs, clientsErrs...)
     }
 
-    return err
+    return errs
 }
 
 // Kill any running containers and reset state

@@ -94,36 +94,36 @@ func (self *Manager) markClients() {
 }
 
 // Start up all configured clients
-func (self *Manager) ClientUp(config *ClientConfig) error {
+func (self *Manager) ClientUp(config *ClientConfig) (errs []error) {
     self.log.Printf("ClientUp %v: Start %d clients...\n", config, config.Count)
 
     for index := uint(1); index <= config.Count; index++ {
         instance := fmt.Sprintf("%d", index)
 
         if client, err := self.clientUp(config, instance); err != nil {
-            return fmt.Errorf("ClientUp %v: %v", config, err)
+            errs = append(errs, fmt.Errorf("ClientUp %v: %v", config, err))
         } else {
             self.clients[client.String()] = client
         }
     }
 
-    return nil
+    return errs
 }
 
 // Stop running clients clients for given config
 // Call with config=nil to cleanup all unconfigured clients
-func (self *Manager) ClientDown(config *ClientConfig) error {
+func (self *Manager) ClientDown(config *ClientConfig) (errs []error) {
     for key, client := range self.clients {
         if client.Config == config {
             if err := self.docker.Down(client.dockerID); err != nil {
-                return fmt.Errorf("ClientDown %v: docker.Down %v: %v", config, client.dockerID, err)
+                errs = append(errs, fmt.Errorf("ClientDown %v: docker.Down %v: %v", config, client.dockerID, err))
             }
 
             delete(self.clients, key)
         }
     }
 
-    return nil
+    return errs
 }
 
 func (self *Manager) GetClient(config string, instance string) (*Client, error) {

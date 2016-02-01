@@ -3,6 +3,7 @@ package control
 import (
     "close/config"
     "close/docker"
+    "fmt"
     "github.com/ant0ine/go-json-rest/rest"
     "close/stats"
     "time"
@@ -50,8 +51,8 @@ func (self *Manager) Post(w rest.ResponseWriter, req *rest.Request) {
         return
     }
 
-    if err := self.Start(); err != nil {
-        rest.Error(w, err.Error(), 500)
+    if errs := self.Start(); errs != nil {
+        rest.Error(w, fmt.Sprintf("%v", errs), 500)
         return
     } else {
         // TODO: redirect to GET?
@@ -60,8 +61,8 @@ func (self *Manager) Post(w rest.ResponseWriter, req *rest.Request) {
 }
 
 func (self *Manager) Delete(w rest.ResponseWriter, req *rest.Request) {
-    if err := self.Stop(); err != nil {
-        rest.Error(w, err.Error(), 500)
+    if errs := self.Stop(); errs != nil {
+        rest.Error(w, fmt.Sprintf("%v", errs), 500)
     } else {
         w.WriteHeader(200)
     }
