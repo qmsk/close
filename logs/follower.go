@@ -23,7 +23,7 @@ func newFollower(logs *Logs) logFollower {
     follower := logFollower{
         logs:       logs,
         msgChan:    make(chan LogMsg, LOGS_BUFFER),
-        writeChan:  make(chan LogMsg),
+        writeChan:  make(chan LogMsg, LOGS_BUFFER),
     }
 
     go follower.run()
