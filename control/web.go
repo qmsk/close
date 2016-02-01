@@ -261,7 +261,7 @@ func (self *Manager) RestApp() (rest.App, error) {
     return rest.MakeRouter(
         rest.Get("/",           self.Get),
         rest.Post("/",          self.Post),         // Load + Start
-        rest.Delete("/",        self.Delete),       // Stop
+        rest.Delete("/workers", self.Delete),       // Stop
 
         rest.Get("/workers/:config/:instance",  self.GetWorker),
 
