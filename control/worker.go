@@ -369,14 +369,6 @@ func (cache *workerCache) getStatus(worker *Worker, detail bool) (WorkerStatus, 
         Instance:   worker.Instance,
     }
 
-    if worker.Config != nil {
-        workerStatus.Config = worker.Config.String()
-    }
-
-    if detail {
-        workerStatus.WorkerConfig = worker.Config
-    }
-
     // docker
     if !detail {
 
@@ -405,52 +397,60 @@ func (cache *workerCache) getStatus(worker *Worker, detail bool) (WorkerStatus, 
         }
     }
 
-    if configTTL, err := worker.configSub.Check(); err != nil {
-        if workerStatus.State == WorkerUp {
-            workerStatus.State = WorkerWait
-        }
-    } else {
-        workerStatus.ConfigInstance = worker.String()
-        workerStatus.ConfigTTL = configTTL.Seconds()
-    }
+    // config
+    if worker.Config != nil {
+        workerStatus.Config = worker.Config.String()
 
-    // current running config
-    if configMap, err := cache.ConfigGet(worker); err != nil {
-        workerStatus.ConfigError = err.Error()
-    } else {
         if detail {
-            workerStatus.ConfigMap = configMap
+            workerStatus.WorkerConfig = worker.Config
         }
 
-        if rate, err := cache.ConfigGetRate(worker); err != nil {
-            workerStatus.ConfigError = err.Error()
+        if configTTL, err := worker.configSub.Check(); err != nil {
+            if workerStatus.State == WorkerUp {
+                workerStatus.State = WorkerWait
+            }
         } else {
-            workerStatus.RateConfig = rate
+            workerStatus.ConfigInstance = worker.String()
+            workerStatus.ConfigTTL = configTTL.Seconds()
         }
 
-        if seriesKey, err := cache.StatsMeta(worker); err != nil {
-            workerStatus.StatsMeta = seriesKey
+        // current running config
+        if configMap, err := cache.ConfigGet(worker); err != nil {
             workerStatus.ConfigError = err.Error()
         } else {
-            workerStatus.StatsMeta = seriesKey
-        }
+            if detail {
+                workerStatus.ConfigMap = configMap
+            }
 
-        if rateStats, err := cache.StatsGet(worker, worker.Config.RateStats); err != nil {
-            workerStatus.ConfigError = err.Error()
-        } else {
-            workerStatus.RateStats = rateStats
-        }
+            if rate, err := cache.ConfigGetRate(worker); err != nil {
+                workerStatus.ConfigError = err.Error()
+            } else {
+                workerStatus.RateConfig = rate
+            }
 
-        if latencyStats, err := cache.StatsGet(worker, worker.Config.LatencyStats); err != nil {
-            workerStatus.ConfigError = err.Error()
-        } else {
-            workerStatus.LatencyStats = latencyStats
+            if seriesKey, err := cache.StatsMeta(worker); err != nil {
+                workerStatus.StatsMeta = seriesKey
+                workerStatus.ConfigError = err.Error()
+            } else {
+                workerStatus.StatsMeta = seriesKey
+            }
+
+            if rateStats, err := cache.StatsGet(worker, worker.Config.RateStats); err != nil {
+                workerStatus.ConfigError = err.Error()
+            } else {
+                workerStatus.RateStats = rateStats
+            }
+
+            if latencyStats, err := cache.StatsGet(worker, worker.Config.LatencyStats); err != nil {
+                workerStatus.ConfigError = err.Error()
+            } else {
+                workerStatus.LatencyStats = latencyStats
+            }
         }
     }
 
     return workerStatus, nil
 }
-
 
 type WorkerState string
 
