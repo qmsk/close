@@ -1,7 +1,6 @@
 package icmp
 
 import (
-    "golang.org/x/net/icmp"
     "close/stats"
     "close/config"
     "os"
@@ -24,9 +23,8 @@ func (self PingConfig) Worker() (worker.Worker, error) {
 
 type PingStats struct {
     ID              int
-    Time            time.Time       // ping request was sent out
-
-    RTT             time.Duration
+    SendTime        time.Time       // ping request was sent out
+    RecvTime        time.Time
 }
 
 func (self PingStats) StatsID() stats.ID {
@@ -37,19 +35,23 @@ func (self PingStats) StatsID() stats.ID {
 }
 
 func (self PingStats) StatsTime() time.Time {
-    return self.Time
+    return self.SendTime
+}
+
+func (self PingStats) RTT() time.Duration {
+    return self.RecvTime.Sub(self.SendTime)
 }
 
 func (self PingStats) StatsFields() map[string]interface{} {
     return map[string]interface{}{
         // timing
-        "rtt": self.RTT.Seconds(),
+        "rtt": self.RTT().Seconds(),
     }
 }
 
 func (self PingStats) String() string {
     return fmt.Sprintf("rtt=%.2fms",
-        self.RTT.Seconds() * 1000,
+        self.RTT().Seconds() * 1000,
     )
 }
 
@@ -68,7 +70,7 @@ type Pinger struct {
 
     configC     chan  config.ConfigPush
     statsC      chan  stats.Stats
-    receiverC   chan  pingResult
+    receiverC   chan  Ping
 }
 
 func NewPinger(config PingConfig) (*Pinger, error) {
@@ -119,13 +121,13 @@ func (p *Pinger) apply(config PingConfig) error {
         config.ID = os.Getpid()
     }
 
-    if conn, err := NewConn(config); err != nil {
+    if conn, err := NewConn(config.Proto, config.Target); err != nil {
         return err
     } else {
         p.conn = conn
     }
 
-    p.receiverC = make(chan pingResult)
+    p.receiverC = make(chan Ping)
 
     // good
     p.config = config
@@ -156,46 +158,54 @@ func (p *Pinger) Run() error {
     }
     defer p.log.Printf("stopped\n")
 
-    // state
-    var id = uint16(p.config.ID)
-    var seq uint16
     timerChan := time.Tick(p.config.Interval)
-    startTimes  := make(map[uint16]time.Time)
+
+    // state
+    var packets = make(map[uint16]Ping) // inflight
+    var packet = Ping{
+        ID:     uint16(p.config.ID),
+        Seq:    0,
+        Data:   []byte("HELLO 1"),
+    }
 
     for {
         select {
         case <-timerChan:
-            seq++
+            packet.Seq++
 
-            startTime := time.Now()
-
-            if err := p.send(id, seq); err != nil {
-                p.log.Printf("send seq=%d: %v\n", seq, err)
+            // Send, updating .Time
+            if err := p.conn.Send(&packet); err != nil {
+                p.log.Printf("send %v: %v\n", packet, err)
             } else {
-                startTimes[seq] = startTime
+                packets[packet.Seq] = packet
             }
 
-        case result, ok := <-p.receiverC:
+        case recvPacket, ok := <-p.receiverC:
             if !ok {
+                p.log.Printf("recv closed\n")
                 return nil
             }
-            if startTime, ok := startTimes[result.Seq]; ok {
-                rtt := result.Time.Sub(startTime)
 
-                if p.statsC != nil {
-                    p.statsC <- PingStats{
-                        ID:         p.config.ID,
-                        Time:       startTime,
-                        RTT:        rtt,
-                    }
+            sendPacket, ok := packets[recvPacket.Seq]
+            if !ok {
+                p.log.Printf("recv bad seq: %#v\n", recvPacket)
+                continue
+            }
+
+            delete(packets, recvPacket.Seq)
+
+            // stat
+            if p.statsC != nil {
+                p.statsC <- PingStats{
+                    ID:         int(sendPacket.ID),
+                    SendTime:   sendPacket.Time,
+                    RecvTime:   recvPacket.Time,
                 }
-
-                delete(startTimes, result.Seq)
             }
 
         case configPush, open := <-p.configC:
             if !open {
-                // XXX: killed?
+                p.log.Printf("config closed\n")
                 return nil
             } else {
                 configPush.ApplyFunc(p.configPush)
@@ -210,49 +220,22 @@ func (p *Pinger) Stop() {
     p.log.Printf("stopping...\n")
 
     // causes recevier() to close(receiverC)
-    p.conn.IcmpConn.Close()
-}
-
-func (p *Pinger) send(id uint16, seq uint16) error {
-    wm := p.conn.NewMessage(id, seq)
-
-    if err := p.conn.Write(wm); err != nil {
-        return err
+    if err := p.conn.Close(); err != nil {
+        p.log.Fatalf("icmpConn.Close: %v\n", err)
     }
-
-    return nil
 }
 
-func (p *Pinger) receiver(receiverC chan pingResult, conn *Conn) {
+func (p *Pinger) receiver(receiverC chan Ping, conn *Conn) {
     defer close(receiverC)
 
-    icmpProto := conn.Proto.ianaProto
-    icmpConn := conn.IcmpConn
-
     for {
-        buf := make([]byte, 1500)
-        if readSize, _, err := icmpConn.ReadFrom(buf); err != nil {
-            p.log.Printf("icmp.PacketConn %v: ReadFrom: %v\n", icmpConn, err)
+        if ping, err := conn.Recv(); err != nil {
+            p.log.Printf("icmp.PacketConn %v: ReadFrom: %v\n", conn, err)
 
             // TODO: quit if the connection is closed, report other errors?
             return
         } else {
-            buf = buf[:readSize]
-        }
-
-        recvTime := time.Now()
-
-        if icmpMessage, err := icmp.ParseMessage(icmpProto, buf); err != nil {
-            p.log.Printf("icmp.ParseMessage: %v\n", err)
-            continue
-        } else if icmpEcho, ok := icmpMessage.Body.(*icmp.Echo); ok {
-            receiverC <- pingResult{
-                ID:     uint16(icmpEcho.ID),
-                Seq:    uint16(icmpEcho.Seq),
-                Time:   recvTime,
-            }
-        } else {
-            p.log.Printf("recv unknown message: %v\n", err)
+            receiverC <- ping
         }
     }
 }
