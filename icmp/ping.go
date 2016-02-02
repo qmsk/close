@@ -167,10 +167,12 @@ func (p *Pinger) Run() error {
         case <-timerChan:
             seq++
 
+            startTime := time.Now()
+
             if err := p.send(id, seq); err != nil {
                 p.log.Printf("send seq=%d: %v\n", seq, err)
             } else {
-                startTimes[seq] = time.Now()
+                startTimes[seq] = startTime
             }
 
         case result, ok := <-p.receiverC:
