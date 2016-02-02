@@ -19,6 +19,10 @@ import (
     "close/config"
 )
 
+func init() {
+    Options.Register("dummyworker", &DummyConfig{})
+}
+
 type ID [8]byte
 
 func (self ID) String() string {

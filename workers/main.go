@@ -5,7 +5,3 @@ import (
 )
 
 var Options worker.Options
-
-func init() {
-    Options.Register("dummyworker", &DummyConfig{})
-}
