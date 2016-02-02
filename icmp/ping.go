@@ -168,7 +168,7 @@ func (p *Pinger) Run() error {
             seq++
 
             if err := p.send(id, seq); err != nil {
-                return err
+                p.log.Printf("send seq=%d: %v\n", seq, err)
             } else {
                 startTimes[seq] = time.Now()
             }
@@ -215,7 +215,7 @@ func (p *Pinger) send(id uint16, seq uint16) error {
     wm := p.conn.NewMessage(id, seq)
 
     if err := p.conn.Write(wm); err != nil {
-        return fmt.Errorf("icmp.PacketConn %v: WriteTo %v: %v", p.conn.IcmpConn, p.conn.TargetAddr, err)
+        return err
     }
 
     return nil
@@ -232,7 +232,7 @@ func (p *Pinger) receiver(receiverC chan pingResult, conn *Conn) {
         if readSize, _, err := icmpConn.ReadFrom(buf); err != nil {
             p.log.Printf("icmp.PacketConn %v: ReadFrom: %v\n", icmpConn, err)
 
-            // quit if the connection is closed
+            // TODO: quit if the connection is closed, report other errors?
             return
         } else {
             buf = buf[:readSize]
@@ -249,6 +249,8 @@ func (p *Pinger) receiver(receiverC chan pingResult, conn *Conn) {
                 Seq:    uint16(icmpEcho.Seq),
                 Time:   recvTime,
             }
+        } else {
+            p.log.Printf("recv unknown message: %v\n", err)
         }
     }
 }

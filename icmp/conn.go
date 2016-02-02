@@ -65,6 +65,10 @@ func NewConn(config PingConfig) (*Conn, error) {
     return c, nil
 }
 
+func (c *Conn) String() string {
+    return fmt.Sprintf("%v", c.TargetAddr.IP)
+}
+
 func (c *Conn) resolveTarget(target string) (*net.UDPAddr, error) {
     if target == "" {
         return nil, fmt.Errorf("No target given")
