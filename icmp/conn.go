@@ -64,7 +64,8 @@ var (
     }
 )
 
-func NewConn(protoName string, target string) (*Conn, error) {
+// NOTE: for unprivileged ICMP sockets, the given id will always be ignored, since the kernel assigns an ID..
+func NewConn(protoName string, target string, id int) (*Conn, error) {
     if target == "" {
         return nil, fmt.Errorf("No target given")
     }
@@ -104,6 +105,10 @@ func NewConn(protoName string, target string) (*Conn, error) {
 
 func (c *Conn) String() string {
     return fmt.Sprintf("%v", c.targetAddr.IP)
+}
+
+func (c *Conn) ID() int {
+    return c.id
 }
 
 func (c *Conn) Write(wm icmp.Message) (error) {

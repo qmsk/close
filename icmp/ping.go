@@ -114,17 +114,13 @@ func (p *Pinger) ConfigSub(configSub *config.Sub) error {
 }
 
 // Apply configuration to state
-// TODO: teardown old state?
 func (p *Pinger) apply(config PingConfig) error {
-    if config.ID == 0 {
-        // XXX: this is going to be 1 when running within docker..
-        config.ID = os.Getpid()
-    }
-
-    if conn, err := NewConn(config.Proto, config.Target); err != nil {
+    // TODO: teardown old state?
+    if conn, err := NewConn(config.Proto, config.Target, config.ID); err != nil {
         return err
     } else {
         p.conn = conn
+        config.ID = conn.ID()
     }
 
     p.receiverC = make(chan Ping)
