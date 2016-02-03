@@ -220,6 +220,9 @@ func (manager *Manager) Up(id ID, config Config) (*Container, error) {
     return container, nil
 }
 
+// Stop docker container, if running. Ignored if already stopped.
+//
+// Leaves the container in place, ready to be restarted
 func (manager *Manager) Down(id ID) error {
     manager.log.Printf("Down %v: stopping..\n", id)
 
@@ -234,7 +237,7 @@ func (manager *Manager) Down(id ID) error {
     return nil
 }
 
-// Stop all and all running containers
+// Force-kill all running managed containers
 func (manager *Manager) Panic() (retErr error) {
     opts := docker.ListContainersOptions{
         Filters:    map[string][]string{
@@ -256,4 +259,17 @@ func (manager *Manager) Panic() (retErr error) {
     }
 
     return retErr
+}
+
+// Clean up a docker container, removing it.
+//
+// Force-stops running containers.
+func (manager *Manager) Clean(id ID) error {
+    manager.log.Printf("Clean %v: removing..\n", id)
+
+    if err := manager.dockerClient.RemoveContainer(docker.RemoveContainerOptions{ID: id.String(), Force: true}); err != nil {
+        return err
+    }
+
+    return nil
 }
