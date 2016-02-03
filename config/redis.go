@@ -9,10 +9,20 @@ import (
 
 type Options struct {
     RedisURL        RedisURL        `long:"redis-url" value-name:"tcp://[:PASSWORD@]HOST[:PORT][/PREFIX]" env:"REDIS_URL"`
+    Timeout         time.Duration   `long:"redis-timeout" value-name:"DURATION" default:"10s"`
 }
 
 func (self Options) Empty() bool {
     return self.RedisURL.Empty()
+}
+
+func (opts Options) redisOptions() redis.Options {
+    redisOptions := opts.RedisURL.RedisOptions()
+    redisOptions.DialTimeout = opts.Timeout
+    redisOptions.ReadTimeout = opts.Timeout
+    redisOptions.WriteTimeout = opts.Timeout
+
+    return redisOptions
 }
 
 type Redis struct {
@@ -32,8 +42,11 @@ func NewRedis(options Options) (*Redis, error) {
 }
 
 func (self *Redis) init(options Options) error {
+    redisOptions := options.redisOptions()
 
-    if redisClient, err := options.RedisURL.RedisClient(); err != nil {
+    redisClient := redis.NewClient(&redisOptions)
+
+    if _, err := redisClient.Ping().Result(); err != nil {
         return err
     } else {
         self.redisClient = redisClient

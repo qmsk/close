@@ -56,18 +56,6 @@ func (self RedisURL) RedisOptions() (redisOptions redis.Options) {
     return redisOptions
 }
 
-func (self RedisURL) RedisClient() (*redis.Client, error) {
-    redisOptions := self.RedisOptions()
-
-    redisClient := redis.NewClient(&redisOptions)
-
-    if _, err := redisClient.Ping().Result(); err != nil {
-        return nil, err
-    }
-
-    return redisClient, nil
-}
-
 func (self RedisURL) Prefix() string {
     return path.Clean(self.Path)
 }

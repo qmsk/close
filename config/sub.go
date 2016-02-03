@@ -112,9 +112,19 @@ func (self *Sub) refresh(zpath string, expire time.Time) error {
     }
 }
 
+func (self *Sub) clear(zpath string) {
+    if err := self.redis.redisClient.ZRem(zpath, self.path).Err(); err != nil {
+        self.log.Printf("clear ZRem %v: %v\n", zpath, err)
+    }
+
+    if err := self.redis.redisClient.Del(self.path).Err(); err != nil {
+        self.log.Printf("clear Del %v: %v\n", self.path, err)
+    }
+}
 // register config in redis, maintaining both the ZSet and the object expiry keepalive under TTL
 func (self *Sub) register(config Config) {
     defer close(self.configChan)
+    defer self.log.Printf("stopped")
 
     // register top-level type
     if err := self.redis.registerType(self.id.Type); err != nil {
@@ -136,7 +146,7 @@ func (self *Sub) register(config Config) {
         return
     }
 
-    defer self.redis.redisClient.ZRem(zpath, self.path)
+    defer self.clear(zpath)
 
     // maintain registration, and handle pushes
     for {
@@ -166,6 +176,7 @@ func (self *Sub) register(config Config) {
 
             if err := self.refresh(zpath, expire); err != nil {
                 self.log.Printf("refresh: %v\n", err)
+                return
             }
         }
     }
