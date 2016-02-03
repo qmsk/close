@@ -1,5 +1,11 @@
 <div class="page-header"> 
     <div class="btn-toolbar pull-right">
+        <button class="btn btn-default" ng-click="post('clean')">
+            <span class="glyphicon glyphicon-trash"></span>
+        </button>
+        <button class="btn btn-default" ng-click="post('stop')">
+            <span class="glyphicon glyphicon-off"></span>
+        </button>
         <button class="btn btn-default" ng-click="get()">
             <span class="glyphicon glyphicon-refresh"></span>
         </button>
@@ -35,13 +41,13 @@
         <tbody>
             <tr ng-repeat="client in clients | orderBy:['config', 'instance']">
                 <td>
-                    <span class="label label-default" ng-if="client.state == 'down'">
-                        <span class="glyphicon glyphicon-off" title="Down"></span>
-                    </span>
-                    <span class="label label-success" ng-if="client.state == 'up'">
+                    <span class="label" ng-class="{'label-default': !client.up, 'label-success': client.up}" ng-if="client.state == 'up'">
                         <span class="glyphicon glyphicon-ok" title="Up"></span>
                     </span>
-                    <span class="label label-danger" ng-if="client.state == 'error'">
+                    <span class="label" ng-class="{'label-default': !client.up, 'label-warning': client.up}" ng-if="client.state == 'down'">
+                        <span class="glyphicon glyphicon-off" title="Down"></span>
+                    </span>
+                    <span class="label" ng-class="{'label-default': !client.up, 'label-danger': client.up}" ng-if="client.state == 'error'">
                         <span class="glyphicon glyphicon-alert" title="Error"></span>
                     </span>
                 </td>
@@ -60,9 +66,6 @@
 
 <div>
     <div class="btn-toolbar pull-right">
-        <button class="btn btn-default" ng-click="stopWorkers()">
-            <span class="glyphicon glyphicon-off"></span>
-        </button>
         <button class="btn btn-default" ng-click="get()">
             <span class="glyphicon glyphicon-refresh"></span>
         </button>
@@ -85,16 +88,16 @@
         <tbody>
             <tr ng-repeat="worker in workers | orderBy:['config', 'instance']">
                 <td>
-                    <span class="label label-default" ng-if="worker.state == 'down'">
-                        <span class="glyphicon glyphicon-off" title="Down"></span>
-                    </span>
-                    <span class="label label-success" ng-if="worker.state == 'up'">
+                    <span class="label" ng-class="{'label-default': !worker.up, 'label-success': worker.up}" ng-if="worker.state == 'up'">
                         <span class="glyphicon glyphicon-ok" title="Up"></span>
                     </span>
-                    <span class="label label-warning" ng-if="worker.state == 'wait'">
+                    <span class="label" ng-class="{'label-default': !worker.up, 'label-warning': worker.up}" ng-if="worker.state == 'wait'">
                         <span class="glyphicon glyphicon-time" title="Wait"></span>
                     </span>
-                    <span class="label label-danger" ng-if="worker.state == 'error'">
+                    <span class="label" ng-class="{'label-default': !worker.up, 'label-danger': worker.up}" ng-if="worker.state == 'down'">
+                        <span class="glyphicon glyphicon-off" title="Down"></span>
+                    </span>
+                    <span class="label" ng-class="{'label-default': !worker.up, 'label-danger': worker.up}" ng-if="worker.state == 'error'">
                         <span class="glyphicon glyphicon-alert" title="Error"></span>
                     </span>
                 </td>

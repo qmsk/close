@@ -138,11 +138,11 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
         );
     }
 
-    $scope.stopWorkers = function(){
+    $scope.post = function(action){
         $scope.busy = true;
-        $http.delete('/api/workers').then(
+        $http.post('/api/' + action).then(
             function success(r){
-                $scope.configAlert = "Workers stopped";
+                $scope.configAlert = "OK: " + action;
                 $scope.get();
             },
             function error(r){
