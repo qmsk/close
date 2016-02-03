@@ -55,12 +55,6 @@ func (self PingStats) String() string {
     )
 }
 
-type pingResult struct {
-    ID    uint16
-    Seq   uint16
-    Time  time.Time
-}
-
 type Pinger struct {
     config      PingConfig
 

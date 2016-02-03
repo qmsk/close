@@ -325,12 +325,10 @@ func (self *Manager) RestApp() (rest.App, error) {
         rest.Delete("/clients/:config/",            app.DeleteClients),
         rest.Delete("/clients/:config/:instance",   app.DeleteClients),
 
-
         rest.Get("/workers/:config/:instance",      app.GetWorker),
         rest.Delete("/workers/",                    app.DeleteWorkers),
         rest.Delete("/workers/:config/",            app.DeleteWorkers),
         rest.Delete("/workers/:config/:instance",   app.DeleteWorkers),
-
 
         // list active containers
         rest.Get("/docker/", app.GetDockerList),
