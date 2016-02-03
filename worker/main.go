@@ -66,12 +66,14 @@ func Main(options Options) {
     // config
     if options.Config.Empty() {
         log.Printf("Skip config")
+    } else if configWorker, ok := worker.(ConfigWorker); !ok {
+        log.Printf("No config support")
     } else if configRedis, err := config.NewRedis(options.Config.Options); err != nil {
         log.Fatalf("config.NewRedis %v: %v\n", options.Config, err)
     } else if configSub, err := configRedis.NewSub(options.workerType, options.Config.Instance); err != nil {
         log.Fatalf("config.Redis %v: NewSub %v %v: %v\n", configRedis, options.workerType, options.Config.Instance, err)
-    } else if err := worker.ConfigSub(configSub); err != nil {
-        log.Fatalf("Worker %v: ConfigSub %v: %v\n", worker, configSub, err)
+    } else if err := configWorker.ConfigSub(configSub); err != nil {
+        log.Fatalf("Worker %v: ConfigSub %v: %v\n", configWorker, configSub, err)
     } else {
         log.Printf("ConfigSub %v\n", configSub)
     }
@@ -79,16 +81,22 @@ func Main(options Options) {
     // stats
     if options.Stats.Empty() {
         log.Printf("Skip stats")
+    } else if statsWorker, ok := worker.(StatsWorker); !ok {
+        log.Printf("No stats support")
     } else if statsWriter, err := stats.NewWriter(options.Stats); err != nil {
         log.Fatalf("stats.NewWriter %v: %v\n", options.Stats, err)
-    } else if err := worker.StatsWriter(statsWriter); err != nil {
-        log.Fatalf("Worker %v: StatsWriter %v: %v\n", worker, statsWriter, err)
+    } else if err := statsWorker.StatsWriter(statsWriter); err != nil {
+        log.Fatalf("Worker %v: StatsWriter %v: %v\n", statsWorker, statsWriter, err)
     } else {
         log.Printf("StatsWriter %v\n", statsWriter)
     }
 
     // run
-    go stopping(worker)
+    if stopWorker, ok := worker.(StopWorker); !ok {
+
+    } else {
+        go stopping(stopWorker)
+    }
 
     log.Printf("Run %T: %v\n", worker, worker)
 

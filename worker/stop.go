@@ -7,7 +7,7 @@ import (
 
 // worker.Stop() on SIGINT, SIGKILL
 // one time only; revert to default signal handling
-func stopping (worker Worker) {
+func stopping (worker StopWorker) {
     stopChan := make(chan os.Signal, 1)
     signal.Notify(stopChan, os.Interrupt, os.Kill)
 

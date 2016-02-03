@@ -10,9 +10,17 @@ type WorkerConfig interface {
 }
 
 type Worker interface {
-    StatsWriter(*stats.Writer) error
-    ConfigSub(*config.Sub) error
-
     Run() error
+}
+
+type StatsWorker interface {
+    StatsWriter(*stats.Writer) error
+}
+
+type ConfigWorker interface {
+    ConfigSub(*config.Sub) error
+}
+
+type StopWorker interface {
     Stop()
 }
