@@ -16,6 +16,7 @@ import (
 type ManagerAPI interface {
     Start() []error
     Stop() []error
+    Clean() []error
     DumpConfig() (string, error)
     ConfigList(config.ID) ([]ConfigItem, error)
     ConfigGet(config.ID) (config.Config, error)
@@ -220,10 +221,8 @@ func (self *Manager) Start() (errs []error) {
             errs = append(errs, upErrs...)
         }
     }
-
-    // cleanup any unconfigured clients
-    if downErrs := self.ClientDown(nil); downErrs != nil {
-        errs = append(errs, downErrs...)
+    if clientErrs := self.sweepClients(); clientErrs != nil {
+        errs = append(errs, clientErrs...)
     }
 
     // reconfigure workers
@@ -233,10 +232,8 @@ func (self *Manager) Start() (errs []error) {
             errs = append(errs, upErrs...)
         }
     }
-
-    // cleanup any unconfigured workers
-    if downErrs := self.WorkerDown(nil); downErrs != nil {
-        errs = append(errs, downErrs...)
+    if workerErrs := self.sweepWorkers(); workerErrs != nil {
+        errs = append(errs, workerErrs...)
     }
 
     self.log.Printf("Started: %d errors\n", len(errs));
@@ -246,13 +243,24 @@ func (self *Manager) Start() (errs []error) {
 
 // Stop current configuration
 func (self *Manager) Stop() (errs []error) {
-    self.markWorkers()
     if workersErrs := self.WorkerDown(nil); workersErrs != nil {
         errs = append(errs, workersErrs...)
     }
 
-    self.markClients()
     if clientsErrs := self.ClientDown(nil); clientsErrs != nil {
+        errs = append(errs, clientsErrs...)
+    }
+
+    return errs
+}
+
+// Clean unused workers
+func (self *Manager) Clean() (errs []error) {
+    if workersErrs := self.WorkerClean(); workersErrs != nil {
+        errs = append(errs, workersErrs...)
+    }
+
+    if clientsErrs := self.ClientClean(); clientsErrs != nil {
         errs = append(errs, clientsErrs...)
     }
 
@@ -264,9 +272,6 @@ func (self *Manager) Panic() (error) {
     self.log.Printf("Panic!\n");
 
     err := self.docker.Panic()
-
-    self.clients = make(map[string]*Client)
-    self.workers = make(map[string]*Worker)
 
     return err
 }

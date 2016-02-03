@@ -44,6 +44,7 @@ func (self WorkerConfig) String() string {
 type Worker struct {
     Config          *WorkerConfig
     Instance        string
+    up              bool
 
     dockerID        docker.ID
     configSub       *config.Sub
@@ -59,10 +60,6 @@ func (self Worker) String() string {
 
 func (self *Manager) discoverWorker(dockerID docker.ID) (*Worker, error) {
     workerConfig := self.config.Workers[dockerID.Type]
-
-    if workerConfig == nil {
-        return nil, fmt.Errorf("Unknown worker config type: %v", dockerID.Type)
-    }
 
     worker := &Worker{
         Config:     workerConfig,
@@ -85,6 +82,7 @@ func (self *Manager) workerUp(workerConfig *WorkerConfig, instance string) (*Wor
     worker := &Worker{
         Config:     workerConfig,
         Instance:   instance,
+        up:         true,
         dockerID:   docker.ID{Class:"worker", Type: workerConfig.String(), Instance: instance},
     }
 
@@ -128,9 +126,10 @@ func (self *Manager) workerUp(workerConfig *WorkerConfig, instance string) (*Wor
     return worker, nil
 }
 
+// Mark all workers for sweep
 func (self *Manager) markWorkers() {
     for _, worker := range self.workers {
-        worker.Config = nil
+        worker.up = false
     }
 }
 
@@ -151,18 +150,52 @@ func (self *Manager) WorkerUp(workerConfig *WorkerConfig) (errs []error) {
     return errs
 }
 
-// Stop running workers for given config
-// Call with config=nil to cleanup all unconfigured workers
-func (self *Manager) WorkerDown(config *WorkerConfig) (errs []error) {
-    // sweep
-    for key, worker := range self.workers {
-        if worker.Config == config {
-            if err := self.docker.Down(worker.dockerID); err != nil {
-                errs = append(errs, fmt.Errorf("WorkerDown %v: docker.Down %v: %v", config, worker.dockerID, err))
-            }
-
-            delete(self.workers, key)
+// Stop any workers that are not configured, or are marked
+func (self *Manager) sweepWorkers() (errs []error) {
+    for _, worker := range self.workers {
+        if worker.up {
+            continue
         }
+
+        if err := self.docker.Down(worker.dockerID); err != nil {
+            errs = append(errs, fmt.Errorf("WorkerDown %v: docker.Down %v: %v", worker, worker.dockerID, err))
+        }
+    }
+
+    return errs
+}
+
+// Stop running workers for given config
+//
+// Call with config=nil to stop all workers.
+func (self *Manager) WorkerDown(config *WorkerConfig) (errs []error) {
+    for _, worker := range self.workers {
+        if config != nil && worker.Config != config {
+            continue
+        }
+
+        worker.up = false
+
+        if err := self.docker.Down(worker.dockerID); err != nil {
+            errs = append(errs, fmt.Errorf("WorkerDown %v: docker.Down %v: %v", config, worker.dockerID, err))
+        }
+    }
+
+    return errs
+}
+
+// Cleanup down'd workers
+func (self *Manager) WorkerClean() (errs []error) {
+    for key, worker := range self.workers {
+        if worker.up {
+            continue
+        }
+
+        if err := self.docker.Clean(worker.dockerID); err != nil {
+            errs = append(errs, fmt.Errorf("WorkerClean %v: docker.Clean %v: %v", worker, worker.dockerID, err))
+        }
+
+        delete(self.workers, key)
     }
 
     return errs
@@ -367,6 +400,7 @@ func (cache *workerCache) StatsGet(worker *Worker, statsUrl string) (*stats.Seri
 func (cache *workerCache) getStatus(worker *Worker, detail bool) (WorkerStatus, error) {
     workerStatus := WorkerStatus{
         Instance:   worker.Instance,
+        Up:         worker.up,
     }
 
     // docker
@@ -415,8 +449,10 @@ func (cache *workerCache) getStatus(worker *Worker, detail bool) (WorkerStatus, 
         }
 
         // current running config
-        if configMap, err := cache.ConfigGet(worker); err != nil {
-            workerStatus.ConfigError = err.Error()
+        if !worker.up {
+            // ignore
+        } else if configMap, err := cache.ConfigGet(worker); err != nil {
+
         } else {
             if detail {
                 workerStatus.ConfigMap = configMap
@@ -470,6 +506,7 @@ type WorkerStatus struct {
     DockerStatus    string              `json:"docker_status"`
     DockerContainer *docker.Container    `json:"docker_container,omitempty"` // detail
 
+    Up              bool                `json:"up"`
     State           WorkerState         `json:"state"`
 
     ConfigInstance  string              `json:"config_instance"`

@@ -28,6 +28,7 @@ func (self ClientConfig) String() string {
 type Client struct {
     Config          *ClientConfig
     Instance        string
+    up              bool            // configured to be up
 
     dockerID        docker.ID
 }
@@ -38,10 +39,6 @@ func (self Client) String() string {
 
 func (self *Manager) discoverClient(dockerID docker.ID) (*Client, error) {
     clientConfig := self.config.Clients[dockerID.Type]
-
-    if clientConfig == nil {
-        return nil, fmt.Errorf("Unknown client config type: %v", dockerID.Type)
-    }
 
     client := &Client{
         Config:     clientConfig,
@@ -57,6 +54,7 @@ func (self *Manager) clientUp(config *ClientConfig, instance string) (*Client, e
     client := &Client{
         Config:     config,
         Instance:   instance,
+        up:         true,
 
         dockerID:   docker.ID{Class:"client", Type: config.name, Instance: instance},
     }
@@ -86,10 +84,10 @@ func (self *Manager) clientUp(config *ClientConfig, instance string) (*Client, e
     return client, nil
 }
 
-// Mark all clients as unconfigured
+// Mark all clients as down
 func (self *Manager) markClients() {
     for _, client := range self.clients {
-        client.Config = nil
+        client.up = false
     }
 }
 
@@ -110,17 +108,51 @@ func (self *Manager) ClientUp(config *ClientConfig) (errs []error) {
     return errs
 }
 
-// Stop running clients clients for given config
-// Call with config=nil to cleanup all unconfigured clients
-func (self *Manager) ClientDown(config *ClientConfig) (errs []error) {
-    for key, client := range self.clients {
-        if client.Config == config {
-            if err := self.docker.Down(client.dockerID); err != nil {
-                errs = append(errs, fmt.Errorf("ClientDown %v: docker.Down %v: %v", config, client.dockerID, err))
-            }
-
-            delete(self.clients, key)
+// Stop any clients that are not configured to be up
+func (self *Manager) sweepClients() (errs []error) {
+    for _, client := range self.clients {
+        if client.up {
+            continue
         }
+        if err := self.docker.Down(client.dockerID); err != nil {
+            errs = append(errs, fmt.Errorf("sweepClients %v: docker.Down %v: %v", client, client.dockerID, err))
+        }
+    }
+
+    return errs
+}
+
+// Stop running clients clients for given config
+//
+// Call with config=nil to stop all clients
+func (self *Manager) ClientDown(config *ClientConfig) (errs []error) {
+    for _, client := range self.clients {
+        if config != nil && client.Config != config {
+            continue
+        }
+
+        client.up = false
+
+        if err := self.docker.Down(client.dockerID); err != nil {
+            errs = append(errs, fmt.Errorf("ClientDown %v: docker.Down %v: %v", config, client.dockerID, err))
+        }
+    }
+
+    return errs
+}
+
+// Cleanup down'd clients
+func (self *Manager) ClientClean() (errs []error) {
+    for key, client := range self.clients {
+        if client.up {
+            continue
+        }
+
+        if err := self.docker.Clean(client.dockerID); err != nil {
+            errs = append(errs, fmt.Errorf("ClientClean %v: docker.Clean %v: %v", client, client.dockerID, err))
+        }
+
+        delete(self.clients, key)
     }
 
     return errs
@@ -149,6 +181,7 @@ type ClientStatus struct {
     Docker          string      `json:"docker"`
     DockerStatus    string      `json:"docker_status"`
 
+    Up              bool        `json:"up"`
     State           ClientState `json:"state"`
 }
 
@@ -159,6 +192,8 @@ func (self *Manager) ListClients() (clients []ClientStatus, err error) {
         clientStatus := ClientStatus{
             Config:         client.Config.name,
             Instance:       client.Instance,
+
+            Up:             client.up,
         }
 
         if dockerStatus, err := dockerCache.GetStatus(client.dockerID); err != nil {

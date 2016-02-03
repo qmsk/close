@@ -71,12 +71,33 @@ func (self *WebApp) Post(w rest.ResponseWriter, req *rest.Request) {
     }
 }
 
-func (self *WebApp) Delete(w rest.ResponseWriter, req *rest.Request) {
+func (self *WebApp) PostStop(w rest.ResponseWriter, req *rest.Request) {
     if errs := self.manager.Stop(); errs != nil {
         rest.Error(w, fmt.Sprintf("%v", errs), 500)
     } else {
         w.WriteHeader(200)
     }
+}
+
+func (self *WebApp) PostClean(w rest.ResponseWriter, req *rest.Request) {
+    if errs := self.manager.Clean(); errs != nil {
+        rest.Error(w, fmt.Sprintf("%v", errs), 500)
+    } else {
+        w.WriteHeader(200)
+    }
+}
+
+func (self *WebApp) Delete(w rest.ResponseWriter, req *rest.Request) {
+    if errs := self.manager.Stop(); errs != nil {
+        rest.Error(w, fmt.Sprintf("%v", errs), 500)
+        return
+    }
+    if errs := self.manager.Clean(); errs != nil {
+        rest.Error(w, fmt.Sprintf("%v", errs), 500)
+        return
+    }
+
+    w.WriteHeader(200)
 }
 
 func (self *WebApp) GetWorker(w rest.ResponseWriter, req *rest.Request) {
@@ -279,7 +300,9 @@ func (self *Manager) RestApp() (rest.App, error) {
     return rest.MakeRouter(
         rest.Get("/",           app.Get),
         rest.Post("/",          app.Post),         // Load + Start
-        rest.Delete("/workers", app.Delete),       // Stop
+        rest.Post("/stop",      app.PostStop),
+        rest.Post("/clean",     app.PostClean),
+        rest.Delete("/",        app.Delete),       // Stop + Clean
 
         rest.Get("/workers/:config/:instance",  app.GetWorker),
 
