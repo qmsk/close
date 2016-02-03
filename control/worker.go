@@ -118,7 +118,7 @@ func (self *Manager) workerUp(workerConfig *WorkerConfig, instance string) (*Wor
     }
 
     if configSub, err := self.configRedis.GetSub(worker.configID()); err != nil {
-        return nil, fmt.Errorf("configRedis.GetSub: %v", err)
+        return worker, fmt.Errorf("configRedis.GetSub: %v", err)
     } else {
         worker.configSub = configSub
     }
@@ -140,9 +140,11 @@ func (self *Manager) WorkerUp(workerConfig *WorkerConfig) (errs []error) {
     for index := uint(1); index <= workerConfig.Count; index++ {
         instance := fmt.Sprintf("%d", index)
 
-        if worker, err := self.workerUp(workerConfig, instance); err != nil {
+        worker, err := self.workerUp(workerConfig, instance)
+        if err != nil {
             errs = append(errs, fmt.Errorf("WorkerUp %v: workerUp %v: %v", workerConfig, instance, err))
-        } else {
+        }
+        if worker != nil {
             self.workers[worker.String()] = worker
         }
     }
@@ -240,6 +242,8 @@ func makeWorkerCache(manager *Manager, eager bool) workerCache {
 func (cache *workerCache) ConfigGet(worker *Worker) (config.ConfigMap, error) {
     if configMap, exists := cache.configCache[worker]; exists {
         return configMap, nil
+    } else if worker.configSub == nil {
+        return nil, fmt.Errorf("No ConfigSub for worker")
     } else if configMap, err := worker.configSub.Get(); err != nil {
         return nil, err
     } else {
@@ -442,7 +446,9 @@ func (cache *workerCache) getStatus(worker *Worker, detail bool) (WorkerStatus, 
             workerStatus.WorkerConfig = worker.Config
         }
 
-        if configTTL, err := worker.configSub.Check(); err != nil {
+        if worker.configSub == nil {
+
+        } else if configTTL, err := worker.configSub.Check(); err != nil {
             if workerStatus.State == WorkerUp {
                 workerStatus.State = WorkerWait
             }
