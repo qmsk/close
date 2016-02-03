@@ -151,14 +151,35 @@ closeApp.controller('WorkersCtrl', function($scope, $routeParams, $location, $ht
         );
     }
 
+    $scope.deleteClient = function(client){
+        $scope.busy = true;
+        var url = '/api/clients/';
+
+        if (client) {
+            url += client.config + '/' + client.instance;
+        }
+
+        $http.delete(url).then(
+            function success(r){
+                $scope.configAlert = "DELETE " + url + ": OK";
+                $scope.get();
+            },
+            function error(r){
+                $scope.configAlert = r.data;
+            }
+        );
+    }
+
     $scope.get();
 });
 
 closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams, Stats) {
+    var url = '/api/workers/' + $routeParams.config + '/' + $routeParams.instance;
+
     $scope.config = $routeParams.config;
     $scope.instance = $routeParams.instance;
 
-    $http.get('/api/workers/' + $routeParams.config + '/' + $routeParams.instance).then(
+    $http.get(url).then(
             function success(r) {
                 $scope.error = null;
                 $scope.worker = r.data;
@@ -206,6 +227,17 @@ closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams, Stats) {
             headers: { 'Content-Type': 'application/json' },
         });
     };
+
+    $scope.delete = function() {
+        $http.delete(url).then(
+            function success (r) {
+                $scope.error = "Deleted";
+            },
+            function error(r) {
+                $scope.error = r.data;
+            }
+        );
+    }
 });
 
 closeApp.controller('DockerIndexCtrl', function($scope, $http) {

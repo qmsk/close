@@ -110,6 +110,22 @@ func (self *WebApp) GetWorker(w rest.ResponseWriter, req *rest.Request) {
     }
 }
 
+func (self *WebApp) DeleteWorkers(w rest.ResponseWriter, req *rest.Request) {
+    if err := self.manager.WorkerDelete(req.PathParam("config"), req.PathParam("instance")); err != nil {
+        rest.Error(w, err.Error(), 500)
+    } else {
+        w.WriteHeader(200)
+    }
+}
+
+func (self *WebApp) DeleteClients(w rest.ResponseWriter, req *rest.Request) {
+    if err := self.manager.ClientDelete(req.PathParam("config"), req.PathParam("instance")); err != nil {
+        rest.Error(w, err.Error(), 500)
+    } else {
+        w.WriteHeader(200)
+    }
+}
+
 func (self *WebApp) GetDockerList(w rest.ResponseWriter, req *rest.Request) {
     filter := docker.ID{}
 
@@ -304,7 +320,17 @@ func (self *Manager) RestApp() (rest.App, error) {
         rest.Post("/clean",     app.PostClean),
         rest.Delete("/",        app.Delete),       // Stop + Clean
 
-        rest.Get("/workers/:config/:instance",  app.GetWorker),
+        // Clients
+        rest.Delete("/clients/",                    app.DeleteClients),
+        rest.Delete("/clients/:config/",            app.DeleteClients),
+        rest.Delete("/clients/:config/:instance",   app.DeleteClients),
+
+
+        rest.Get("/workers/:config/:instance",      app.GetWorker),
+        rest.Delete("/workers/",                    app.DeleteWorkers),
+        rest.Delete("/workers/:config/",            app.DeleteWorkers),
+        rest.Delete("/workers/:config/:instance",   app.DeleteWorkers),
+
 
         // list active containers
         rest.Get("/docker/", app.GetDockerList),

@@ -1,4 +1,10 @@
 <div class="page-header"> 
+    <div class="btn-toolbar pull-right">
+        <button class="btn btn-danger" ng-click="delete()">
+            <span class="glyphicon glyphicon-remove" title="Stop and remove worker"></span>
+        </button>
+    </div>
+ 
     <h1>Worker {{config}}:{{instance}}</h2>
 
     <div class="alert alert-warning" ng-if="error">

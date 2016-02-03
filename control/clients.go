@@ -180,44 +180,74 @@ type ClientStatus struct {
 
     Docker          string      `json:"docker"`
     DockerStatus    string      `json:"docker_status"`
+    DockerNode      string      `json:"docker_node"`
 
     Up              bool        `json:"up"`
     State           ClientState `json:"state"`
+}
+
+func (client *Client) GetStatus(dockerCache *docker.Cache) (ClientStatus, error) {
+    clientStatus := ClientStatus{
+        Config:         client.Config.name,
+        Instance:       client.Instance,
+
+        Up:             client.up,
+    }
+
+    if dockerStatus, err := dockerCache.GetStatus(client.dockerID); err != nil {
+        clientStatus.Docker = client.dockerID.String()
+        clientStatus.DockerStatus = fmt.Sprintf("%v", err)
+        clientStatus.State = ClientError
+    } else if dockerStatus == nil {
+        clientStatus.Docker = ""
+        clientStatus.DockerStatus = ""
+        clientStatus.State = ClientDown
+    } else {
+        clientStatus.Docker = dockerStatus.ID.String()
+        clientStatus.DockerStatus = dockerStatus.Status
+        clientStatus.DockerNode = dockerStatus.Node
+
+        if dockerStatus.IsUp() {
+            clientStatus.State = ClientUp
+        } else if dockerStatus.IsError() {
+            clientStatus.State = ClientError
+        } else {
+            clientStatus.State = ClientDown
+        }
+    }
+
+    return clientStatus, nil
 }
 
 func (self *Manager) ListClients() (clients []ClientStatus, err error) {
     dockerCache := self.docker.NewCache(true)
 
     for _, client := range self.clients {
-        clientStatus := ClientStatus{
-            Config:         client.Config.name,
-            Instance:       client.Instance,
-
-            Up:             client.up,
-        }
-
-        if dockerStatus, err := dockerCache.GetStatus(client.dockerID); err != nil {
+        if clientStatus, err := client.GetStatus(dockerCache); err != nil {
             return nil, err
-        } else if dockerStatus == nil {
-            clientStatus.Docker = ""
-            clientStatus.DockerStatus = ""
-            clientStatus.State = ClientDown
-
         } else {
-            clientStatus.Docker = dockerStatus.ID.String()
-            clientStatus.DockerStatus = dockerStatus.Status
-
-            if dockerStatus.IsUp() {
-                clientStatus.State = ClientUp
-            } else if dockerStatus.IsError() {
-                clientStatus.State = ClientError
-            } else {
-                clientStatus.State = ClientDown
-            }
+            clients = append(clients, clientStatus)
         }
-
-        clients = append(clients, clientStatus)
     }
 
     return clients, nil
+}
+
+func (self *Manager) ClientDelete(configName string, instance string) error {
+    for key, client := range self.clients {
+        if configName != "" && (client.Config == nil || client.Config.name != configName) {
+            continue
+        }
+        if instance != "" && client.Instance != instance {
+            continue
+        }
+
+        if err := self.docker.Clean(client.dockerID); err != nil {
+            return err
+        }
+
+        delete(self.clients, key)
+    }
+
+    return nil
 }

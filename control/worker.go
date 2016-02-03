@@ -413,7 +413,9 @@ func (cache *workerCache) getStatus(worker *Worker, detail bool) (WorkerStatus, 
     }
 
     if containerStatus, err := cache.dockerCache.GetStatus(worker.dockerID); err != nil {
-        return workerStatus, fmt.Errorf("ListWorkers %v: DockerStatus %v: %v", worker, worker.dockerID, err)
+        workerStatus.Docker = worker.dockerID.String()
+        workerStatus.DockerStatus = fmt.Sprintf("%v", err)
+        workerStatus.State = WorkerError
     } else if containerStatus == nil {
         workerStatus.Docker = ""
         workerStatus.DockerStatus = ""
@@ -421,6 +423,7 @@ func (cache *workerCache) getStatus(worker *Worker, detail bool) (WorkerStatus, 
     } else {
         workerStatus.Docker = containerStatus.String()
         workerStatus.DockerStatus = containerStatus.Status
+        workerStatus.DockerNode = containerStatus.Node
 
         if containerStatus.IsUp() {
             workerStatus.State = WorkerUp
@@ -504,6 +507,7 @@ type WorkerStatus struct {
 
     Docker          string              `json:"docker"`
     DockerStatus    string              `json:"docker_status"`
+    DockerNode      string              `json:"docker_node"`
     DockerContainer *docker.Container    `json:"docker_container,omitempty"` // detail
 
     Up              bool                `json:"up"`
@@ -548,4 +552,23 @@ func (self *Manager) WorkerGet(configName string, instance string) (*WorkerStatu
     } else {
         return &workerStatus, nil
     }
+}
+
+func (self *Manager) WorkerDelete(configName string, instance string) error {
+    for key, worker := range self.workers {
+        if configName != "" && (worker.Config == nil || worker.Config.name != configName) {
+            continue
+        }
+        if instance != "" && worker.Instance != instance {
+            continue
+        }
+
+        if err := self.docker.Clean(worker.dockerID); err != nil {
+            return err
+        }
+
+        delete(self.workers, key)
+    }
+
+    return nil
 }

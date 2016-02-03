@@ -35,7 +35,16 @@
                 <th>Config</td>
                 <th>Instance</th>
                 <th>Docker</th>
-                <th></th>
+                <th>Node</th>
+                <th>
+                    <div class="btn-toolbar pull-right">
+                        <div class="btn-group">
+                            <button class="btn btn-danger" ng-click="deleteClient()">
+                                <span class="glyphicon glyphicon-remove" title="Stop and remove all clients"></span>
+                            </button>
+                        </div>
+                    </div>
+                </th>
             </tr>
         </thead>
         <tbody>
@@ -57,7 +66,16 @@
                     <a ng-if="client.docker" href="#/docker/{{client.docker}}">{{client.docker_status}}</a>
                 </td>
                 <td>
-
+                    <span ng-if="client.docker_node">{{client.docker_node}}</span>
+                </td>
+                <td>
+                    <div class="btn-toolbar pull-right">
+                        <div class="btn-group btn-group-xs">
+                            <button class="btn btn-danger" ng-click="deleteClient(client)">
+                                <span class="glyphicon glyphicon-remove" title="Stop and remove client"></span>
+                            </button>
+                        </div>
+                    </div>
                 </td>
             </tr>
         </tbody>
@@ -79,6 +97,7 @@
                 <th>Config</td>
                 <th>Instance</th>
                 <th>Docker</th>
+                <th>Node</th>
                 <th>Config</th>
                 <th>Rate</th>
                 <th>Latency</th>
@@ -110,6 +129,9 @@
                 </td>
                 <td>
                     <a ng-if="worker.docker" href="#/docker/{{worker.docker}}">{{worker.docker_status}}</a>
+                </td>
+                <td>
+                    <span ng-if="worker.docker_node">{{worker.docker_node}}</span>
                 </td>
                 <td>
                     <span class="label label-warning" ng-if="!worker.config">

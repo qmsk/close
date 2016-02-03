@@ -24,6 +24,8 @@ type ManagerAPI interface {
     ListClients() ([]ClientStatus, error)
     ListWorkers() ([]WorkerStatus, error)
     WorkerGet(string, string) (*WorkerStatus, error)
+    WorkerDelete(string, string) error
+    ClientDelete(string, string) error
     LoadConfigReader(io.Reader) error
     Panic() (error)
 }
