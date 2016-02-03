@@ -33,7 +33,14 @@ func (self ConfigPush) Unmarshal(config interface{}) error {
 }
 
 // Send this ConfigPush over the given chan, read the result and return it.
+//
+// If given a nil chan, immediately errors out
 func (self ConfigPush) apply(configChan chan ConfigPush) (ConfigReturn, error) {
+    if configChan == nil {
+        ret := ConfigReturn{Error: fmt.Errorf("No config push support")}
+        return ret, ret.Error
+    }
+
     self.retChan = make(chan ConfigReturn)
 
     configChan <- self

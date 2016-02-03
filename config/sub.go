@@ -182,6 +182,13 @@ func (self *Sub) register(config Config) {
     }
 }
 
+// Register.
+func (self *Sub) Register(config Config) error {
+    go self.register(config)
+
+    return nil
+}
+
 // Subscribe to ConfigPush's from redis
 func (self *Sub) subscribe(subscribeChan chan ConfigPush, pubsub *redis.PubSub) {
     defer close(subscribeChan)
@@ -219,7 +226,6 @@ func (self *Sub) Start(config Config) (chan ConfigPush, error) {
     self.configChan = make(chan ConfigPush)
 
     go self.register(config)
-
 
     return self.configChan, nil
 }
