@@ -20,13 +20,13 @@ func TestDeleteWorkers(t *testing.T) {
     }
 
     recorded := test.RunRequest(t, api.MakeHandler(),
-        test.MakeSimpleRequest("DELETE", "http://0.0.0.0/workers", nil))
+        test.MakeSimpleRequest("DELETE", "http://0.0.0.0/workers/", nil))
     recorded.CodeIs(200)
     recorded.ContentTypeIsJson()
 
     recorded2 := test.RunRequest(t, api.MakeHandler(),
         test.MakeSimpleRequest("DELETE", "http://0.0.0.0/", nil))
-    recorded2.CodeIs(405)
+    recorded2.CodeIs(200)
     recorded2.ContentTypeIsJson()
 }
     
