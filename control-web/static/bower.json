@@ -1,0 +1,32 @@
+{
+  "name": "close",
+  "description": "Close controller UI",
+  "main": "close/app.js",
+  "authors": [
+    "Arseny Kurnikov",
+    "Tero Marttila"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "docker",
+    "remote",
+    "execution",
+    "load",
+    "testing"
+  ],
+  "moduleType": [],
+  "homepage": "",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "angular-flot": "0.0.15",
+    "angular-websocket": "1.0.14",
+    "angularjs-scroll-glue": "^0.0.1"
+  }
+}
