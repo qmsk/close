@@ -1,11 +1,11 @@
 package control
 
 import (
-    "bytes"
     "close/config"
     "close/docker"
     "fmt"
     "io"
+    "io/ioutil"
     "log"
     "os"
     "close/stats"
@@ -52,8 +52,9 @@ type Manager struct {
     statsReader     *stats.Reader
     docker          *docker.Manager
 
-    // state
+    /* State */
     // XXX: these are unsafe against concurrent web requests
+    configText      string
     config          Config
     clients         map[string]*Client
     workers         map[string]*Worker
@@ -106,8 +107,17 @@ func (self *Manager) init(options Options) error {
     return nil
 }
 
-// Activate the given config
-func (self *Manager) loadConfig(meta toml.MetaData, config Config) (err error) {
+// Load a TOML-formatted config.
+// Call Start() to activate it. Possibly with Discover() in between when first starting up from an unkonwn state.
+func (self *Manager) loadConfig(text string) (err error) {
+    var config Config
+
+    meta, err := toml.Decode(text, &config)
+    if err != nil {
+        return err
+    }
+
+    // check meta
     var undecodedKeys []string
 
     for _, key := range meta.Undecoded() {
@@ -132,50 +142,35 @@ func (self *Manager) loadConfig(meta toml.MetaData, config Config) (err error) {
     }
 
     // TODO: stop old config?
+    self.configText = text
     self.config = config
 
     return nil
 }
 
 func (self *Manager) LoadConfigReader(reader io.Reader) error {
-    var config Config
-
-    if meta, err := toml.DecodeReader(reader, &config); err != nil {
+    if data, err := ioutil.ReadAll(reader); err != nil {
         return err
     } else {
-        return self.loadConfig(meta, config)
+        return self.loadConfig(string(data))
     }
 }
 
 func (self *Manager) LoadConfigFile(filePath string) error {
-    var config Config
-
-    if meta, err := toml.DecodeFile(filePath, &config); err != nil {
+    if data, err := ioutil.ReadFile(filePath); err != nil {
         return err
     } else {
-        return self.loadConfig(meta, config)
+        return self.loadConfig(string(data))
     }
 }
 
 func (self *Manager) LoadConfigString(data string) error {
-    var config Config
-
-    if meta, err := toml.Decode(data, &config); err != nil {
-        return err
-    } else {
-        return self.loadConfig(meta, config)
-    }
+    return self.loadConfig(data)
 }
 
 // Get running configuration
 func (self *Manager) DumpConfig() (string, error) {
-    var buf bytes.Buffer
-
-    if err := toml.NewEncoder(&buf).Encode(self.config); err != nil {
-        return "", err
-    }
-
-    return buf.String(), nil
+    return self.configText, nil
 }
 
 // Discover any existing running docker containers before initial Start()
