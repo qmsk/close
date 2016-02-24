@@ -156,39 +156,9 @@ func (manager *Manager) Up(id ID, config Config) (*Container, error) {
 
     if container == nil {
         // does not exist; create
-        createOptions := docker.CreateContainerOptions{
-            Name:   id.String(),
-            Config: &docker.Config{
-                Env:        config.Env,
-                Cmd:        config.Argv(),
-                Image:      config.Image,
-                // Mounts:     config.Mounts,
-                Labels:     id.labels(),
-            },
-            HostConfig: &docker.HostConfig{
-                Privileged:     config.Privileged,
-                NetworkMode:    config.NetworkMode,
-            },
-        }
-
-        if config.NetworkMode == "" {
-            // match hostname from container name, unless running with NetworkMode=container:*
-            createOptions.Config.Hostname = id.String()
-        }
-
-        // XXX: .Config.Mounts = ... doesn't work? fake it!
-        createOptions.Config.Volumes = make(map[string]struct{})
-        for _, mount := range config.Mounts {
-            createOptions.Config.Volumes[mount.Destination] = struct{}{}
-
-            if mount.Source != "" {
-                bind := fmt.Sprintf("%s:%s:%s", mount.Source, mount.Destination, mount.Mode)
-
-                createOptions.HostConfig.Binds = append(createOptions.HostConfig.Binds, bind)
-            }
-        }
-
         manager.log.Printf("Up %v: create...\n", id)
+
+        createOptions := config.createOptions(id)
 
         if dockerContainer, err := manager.dockerClient.CreateContainer(createOptions); err != nil {
             return nil, err

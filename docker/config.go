@@ -3,6 +3,7 @@ package docker
 import (
     "github.com/fsouza/go-dockerclient"
     "fmt"
+    "encoding/json"
     "close/util"
 )
 
@@ -12,11 +13,13 @@ type Config struct {
     Image       string          `json:"image"`
     Command     string          `json:"command"`
     Args        []string        `json:"args"`
-    Env         util.Env        `json:"env"`
+    Env         util.StringSet          `json:"env"`
 
     Privileged      bool                `json:"privileged"`
     Mounts          []docker.Mount      `json:"mounts"`
     NetworkMode     string              `json:"net_container"`
+
+    Constraints     util.StringSet
 }
 
 func (self *Config) Argv() []string {
@@ -56,14 +59,27 @@ func (self *Config) SetNetworkContainer(id ID) {
 }
 
 func configFromDocker(dockerContainer *docker.Container) Config {
+    var constraints []string
+
+    if constraintsLabel, exists := dockerContainer.Config.Labels["com.docker.swarm.constraints"]; !exists {
+
+    } else if err := json.Unmarshal([]byte(constraintsLabel), &constraints); err != nil {
+        // XXX
+    } else {
+        // ok
+    }
+
     return Config{
         Image:          dockerContainer.Config.Image,
         Command:        dockerContainer.Config.Cmd[0],
         Args:           dockerContainer.Config.Cmd[1:],
-        Env:            util.MakeEnv(dockerContainer.Config.Env...),
+        Env:            util.MakeStringSet(dockerContainer.Config.Env...),
+
         Privileged:     dockerContainer.HostConfig.Privileged,
         Mounts:         dockerContainer.Mounts,
         NetworkMode:    dockerContainer.HostConfig.NetworkMode,
+
+        Constraints:    util.MakeStringSet(constraints...),
     }
 }
 
@@ -116,6 +132,52 @@ func (self Config) Equals(other Config) bool {
         return false
     }
 
+    if !self.Constraints.Equals(other.Constraints) {
+        return false
+    }
+
     return true
 }
 
+
+func (config Config) createOptions(id ID) docker.CreateContainerOptions {
+    env := config.Env.Copy()
+
+    for _, constraint := range config.Constraints {
+        env.Add(fmt.Sprintf("constraint:%s", constraint))
+    }
+
+    createOptions := docker.CreateContainerOptions{
+        Name:   id.String(),
+        Config: &docker.Config{
+            Env:        env,
+            Cmd:        config.Argv(),
+            Image:      config.Image,
+            // Mounts:     config.Mounts,
+            Labels:     id.labels(),
+        },
+        HostConfig: &docker.HostConfig{
+            Privileged:     config.Privileged,
+            NetworkMode:    config.NetworkMode,
+        },
+    }
+
+    if config.NetworkMode == "" {
+        // match hostname from container name, unless running with NetworkMode=container:*
+        createOptions.Config.Hostname = id.String()
+    }
+
+    // XXX: .Config.Mounts = ... doesn't work? fake it!
+    createOptions.Config.Volumes = make(map[string]struct{})
+    for _, mount := range config.Mounts {
+        createOptions.Config.Volumes[mount.Destination] = struct{}{}
+
+        if mount.Source != "" {
+            bind := fmt.Sprintf("%s:%s:%s", mount.Source, mount.Destination, mount.Mode)
+
+            createOptions.HostConfig.Binds = append(createOptions.HostConfig.Binds, bind)
+        }
+    }
+
+    return createOptions
+}
