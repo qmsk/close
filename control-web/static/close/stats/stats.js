@@ -5,7 +5,7 @@ angular.module('close.stats', [
 /*
  * /api/stats
  */
-.factory('Stats', function($http){
+.factory('Stats', function($http, $q){
     return {
         /*
          * Fetch index of available stats types-fields.
@@ -24,7 +24,7 @@ angular.module('close.stats', [
                     });
                 },
                 function error(r) {
-                    return r.data.Error;
+                    $q.reject(r.data.Error);
                 }
             );
         },
@@ -69,9 +69,9 @@ angular.module('close.stats', [
                 },
                 function error(r) {
                     if (r.data && r.data.Error) {
-                        return r.data.Error;
+                        $q.reject(r.data.Error);
                     } else {
-                        return r;
+                        $q.reject(r);
                     }
                 }
             );
