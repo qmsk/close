@@ -1,0 +1,356 @@
+{
+   "HttpProxy" : "",
+   "NGoroutines" : 0,
+   "BridgeNfIptables" : true,
+   "RegistryConfig" : null,
+   "Images" : 182,
+   "MemTotal" : 7113794148,
+   "ClusterStore" : "",
+   "OomKillDisable" : true,
+   "LoggingDriver" : "",
+   "DockerRootDir" : "",
+   "ServerVersion" : "swarm/1.1.1",
+   "ExperimentalBuild" : false,
+   "CPUShares" : true,
+   "ContainersRunning" : 9,
+   "Labels" : null,
+   "KernelVersion" : "4.2.0-18-generic",
+   "ContainersStopped" : 57,
+   "Containers" : 66,
+   "OSType" : "",
+   "Debug" : false,
+   "HttpsProxy" : "",
+   "SwapLimit" : true,
+   "OperatingSystem" : "linux",
+   "Plugins" : {
+      "Authorization" : null,
+      "Volume" : null,
+      "Network" : null
+   },
+   "SystemStatus" : [
+      [
+         "Role",
+         "primary"
+      ],
+      [
+         "Strategy",
+         "random"
+      ],
+      [
+         "Filters",
+         "health, port, dependency, affinity, constraint"
+      ],
+      [
+         "Nodes",
+         "9"
+      ],
+      [
+         " (unknown)",
+         "catcp5-test.docker-cloud.test.catcp:2376"
+      ],
+      [
+         "  └ Status",
+         "Pending"
+      ],
+      [
+         "  └ Containers",
+         "0"
+      ],
+      [
+         "  └ Reserved CPUs",
+         "0 / 0"
+      ],
+      [
+         "  └ Reserved Memory",
+         "0 B / 0 B"
+      ],
+      [
+         "  └ Labels",
+         ""
+      ],
+      [
+         "  └ Error",
+         "(none)"
+      ],
+      [
+         "  └ UpdatedAt",
+         "2016-02-23T17:21:44Z"
+      ],
+      [
+         " catcp3-terom-dev",
+         "catcp3-terom-dev.terom-dev.test.catcp:2376"
+      ],
+      [
+         "  └ Status",
+         "Healthy"
+      ],
+      [
+         "  └ Containers",
+         "21"
+      ],
+      [
+         "  └ Reserved CPUs",
+         "0 / 2"
+      ],
+      [
+         "  └ Reserved Memory",
+         "0 B / 1.026 GiB"
+      ],
+      [
+         "  └ Labels",
+         "executiondriver=native-0.2, kernelversion=3.16.0-4-amd64, operatingsystem=Debian GNU/Linux 8 (jessie), storagedriver=aufs"
+      ],
+      [
+         "  └ Error",
+         "(none)"
+      ],
+      [
+         "  └ UpdatedAt",
+         "2016-02-24T17:27:29Z"
+      ],
+      [
+         " catcp4-terom-dev",
+         "catcp4-terom-dev.terom-dev.test.catcp:2376"
+      ],
+      [
+         "  └ Status",
+         "Healthy"
+      ],
+      [
+         "  └ Containers",
+         "12"
+      ],
+      [
+         "  └ Reserved CPUs",
+         "0 / 2"
+      ],
+      [
+         "  └ Reserved Memory",
+         "0 B / 1.026 GiB"
+      ],
+      [
+         "  └ Labels",
+         "executiondriver=native-0.2, kernelversion=3.16.0-4-amd64, operatingsystem=Debian GNU/Linux 8 (jessie), storagedriver=aufs"
+      ],
+      [
+         "  └ Error",
+         "(none)"
+      ],
+      [
+         "  └ UpdatedAt",
+         "2016-02-24T17:26:53Z"
+      ],
+      [
+         " catcp5-terom-dev",
+         "catcp5-terom-dev.terom-dev.test.catcp:2376"
+      ],
+      [
+         "  └ Status",
+         "Healthy"
+      ],
+      [
+         "  └ Containers",
+         "5"
+      ],
+      [
+         "  └ Reserved CPUs",
+         "0 / 2"
+      ],
+      [
+         "  └ Reserved Memory",
+         "0 B / 1.026 GiB"
+      ],
+      [
+         "  └ Labels",
+         "executiondriver=native-0.2, kernelversion=3.16.0-4-amd64, operatingsystem=Debian GNU/Linux 8 (jessie), storagedriver=aufs"
+      ],
+      [
+         "  └ Error",
+         "(none)"
+      ],
+      [
+         "  └ UpdatedAt",
+         "2016-02-24T17:26:58Z"
+      ],
+      [
+         " catcp6-terom-dev",
+         "catcp6-terom-dev.terom-dev.test.catcp:2376"
+      ],
+      [
+         "  └ Status",
+         "Healthy"
+      ],
+      [
+         "  └ Containers",
+         "20"
+      ],
+      [
+         "  └ Reserved CPUs",
+         "0 / 2"
+      ],
+      [
+         "  └ Reserved Memory",
+         "0 B / 1.026 GiB"
+      ],
+      [
+         "  └ Labels",
+         "executiondriver=native-0.2, kernelversion=3.16.0-4-amd64, operatingsystem=Debian GNU/Linux 8 (jessie), storagedriver=aufs"
+      ],
+      [
+         "  └ Error",
+         "(none)"
+      ],
+      [
+         "  └ UpdatedAt",
+         "2016-02-24T17:27:16Z"
+      ],
+      [
+         " catcp7-terom-dev",
+         "catcp7-terom-dev.terom-dev.test.catcp:2376"
+      ],
+      [
+         "  └ Status",
+         "Healthy"
+      ],
+      [
+         "  └ Containers",
+         "8"
+      ],
+      [
+         "  └ Reserved CPUs",
+         "0 / 2"
+      ],
+      [
+         "  └ Reserved Memory",
+         "0 B / 1.018 GiB"
+      ],
+      [
+         "  └ Labels",
+         "executiondriver=native-0.2, kernelversion=3.19.0-33-generic, operatingsystem=Ubuntu 15.04, storagedriver=overlay"
+      ],
+      [
+         "  └ Error",
+         "(none)"
+      ],
+      [
+         "  └ UpdatedAt",
+         "2016-02-24T17:27:28Z"
+      ],
+      [
+         " close-test-1",
+         "close-test-1.close.test.catcp:2376"
+      ],
+      [
+         "  └ Status",
+         "Healthy"
+      ],
+      [
+         "  └ Containers",
+         "0"
+      ],
+      [
+         "  └ Reserved CPUs",
+         "0 / 1"
+      ],
+      [
+         "  └ Reserved Memory",
+         "0 B / 513.4 MiB"
+      ],
+      [
+         "  └ Labels",
+         "catcp.cloud.digitalocean.region=ams3, catcp.cloud=digitalocean, catcp.environment=close_test, catcp.role-id=1, catcp.role=close-test, executiondriver=native-0.2, kernelversion=4.2.0-27-generic, operatingsystem=Ubuntu 15.10, storagedriver=overlay"
+      ],
+      [
+         "  └ Error",
+         "(none)"
+      ],
+      [
+         "  └ UpdatedAt",
+         "2016-02-24T17:27:26Z"
+      ],
+      [
+         " close-test-2",
+         "close-test-2.close.test.catcp:2376"
+      ],
+      [
+         "  └ Status",
+         "Healthy"
+      ],
+      [
+         "  └ Containers",
+         "0"
+      ],
+      [
+         "  └ Reserved CPUs",
+         "0 / 1"
+      ],
+      [
+         "  └ Reserved Memory",
+         "0 B / 513.4 MiB"
+      ],
+      [
+         "  └ Labels",
+         "catcp.cloud.digitalocean.region=lon1, catcp.cloud=digitalocean, catcp.environment=close_test, catcp.role-id=2, catcp.role=close-test, executiondriver=native-0.2, kernelversion=4.2.0-27-generic, operatingsystem=Ubuntu 15.10, storagedriver=overlay"
+      ],
+      [
+         "  └ Error",
+         "(none)"
+      ],
+      [
+         "  └ UpdatedAt",
+         "2016-02-24T17:27:37Z"
+      ],
+      [
+         " close-test-3",
+         "close-test-3.close.test.catcp:2376"
+      ],
+      [
+         "  └ Status",
+         "Healthy"
+      ],
+      [
+         "  └ Containers",
+         "0"
+      ],
+      [
+         "  └ Reserved CPUs",
+         "0 / 1"
+      ],
+      [
+         "  └ Reserved Memory",
+         "0 B / 513.4 MiB"
+      ],
+      [
+         "  └ Labels",
+         "catcp.cloud.digitalocean.region=fra1, catcp.cloud=digitalocean, catcp.environment=close_test, catcp.role-id=3, catcp.role=close-test, executiondriver=native-0.2, kernelversion=4.2.0-27-generic, operatingsystem=Ubuntu 15.10, storagedriver=overlay"
+      ],
+      [
+         "  └ Error",
+         "(none)"
+      ],
+      [
+         "  └ UpdatedAt",
+         "2016-02-24T17:27:26Z"
+      ]
+   ],
+   "Architecture" : "amd64",
+   "ExecutionDriver" : "",
+   "BridgeNfIp6tables" : true,
+   "NCPU" : 13,
+   "MemoryLimit" : true,
+   "NoProxy" : "",
+   "ClusterAdvertise" : "",
+   "IPv4Forwarding" : true,
+   "Name" : "catcp-terom-dev",
+   "SystemTime" : "2016-02-24T19:27:43.008060749+02:00",
+   "NEventsListener" : 1,
+   "NFd" : 0,
+   "DriverStatus" : null,
+   "Driver" : "",
+   "IndexServerAddress" : "",
+   "CpuCfsPeriod" : true,
+   "ContainersPaused" : 0,
+   "CPUSet" : true,
+   "CpuCfsQuota" : true,
+   "ID" : ""
+}
