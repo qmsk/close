@@ -241,7 +241,18 @@ closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams, Stats) {
 });
 
 closeApp.controller('DockerIndexCtrl', function($scope, $http) {
+    $scope.dockerLabel = null;
+
     $http.get('/api/docker').success(function(data){
+        var labelSet = { };
+
+        $.each(data.Nodes, function(i, node){
+            $.each(node.Labels, function(label, value){
+                labelSet[label] = true;
+            });
+        });
+
+        $scope.dockerLabels = $.map(labelSet, function(value, label){ return label });
         $scope.dockerInfo = data;
     });
     $http.get('/api/docker/').success(function(data){

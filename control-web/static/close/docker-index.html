@@ -28,6 +28,13 @@
                 <th>CPU</td>
                 <th>Memory</td>
                 <th>Containers</th>
+                <th>
+                    <select ng-model="dockerLabel" class="form-control input-sm" placeholder="Label">
+                        <option ng-repeat="label in dockerLabels" value="{{label}}">
+                            {{label}}
+                        </option>
+                    </select>
+                </th>
             </tr>
         </thead>
         <tbody>
@@ -47,6 +54,9 @@
                 <td>{{node.CPU}}</td>
                 <td>{{node.Memory.Size}} {{node.Memory.Unit}}</td>
                 <td>{{node.Containers}}</td>
+                <td>
+                    {{node.Labels[dockerLabel]}}
+                </td>
             </tr>
         </tbody>
     </table>
