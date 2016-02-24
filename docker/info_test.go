@@ -2,8 +2,8 @@ package docker
 
 import (
     "github.com/fsouza/go-dockerclient"
-    "fmt"
     "os"
+    "reflect"
     "testing"
     "time"
 )
@@ -64,12 +64,17 @@ func TestSwarmInfo(t *testing.T) {
             CPUReserved:    0,
             Memory:         MemoryInfo{1.026, "GiB"},
             MemoryReserved: MemoryInfo{0.0, "B"},
-            Labels:         "executiondriver=native-0.2, kernelversion=3.16.0-4-amd64, operatingsystem=Debian GNU/Linux 8 (jessie), storagedriver=aufs",
+            Labels:         map[string]string{
+                "executiondriver": "native-0.2",
+                "kernelversion": "3.16.0-4-amd64",
+                "operatingsystem": "Debian GNU/Linux 8 (jessie)",
+                "storagedriver": "aufs",
+            },
             SwarmError:     nil,
             SwarmUpdated:   time.Date(2016, 2, 24, 17, 27, 29, 0, time.UTC),
         }
 
-        if fmt.Sprintf("%#v", node) != fmt.Sprintf("%#v", node1) {
+        if !reflect.DeepEqual(node, node1) {
             t.Errorf("info.Nodes[1]:\n- %#v\n+ %#v\n", node, node1)
         }
     }

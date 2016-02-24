@@ -4,6 +4,7 @@ import (
     "github.com/fsouza/go-dockerclient"
     "fmt"
     "log"
+    "regexp"
     "strings"
     "time"
 )
@@ -34,7 +35,19 @@ type NodeInfo struct {
     CPUReserved int
     Memory          MemoryInfo
     MemoryReserved  MemoryInfo
-    Labels      string      // TODO: parse
+    Labels          map[string]string
+}
+
+var swarmLabelRegexp = regexp.MustCompile("([a-z0-9-.]+)=(.*?)(, |$)")
+
+func (node *NodeInfo) parseSwarmLabels(labels string) error {
+    node.Labels = make(map[string]string)
+
+    for _, match := range swarmLabelRegexp.FindAllStringSubmatch(labels, -1) {
+        node.Labels[match[1]] = match[2]
+    }
+
+    return nil
 }
 
 type Info struct {
@@ -112,7 +125,9 @@ func (info *Info) decodeSwarmStatus(systemStatus swarmSystemStatus) error {
             case "Reserved Memory":
                 fmt.Sscanf(value, "%f %s / %f %s", &node.MemoryReserved.Size, &node.MemoryReserved.Unit, &node.Memory.Size, &node.Memory.Unit)
             case "Labels":
-                node.Labels = value
+                if err := node.parseSwarmLabels(value); err != nil {
+                    log.Printf("Info: skip attr=%v for node=%v: value=%#v err=%v\n", attr, node, value, err)
+                }
             case "Error":
                 if value == "(none)" {
                     node.SwarmError = nil
