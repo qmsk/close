@@ -5,6 +5,7 @@ import (
     influxdb "github.com/influxdb/influxdb/client/v2"
     "net"
     "net/url"
+    "strings"
 )
 
 const INFLUXDB_PORT = "8086"
@@ -67,10 +68,11 @@ func (self InfluxURL) Connect() (influxdb.Client, error) {
 }
 
 func (self InfluxURL) Database() string {
-    if self.Path != "" {
-        return self.Path
-    } else {
+    if self.Path == "" {
         return INFLUXDB_DATABASE
+    } else {
+        // /database/..
+        return strings.Split(self.Path, "/")[1]
     }
 }
 
