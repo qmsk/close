@@ -10,8 +10,8 @@ var testParseStatus = []struct{
     exit    int
     since   string
 }{
-    {"Up About a minute",           "up",       0,      "About a minute"},
-    {"Up 9 minutes",                "up",       0,      "9 minutes"},
+    {"Up About a minute",           "running",  0,      "About a minute"},
+    {"Up 9 minutes",                "running",  0,      "9 minutes"},
     {"Exited (0) 2 days ago",       "exited",   0,      "2 days"},
     {"Exited (137) 4 weeks ago",    "exited",   137,    "4 weeks"},
 }
