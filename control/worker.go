@@ -16,6 +16,8 @@ type WorkerConfig struct {
     Count       uint
     Client      string // ClientConfig.name
 
+    // Docker
+    Constraints []string
     Image       string
     Privileged  bool
     Command     string
@@ -93,15 +95,17 @@ func (self *Manager) workerUp(workerConfig *WorkerConfig, instance string) (*Wor
         Privileged: workerConfig.Privileged,
     }
 
-    dockerConfig.Env.Add("CLOSE_INSTANCE", worker)
-    dockerConfig.Env.Add("INFLUXDB_URL", self.options.Stats.InfluxURL)
-    dockerConfig.Env.Add("REDIS_URL", self.options.Config.RedisURL)
+    dockerConfig.Env.AddEnv("CLOSE_INSTANCE", worker)
+    dockerConfig.Env.AddEnv("INFLUXDB_URL", self.options.Stats.InfluxURL)
+    dockerConfig.Env.AddEnv("REDIS_URL", self.options.Config.RedisURL)
 
     if workerConfig.InstanceFlag != "" {
         dockerConfig.AddFlag(workerConfig.InstanceFlag, worker.String())
     }
 
     dockerConfig.AddArg(workerConfig.Args...)
+
+    dockerConfig.Constraints.Set(workerConfig.Constraints)
 
     if workerConfig.Client != "" {
         if client, err := self.GetClient(workerConfig.Client, instance); err != nil {

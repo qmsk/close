@@ -64,7 +64,7 @@ func (self *Manager) clientUp(config *ClientConfig, instance string) (*Client, e
         Image:      config.Image,
         Privileged: config.Privileged,
     }
-    dockerConfig.Env.Add("CLOSE_INSTANCE", client.String())
+    dockerConfig.Env.AddEnv("CLOSE_INSTANCE", client.String())
 
     if config.Volume != "" {
         bind := config.VolumePath
