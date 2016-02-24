@@ -241,6 +241,9 @@ closeApp.controller('WorkerCtrl', function($scope, $http, $routeParams, Stats) {
 });
 
 closeApp.controller('DockerIndexCtrl', function($scope, $http) {
+    $http.get('/api/docker').success(function(data){
+        $scope.dockerInfo = data;
+    });
     $http.get('/api/docker/').success(function(data){
         $scope.dockerContainers = data;
     });

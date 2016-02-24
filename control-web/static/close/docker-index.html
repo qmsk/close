@@ -1,45 +1,66 @@
 <div class="page-header"> 
-    <h2>Docker</h2>
+    <h1>Docker</h1>
 </div>
 
-<table class="table docker">
-    <thead>
-        <tr>
-            <th>State</th>
-            <th>Class</td>
-            <th>Type</td>
-            <th>Instance</td>
-            <th>Name</td>
-            <th>Node</th>
-            <th>Status</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr ng-repeat="dockerContainer in dockerContainers | orderBy:['class', 'type', 'instance']">
-            <td>
-                <span class="label label-success" ng-if="dockerContainer.state == 'running'">
-                    <span class="glyphicon glyphicon-play" title="Running"></span>
-                </span>
-                <span class="label label-info" ng-if="dockerContainer.state == 'paused'">
-                    <span class="glyphicon glyphicon-pause" title="Running"></span>
-                </span>
-                <span class="label label-default" ng-if="dockerContainer.state == 'exited'">
-                    <span class="glyphicon glyphicon-stop" title="Stopped"></span>
-                </span>
-                <span class="label label-warning" ng-if="dockerContainer.exit_code != 0">
-                    <span class="glyphicon glyphicon-alert" title="Error"></span>
-                </span>
-            </td>
-            <td>{{dockerContainer.class}}</td>
-            <td>{{dockerContainer.type}}</td>
-            <td>{{dockerContainer.instance}}</td>
-            <td><span title="{{dockerContainer.id}}">{{dockerContainer.name}}</span></td>
-            <td>{{dockerContainer.node}}</td>
-            <td>{{dockerContainer.status}}</td>
-            <td>
-                <a href="#/docker/{{dockerContainer.name}}"><span class="glyphicon glyphicon-zoom-in"></span></a>
-            </td>
-        </tr>
-    </tbody>
-</table>
+<div>
+    <h2>Info</h2>
+    <dl class="dl-horizontal">
+        <dt>Version</dt><dd>{{dockerInfo.ServerVersion}}</dd>
+
+        <dt>Name</dt><dd>{{dockerInfo.Name}}</dd>
+
+        <dt>OS</dt><dd>{{dockerInfo.OperatingSystem}}</dd>
+    </dl>
+
+    <h3>Swarm</h3>
+    <dl class="dl-horizontal" ng-if="dockerInfo.Swarm">
+        <dt>Role</dt><dd>{{dockerInfo.Swarm.Role}}</dd>
+        <dt>Strategy</dt><dd>{{dockerInfo.Swarm.Strategy}}</dd>
+        <dt>Nodes</dt><dd>{{dockerInfo.Swarm.NodeCount}}</dd>
+    </dl>
+</div>
+
+<div>
+    <h2>Containers</h2>
+    <table class="table docker">
+        <thead>
+            <tr>
+                <th>State</th>
+                <th>Class</td>
+                <th>Type</td>
+                <th>Instance</td>
+                <th>Name</td>
+                <th>Node</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr ng-repeat="dockerContainer in dockerContainers | orderBy:['class', 'type', 'instance']">
+                <td>
+                    <span class="label label-success" ng-if="dockerContainer.state == 'running'">
+                        <span class="glyphicon glyphicon-play" title="Running"></span>
+                    </span>
+                    <span class="label label-info" ng-if="dockerContainer.state == 'paused'">
+                        <span class="glyphicon glyphicon-pause" title="Running"></span>
+                    </span>
+                    <span class="label label-default" ng-if="dockerContainer.state == 'exited'">
+                        <span class="glyphicon glyphicon-stop" title="Stopped"></span>
+                    </span>
+                    <span class="label label-warning" ng-if="dockerContainer.exit_code != 0">
+                        <span class="glyphicon glyphicon-alert" title="Error"></span>
+                    </span>
+                </td>
+                <td>{{dockerContainer.class}}</td>
+                <td>{{dockerContainer.type}}</td>
+                <td>{{dockerContainer.instance}}</td>
+                <td><span title="{{dockerContainer.id}}">{{dockerContainer.name}}</span></td>
+                <td>{{dockerContainer.node}}</td>
+                <td>{{dockerContainer.status}}</td>
+                <td>
+                    <a href="#/docker/{{dockerContainer.name}}"><span class="glyphicon glyphicon-zoom-in"></span></a>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>

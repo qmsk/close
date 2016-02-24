@@ -126,6 +126,14 @@ func (self *WebApp) DeleteClients(w rest.ResponseWriter, req *rest.Request) {
     }
 }
 
+func (self *WebApp) GetDockerInfo(w rest.ResponseWriter, req *rest.Request) {
+    if info, err := self.docker.Info(); err != nil {
+        rest.Error(w, err.Error(), 500)
+    } else {
+        w.WriteJson(info)
+    }
+}
+
 func (self *WebApp) GetDockerList(w rest.ResponseWriter, req *rest.Request) {
     filter := docker.ID{}
 
@@ -331,6 +339,7 @@ func (self *Manager) RestApp() (rest.App, error) {
         rest.Delete("/workers/:config/:instance",   app.DeleteWorkers),
 
         // list active containers
+        rest.Get("/docker", app.GetDockerInfo),
         rest.Get("/docker/", app.GetDockerList),
         rest.Get("/docker/:id", app.GetDocker),
         rest.Get("/docker/:id/logs", app.GetDockerLogs),
