@@ -18,6 +18,39 @@
         <dt>Strategy</dt><dd>{{dockerInfo.Swarm.Strategy}}</dd>
         <dt>Nodes</dt><dd>{{dockerInfo.Swarm.NodeCount}}</dd>
     </dl>
+
+    <h3>Nodes</h2>
+    <table class="table docker">
+        <thead>
+            <tr>
+                <th>Status</th>
+                <th>Name</td>
+                <th>CPU</td>
+                <th>Memory</td>
+                <th>Containers</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr ng-repeat="node in dockerInfo.Nodes | orderBy:['name']">
+                <td>
+                    <span class="label label-success" ng-if="node.SwarmStatus == 'Healthy'">
+                        <span class="glyphicon glyphicon-play" title="Healthy"></span>
+                    </span>
+                    <span class="label label-info" ng-if="node.SwarmStatus == 'Pending'">
+                        <span class="glyphicon glyphicon-pause" title="Pending"></span>
+                    </span>
+                    <span class="label label-warning" ng-if="node.error">
+                        <span class="glyphicon glyphicon-alert" title="{{node.error}}"></span>
+                    </span>
+                </td>
+                <td><span title="{{node.Addr}}">{{node.Name}}</span></td>
+                <td>{{node.CPU}}</td>
+                <td>{{node.Memory.Size}} {{node.Memory.Unit}}</td>
+                <td>{{node.Containers}}</td>
+            </tr>
+        </tbody>
+    </table>
+
 </div>
 
 <div>

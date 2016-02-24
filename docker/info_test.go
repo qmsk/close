@@ -2,8 +2,10 @@ package docker
 
 import (
     "github.com/fsouza/go-dockerclient"
+    "fmt"
     "os"
     "testing"
+    "time"
 )
 
 func loadDockerInfo(file string) (env docker.Env) {
@@ -46,6 +48,29 @@ func TestSwarmInfo(t *testing.T) {
         }
         if info.Swarm.NodeCount != 9 {
             t.Errorf("info.Swarm.NodeCount: %#v\n", info.Swarm.NodeCount)
+        }
+    }
+
+    if len(info.Nodes) < 2 {
+        t.Errorf("info.Nodes: missing #1\n")
+    } else {
+        node := *info.Nodes[1]
+        node1 := NodeInfo{
+            Name:           "catcp3-terom-dev",
+            Addr:           "catcp3-terom-dev.terom-dev.test.catcp:2376",
+            SwarmStatus:    "Healthy",
+            Containers:     21,
+            CPU:            2,
+            CPUReserved:    0,
+            Memory:         MemoryInfo{1.026, "GiB"},
+            MemoryReserved: MemoryInfo{0.0, "B"},
+            Labels:         "executiondriver=native-0.2, kernelversion=3.16.0-4-amd64, operatingsystem=Debian GNU/Linux 8 (jessie), storagedriver=aufs",
+            SwarmError:     nil,
+            SwarmUpdated:   time.Date(2016, 2, 24, 17, 27, 29, 0, time.UTC),
+        }
+
+        if fmt.Sprintf("%#v", node) != fmt.Sprintf("%#v", node1) {
+            t.Errorf("info.Nodes[1]:\n- %#v\n+ %#v\n", node, node1)
         }
     }
 
