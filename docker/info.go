@@ -13,8 +13,6 @@ type SwarmInfo struct {
     Role        string
     Strategy    string
     NodeCount   int
-
-    Dump        string
 }
 
 type MemoryInfo struct {
@@ -89,9 +87,7 @@ const swarmAttrPrefix = "  └ "
 func (info *Info) decodeSwarmStatus(systemStatus swarmSystemStatus) error {
     var node *NodeInfo
 
-    info.Swarm = &SwarmInfo{
-        Dump:   fmt.Sprintf("%#v", systemStatus),
-    }
+    info.Swarm = &SwarmInfo{ }
 
     for _, line := range systemStatus {
         if !strings.HasPrefix(line[0], " ") {
