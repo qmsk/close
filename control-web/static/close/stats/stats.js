@@ -16,6 +16,10 @@ angular.module('close.stats', [
         index: function() {
             return $http.get('/api/stats').then(
                 function success(r) {
+                    if (!r.data) {
+                        return [];
+                    }
+
                     // flattened array
                     return $.map(r.data, function(meta){
                         return $.map(meta.fields, function(field){
