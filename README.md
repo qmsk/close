@@ -19,9 +19,33 @@ implements basic reporting functionality of the statistics, generating plots.
 
 ## Install
 
-The web controller needs its JS assets/dependencies installed:
+The package installation requires [Go](https://golang.org/) utilities. To build
+and install the whole package into $GOPATH/bin
 
-  control-web/static $ npm install
+    go get github.com/qmsk/close
+
+Another way is to clone the repository and use a provided Makefile that will
+build the utilities locally, without installing them.
+
+Workers and the controller can be installed separately:
+
+    go get github.com/qmsk/workers
+    go get github.com/qmsk/control-web
+
+The web controller is a Javascript application and it requires its JS
+assets/dependencies installed via [Node.js](https://nodejs.org/en/) package
+manager.
+
+    git clone github.com/qmsk/close
+    cd close/control-web/static
+    npm install
+
+There is a Docker build file provided as well, so
+
+    make
+    docker build .
+
+will produce a Docker image with all the binaries installed.
 
 ## Workers
 
