@@ -17,6 +17,13 @@ to update it and re-configure workers on the fly.
 The statistics from the workers are collected into InfluxDB, and the controller
 implements generating basic statistics plots.
 
+## Prerequisites
+
+In order to perform a load testing it is necessary to have a Docker
+infrastructure that would allow creating a sufficient number of workers. For
+testing purposes, one Docker host is enough. As already mentioned, it is
+required to have Redis and InfluxDB instances.
+
 ## Install
 
 The package installation requires [Go](https://golang.org/) utilities. To build
@@ -78,10 +85,53 @@ utility can be used as a target for the UDP Sender. It collects a number of
 measurements that represent both the network conditions and the target service
 performance under UDP load. For more details see [RecvStats struct](udp/recv.go).
 
+## Clients
+
+Sometimes it is necessary to provide a networking environment for running
+workers, for example to setup OpenVPN certificates, gateways etc. This
+functionality is provided by `clients`. A client is a docker container that does
+not generate any network load, thus it does not produce any metrics. It can
+store necessary configuration files for the workers that can bind to its
+networking environments, potentially sharing the networking configuration
+between one set of workers and having different settings for another
+set. I.e. workers with VPN enabled and without it.
+
 ## Configuration
 
-Workers subscribe to configuration updates from Redis. The controller shows the running configuration and pushes configuration updates to workers.
+The workers and clients configuration is stored in a TOML formatted
+file. Sections `[workers.name]` describe a worker configuration, whereas
+`[clients.name]` contain clients settings.
 
-## Stats
+The clients and workers configurations both contain the following fields.
 
-Workers report statistics to InfluxDB. The controller reports the stats from InfluxDB.
+* Count - the number of containers to run
+* Image - the Docker image to create containers from
+* Privileged - whether to run the container in a privileged mode
+
+Disk volumes can be attached to the clients and are configured via `Volume`,
+`VolumePath`, `VolumeFmtID`, `VolumeReadonly` - see corresponding Docker volumes
+documentation.
+
+The workers configuration allows setting up the client that the worker
+"attaches" to. It is necessary to specify the worker's `Type` ("icmp_ping",
+"udp_send", "dns").
+
+When first executed the configuration is stored into Redis. The workers
+subscribe to configuration updates from Redis. The controller shows the running
+configuration and pushes configuration updates to workers.
+
+## Statistics
+
+Workers report statistics to InfluxDB. There are two types of statitics: latency
+statistics include time measurements (for example, the round trip time of an
+ICMP packet, or a DNS resolution time), rate statistics are counters per time
+unit (for example, the number of packets per second). To configure a worker that
+supports a certain set of statistics it is necessary to provide `Stats`
+configuration field that contains the InfluxDB URL path and query parts. Each
+worker instance is assigned an identifier and it can be given in the URL with
+the `$id` variable. Each particular statistics should be assigned to an InfluxDB
+URL as well via `LatencyStats` and `RateStats` configuration fields.
+
+The controller reports the statistics from InfluxDB.
+
+
