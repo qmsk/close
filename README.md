@@ -134,4 +134,6 @@ URL as well via `LatencyStats` and `RateStats` configuration fields.
 
 The controller reports the statistics from InfluxDB.
 
+## Acknowledgments
 
+This work was supported by the Academy of Finland project "Cloud Security Services" (CloSe) at Aalto University Department of Communications and Networking.
