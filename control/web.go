@@ -1,11 +1,11 @@
 package control
 
 import (
-    "close/config"
-    "close/docker"
+    "github.com/qmsk/close/config"
+    "github.com/qmsk/close/docker"
     "fmt"
     "github.com/ant0ine/go-json-rest/rest"
-    "close/stats"
+    "github.com/qmsk/close/stats"
     "time"
 )
 

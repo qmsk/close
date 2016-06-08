@@ -1,7 +1,7 @@
 package workers
 
 import (
-    "close/worker"
+    "github.com/qmsk/close/worker"
 )
 
 var Options worker.Options

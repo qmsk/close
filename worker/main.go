@@ -1,11 +1,11 @@
 package worker
 
 import (
-    "close/config"
+    "github.com/qmsk/close/config"
     "github.com/jessevdk/go-flags"
     "log"
     "os"
-    "close/stats"
+    "github.com/qmsk/close/stats"
 )
 
 type Options struct {

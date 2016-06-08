@@ -4,7 +4,7 @@ import (
     "github.com/fsouza/go-dockerclient"
     "fmt"
     "encoding/json"
-    "close/util"
+    "github.com/qmsk/close/util"
 )
 
 // configuration for container

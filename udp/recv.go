@@ -3,7 +3,7 @@ package udp
 import (
     "fmt"
     "log"
-    "close/stats"
+    "github.com/qmsk/close/stats"
     "time"
 )
 

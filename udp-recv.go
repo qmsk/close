@@ -4,8 +4,8 @@ import (
     "github.com/jessevdk/go-flags"
     "log"
     "os"
-    "close/stats"
-    "close/udp"
+    "github.com/qmsk/close/stats"
+    "github.com/qmsk/close/udp"
 )
 
 type Options struct {

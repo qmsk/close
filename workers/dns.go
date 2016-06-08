@@ -1,7 +1,7 @@
 package workers
 
 import (
-    "close/dns"
+    "github.com/qmsk/close/dns"
 )
 
 func init() {

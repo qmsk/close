@@ -1,8 +1,8 @@
 package main
 
 import (
-    "close/worker"
-    "close/workers"
+    "github.com/qmsk/close/worker"
+    "github.com/qmsk/close/workers"
 )
 
 func main() {

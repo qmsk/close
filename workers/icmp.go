@@ -1,7 +1,7 @@
 package workers
 
 import (
-    "close/icmp"
+    "github.com/qmsk/close/icmp"
 )
 
 func init() {

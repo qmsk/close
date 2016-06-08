@@ -14,9 +14,9 @@ import (
     "encoding/binary"
     "math/rand"
 
-    "close/worker"
-    "close/stats"
-    "close/config"
+    "github.com/qmsk/close/worker"
+    "github.com/qmsk/close/stats"
+    "github.com/qmsk/close/config"
 )
 
 func init() {

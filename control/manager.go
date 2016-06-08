@@ -1,14 +1,14 @@
 package control
 
 import (
-    "close/config"
-    "close/docker"
+    "github.com/qmsk/close/config"
+    "github.com/qmsk/close/docker"
     "fmt"
     "io"
     "io/ioutil"
     "log"
     "os"
-    "close/stats"
+    "github.com/qmsk/close/stats"
     "strings"
     "github.com/BurntSushi/toml"
 )

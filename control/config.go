@@ -1,7 +1,7 @@
 package control
 
 import (
-    "close/config"
+    "github.com/qmsk/close/config"
     "fmt"
 )
 

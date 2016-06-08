@@ -1,8 +1,8 @@
 package worker
 
 import (
-    "close/config"
-    "close/stats"
+    "github.com/qmsk/close/config"
+    "github.com/qmsk/close/stats"
 )
 
 type WorkerConfig interface {

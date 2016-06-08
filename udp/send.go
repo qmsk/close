@@ -1,14 +1,14 @@
 package udp
 
 import (
-    "close/config"
+    "github.com/qmsk/close/config"
     "fmt"
     "log"
     "net"
     "os"
-    "close/stats"
+    "github.com/qmsk/close/stats"
     "time"
-    "close/worker"
+    "github.com/qmsk/close/worker"
 )
 
 const SOURCE_PORT uint = 0

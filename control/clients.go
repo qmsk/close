@@ -4,7 +4,7 @@ package control
 // it does not provide any worker config/stats
 
 import (
-    "close/docker"
+    "github.com/qmsk/close/docker"
     "fmt"
 )
 

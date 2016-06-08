@@ -1,15 +1,15 @@
 package dns
 
 import (
-    "close/config"
+    "github.com/qmsk/close/config"
     "github.com/miekg/dns"
     "fmt"
     "log"
     "net"
-    "close/stats"
+    "github.com/qmsk/close/stats"
     "strings"
     "time"
-    "close/worker"
+    "github.com/qmsk/close/worker"
 )
 
 type Config struct {

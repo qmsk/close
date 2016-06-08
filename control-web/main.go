@@ -1,11 +1,11 @@
 package main
 
 import (
-    "close/control"
+    "github.com/qmsk/close/control"
     "github.com/jessevdk/go-flags"
     "net/http"
     "log"
-    "close/logs"
+    "github.com/qmsk/close/logs"
     "os"
     "github.com/ant0ine/go-json-rest/rest"
 )

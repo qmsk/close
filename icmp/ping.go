@@ -1,13 +1,13 @@
 package icmp
 
 import (
-    "close/stats"
-    "close/config"
+    "github.com/qmsk/close/stats"
+    "github.com/qmsk/close/config"
     "os"
     "log"
     "fmt"
     "time"
-    "close/worker"
+    "github.com/qmsk/close/worker"
 )
 
 type PingConfig struct {

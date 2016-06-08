@@ -1,7 +1,7 @@
 package workers
 
 import (
-    "close/udp"
+    "github.com/qmsk/close/udp"
 )
 
 func init() {
