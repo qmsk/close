@@ -1,6 +1,6 @@
 // +build workertest
 
-package workers
+package main
 
 import (
     "bytes"
