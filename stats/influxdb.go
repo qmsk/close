@@ -2,7 +2,7 @@ package stats
 
 import (
     "fmt"
-    influxdb "github.com/influxdb/influxdb/client/v2"
+    influxdb "github.com/influxdata/influxdb/client/v2"
     "net"
     "net/url"
     "strings"
