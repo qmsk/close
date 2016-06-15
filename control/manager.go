@@ -193,6 +193,8 @@ func (self *Manager) Discover() (err error) {
             case "worker":
                 if worker, err := self.discoverWorker(containerStatus.ID); err != nil {
                     self.log.Printf("discoverWorker %v: %v", containerStatus, err)
+                } else if worker == nil {
+                    self.log.Printf("Discover %v: skip worker", containerStatus)
                 } else {
                     self.log.Printf("Discover %v: worker %v", containerStatus, worker)
 

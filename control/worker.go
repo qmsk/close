@@ -63,6 +63,10 @@ func (self Worker) String() string {
 func (self *Manager) discoverWorker(dockerID docker.ID) (*Worker, error) {
     workerConfig := self.config.Workers[dockerID.Type]
 
+    if workerConfig == nil {
+        return nil, nil
+    }
+
     worker := &Worker{
         Config:     workerConfig,
         Instance:   dockerID.Instance,
