@@ -2,16 +2,17 @@ package docker
 
 import (
     "github.com/fsouza/go-dockerclient"
+	"encoding/json"
     "os"
     "reflect"
     "testing"
     "time"
 )
 
-func loadDockerInfo(file string) (env docker.Env) {
+func loadDockerInfo(file string) (dockerInfo docker.DockerInfo) {
     if file, err := os.Open(file); err != nil {
         panic(err)
-    } else if err := env.Decode(file); err != nil {
+    } else if err := json.NewDecoder(file).Decode(&dockerInfo); err != nil {
         panic(err)
     } else {
         return
@@ -21,10 +22,10 @@ func loadDockerInfo(file string) (env docker.Env) {
 func TestSwarmInfo(t *testing.T) {
     var info Info
 
-    env := loadDockerInfo("test/swarm-info.json")
+    dockerInfo := loadDockerInfo("test/swarm-info.json")
 
-    if err := info.decode(&env); err != nil {
-        t.Fatalf("info.decode %#v: %v\n", env, err)
+    if err := info.decode(&dockerInfo); err != nil {
+        t.Fatalf("info.decode %#v: %v\n", dockerInfo, err)
     }
 
     if info.Name != "catcp-terom-dev" {

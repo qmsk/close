@@ -57,20 +57,13 @@ type Info struct {
     Nodes           []*NodeInfo
 }
 
-func (info *Info) decode(env *docker.Env) error {
-    // XXX: go-dockerclient is crazy... it takes the JSON response, unmarshals it as a map, formats that as a []string{"KEY=VALUE"}, and then parses that again into a map for every .Get() call
-    infoMap := env.Map()
+func (info *Info) decode(dockerInfo *docker.DockerInfo) error {
+    info.Name = dockerInfo.Name
+    info.ServerVersion = dockerInfo.ServerVersion
+    info.OperatingSystem = dockerInfo.OperatingSystem
 
-    info.Name = infoMap["Name"]
-    info.ServerVersion = infoMap["ServerVersion"]
-    info.OperatingSystem = infoMap["OperatingSystem"]
-
-    if env.Exists("SystemStatus") {
-        var systemStatus swarmSystemStatus
-
-        if err := env.GetJSON("SystemStatus", &systemStatus); err != nil {
-            log.Printf("Info: unmarshal SystemStatus: %v\n", err)
-        } else if err := info.decodeSwarmStatus(systemStatus); err != nil {
+    if dockerInfo.SystemStatus != nil {
+        if err := info.decodeSwarmStatus(dockerInfo.SystemStatus); err != nil {
             log.Printf("Info: decode SystemStatus: %v\n", err)
         }
     }
@@ -78,13 +71,11 @@ func (info *Info) decode(env *docker.Env) error {
     return nil
 }
 
-type swarmSystemStatus [][2]string
-
 const swarmAttrPrefix = "  └ "
 
 // Decode the human-readable swarm 1.1.x info output. Because it's the only way.
 // https://github.com/docker/swarm/blob/v1.1.0/cluster/swarm/cluster.go#L828
-func (info *Info) decodeSwarmStatus(systemStatus swarmSystemStatus) error {
+func (info *Info) decodeSwarmStatus(systemStatus [][2]string) error {
     var node *NodeInfo
 
     info.Swarm = &SwarmInfo{ }
@@ -155,9 +146,9 @@ func (info *Info) decodeSwarmStatus(systemStatus swarmSystemStatus) error {
 }
 
 func (manager *Manager) Info() (info Info, err error) {
-    if env, err := manager.dockerClient.Info(); err != nil {
+    if dockerInfo, err := manager.dockerClient.Info(); err != nil {
         return info, fmt.Errorf("dockerClient.Info: %v", err)
     } else {
-        return info, info.decode(env)
+        return info, info.decode(dockerInfo)
     }
 }

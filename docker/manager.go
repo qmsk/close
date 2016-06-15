@@ -48,7 +48,7 @@ func NewManager(options Options) (*Manager, error) {
     if dockerInfo, err := manager.dockerClient.Info(); err != nil {
         return nil, fmt.Errorf("dockerClient.Info: %v", err)
     } else {
-        manager.dockerName = dockerInfo.Get("name")
+        manager.dockerName = dockerInfo.Name
     }
 
     return manager, nil
