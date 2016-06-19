@@ -43,7 +43,7 @@ func parseID(s string) (id ID, err error) {
 func genID() (ID, error) {
     hash := sha256.New()
     r := rand.New(rand.NewSource(time.Now().UnixNano()))
-    
+
     binary.Write(hash, binary.BigEndian, r.Float64())
 
     var hashSum []byte
@@ -170,6 +170,6 @@ func (d *DummyWorker) configPush(configPush config.ConfigPush) (config.Config, e
 
         d.config.ConfigParam = config.ConfigParam
     }
-    
+
     return d.config, nil
 }
