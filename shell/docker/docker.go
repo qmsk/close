@@ -7,13 +7,7 @@ import (
 
 // TODO make similar Register functionality as for commands
 type DockerConfig struct {
-	//*shell.Options
-
-	ClientsCfg ClientsConfig `command:"clients"`
-	WorkersCfg WorkersConfig `command:"workers"`
-	InfoCfg    InfoConfig    `command:"info"`
-
-	subCommands map[string]shell.CommandConfig
+	subCommands  map[string]shell.CommandConfig
 }
 
 type DockerCmd struct {
@@ -24,19 +18,16 @@ type DockerCmd struct {
 	config DockerConfig
 }
 
-func (cfg *DockerConfig) Init() {
+// Docker is a CompositionalCommand, it has subcommands
+func (cfg *DockerConfig) Register(subcmd string, config shell.CommandConfig) {
 	if cfg.subCommands == nil {
 		cfg.subCommands = make(map[string]shell.CommandConfig)
 	}
-	cfg.subCommands["clients"] = &cfg.ClientsCfg
-	cfg.subCommands["workers"] = &cfg.WorkersCfg
-	cfg.subCommands["info"] = &cfg.InfoCfg
+	cfg.subCommands[subcmd] = config
 }
 
-func NewConfig() *DockerConfig {
-	cfg := &DockerConfig{}
-	cfg.Init()
-	return cfg
+func (cfg DockerConfig) SubCommands() map[string]shell.CommandConfig {
+	return cfg.subCommands
 }
 
 func (config DockerConfig) Command(options shell.CommonOptions) (shell.Command, error) {

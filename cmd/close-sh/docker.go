@@ -5,5 +5,9 @@ import (
 )
 
 func init() {
-	Opts.Register("docker", docker.NewConfig())
+	Opts.Register("docker", &docker.DockerConfig{})
+
+	Opts.RegisterSub("docker", "info", &docker.InfoConfig{})
+	Opts.RegisterSub("docker", "workers", &docker.WorkersConfig{})
+	Opts.RegisterSub("docker", "clients", &docker.ClientsConfig{})
 }

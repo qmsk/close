@@ -12,6 +12,11 @@ type CommandConfig interface {
 	Command(options CommonOptions) (Command, error)
 }
 
+type CompositionalCommandConfig interface {
+	Register(subcmd string, config CommandConfig)
+	SubCommands() map[string]CommandConfig
+}
+
 type Command interface {
 	Execute() error
 }
@@ -48,6 +53,7 @@ func (options Options) SubCmd() string {
 	return options.subCmd
 }
 
+// Options itself is a CompositionalCommand
 func (options *Options) Register(name string, cmdConfig CommandConfig) {
 	if options.commands == nil {
 		options.commands = make(map[string]CommandConfig)
@@ -56,12 +62,36 @@ func (options *Options) Register(name string, cmdConfig CommandConfig) {
 	options.commands[name] = cmdConfig
 }
 
+func (options Options) SubCommands() map[string]CommandConfig {
+	return options.commands
+}
+
+
+func (options *Options) RegisterSub(cmd string, subcmd string, cmdConfig CommandConfig) {
+	if options.commands == nil {
+		return
+	} else if command, found := options.commands[cmd]; !found {
+		return
+	} else {
+		// Allowing to panic here if assertion fails
+		compcmd := command.(CompositionalCommandConfig)
+		compcmd.Register(subcmd, cmdConfig)
+	}
+}
+
 func (options *Options) Parse() {
 	parser := flags.NewParser(options, flags.Default)
 
 	for cmd, cmdConfig := range options.commands {
-		if _, err := parser.AddCommand(cmd, "", "", cmdConfig); err != nil {
+		if command, err := parser.AddCommand(cmd, "", "", cmdConfig); err != nil {
 			panic(err)
+		} else if compcmd, ok := cmdConfig.(CompositionalCommandConfig); ok {
+			subcmds := compcmd.SubCommands();
+			for subcmd, subcmdConfig := range subcmds {
+				if _, err := command.AddCommand(subcmd, "", "", subcmdConfig); err != nil {
+					panic(err)
+				}
+			}
 		}
 	}
 
