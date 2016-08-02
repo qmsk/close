@@ -1,23 +1,11 @@
 package docker
 
 import (
-    "github.com/qmsk/close/docker"
-	"encoding/json"
-	// "io/ioutil"
-	// "net/http"
 	"log"
-    "github.com/qmsk/close/shell"
+	"github.com/qmsk/close/shell"
 )
 
-type ClientsConfig struct{
-}
-
-type WorkersConfig struct{
-}
-
-type InfoConfig struct{
-}
-
+// TODO make similar Register functionality as for commands
 type DockerConfig struct {
 	//*shell.Options
 
@@ -29,20 +17,11 @@ type DockerConfig struct {
 }
 
 type DockerCmd struct {
-	config    DockerConfig
-	subCmd    string
-}
+	url    string
+	user   shell.User
+	subCmd string
 
-type ClientsCmd struct {
-	config    ClientsConfig
-}
-
-type WorkersCmd struct {
-	config    WorkersConfig
-}
-
-type InfoCmd struct {
-	config    InfoConfig
+	config DockerConfig
 }
 
 func (cfg *DockerConfig) Init() {
@@ -60,79 +39,43 @@ func NewConfig() *DockerConfig {
 	return cfg
 }
 
-func (config DockerConfig) Command(subCommand string) (shell.Command, error) {
+func (config DockerConfig) Command(options shell.CommonOptions) (shell.Command, error) {
 	dockerCmd := &DockerCmd{
+		url:    options.Url(),
+		user:   options.User(),
+		subCmd: options.SubCmd(),
 		config: config,
-		subCmd: subCommand,
 	}
 	return dockerCmd, nil
 }
 
-func (config DockerConfig) SubCommand(subCommand string) (shell.Command, error) {
-	return config.subCommands[subCommand].Command("")
+func (config DockerConfig) SubCommand(cmd DockerCmd) (shell.Command, error) {
+	return config.subCommands[cmd.SubCmd()].Command(cmd)
 }
 
-func (cmd DockerCmd) Execute(options shell.Options) error {
+// DockerCmd implements CommonOptions to pass them down to subcommands
+func (cmd DockerCmd) Url() string {
+	return cmd.url
+}
+
+func (cmd DockerCmd) User() shell.User {
+	return cmd.user
+}
+
+func (cmd DockerCmd) SubCmd() string {
+	return cmd.subCmd
+}
+
+func (cmd DockerCmd) Execute() error {
 	// log.Printf("command Docker, subcommand %v execute, url %v: %#v", cmd.subCmd, cmd.config.URL, cmd.config)
 
-	if subCmd, err := cmd.config.SubCommand(cmd.subCmd); err != nil {
+	if subCmd, err := cmd.config.SubCommand(cmd); err != nil {
 		log.Printf("command Docker, execute: get subcommand failed: %v", err)
 		return err
 	} else {
-		return subCmd.Execute(options)
+		return subCmd.Execute()
 	}
 
 	return nil
 }
 
-func (config ClientsConfig) Command(subCommand string) (shell.Command, error) {
-	clientsCmd := &ClientsCmd{
-		config: config,
-	}
-	return clientsCmd, nil
-}
-
-func (config WorkersConfig) Command(subCommand string) (shell.Command, error) {
-	workersCmd := &WorkersCmd{
-		config: config,
-	}
-	return workersCmd, nil
-}
-
-func (config InfoConfig) Command(subCommand string) (shell.Command, error) {
-	infoCmd := &InfoCmd{
-		config: config,
-	}
-	return infoCmd, nil
-}
-
-func (cmd InfoCmd) Execute(options shell.Options) (err error) {
-	log.Printf("command docker clients, Execute: url %v, %#v", options.URL, cmd.config)
-
-	if resp, err := shell.DoRequest(options, "/api/docker"); err != nil {
-		log.Printf("shell.DoRequest %v: %v", options, err)
-	} else {
-		defer resp.Body.Close()
-		log.Printf("Response %v, %v, content length %v\n", resp.Status, resp.Proto, resp.ContentLength)
-
-		var info docker.Info
-
-		if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-			log.Printf("Error decoding Docker info: %v", err)
-		} else {
-			log.Printf("%+v", info)
-		}
-	}
-
-	return
-}
-
-func (cmd WorkersCmd) Execute(options shell.Options) error {
-	log.Printf("command docker workers, Execute: url %v, %#v", options.URL, cmd.config)
-	return nil
-}
-
-func (cmd ClientsCmd) Execute(options shell.Options) error {
-	log.Printf("command docker worker, Execute")
-	return nil
-}

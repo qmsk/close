@@ -5,15 +5,15 @@ import (
 	"log"
 )
 
-func DoRequest(options Options, path string) (*http.Response, error) {
+func DoRequest(url string, user User, path string) (*http.Response, error) {
 	client := &http.Client{
 	}
 
-	if req, err := http.NewRequest("GET", options.URL + path, nil); err != nil {
-		log.Printf("http.NewRequest %v/%v: %v", options.URL, path, err)
+	if req, err := http.NewRequest("GET", url + path, nil); err != nil {
+		log.Printf("http.NewRequest %v/%v: %v", url, path, err)
 		return nil, err
 	} else {
-		req.SetBasicAuth(options.User.Id, options.User.Password)
+		req.SetBasicAuth(user.Id, user.Password)
 		return client.Do(req)
 	}
 }

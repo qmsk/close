@@ -9,24 +9,43 @@ import (
 
 // Shell commands
 type CommandConfig interface {
-	Command(subCommand string) (Command, error)
+	Command(options CommonOptions) (Command, error)
 }
 
 type Command interface {
-	Execute(options Options) error
+	Execute() error
+}
+
+// Options, common for all commands
+type CommonOptions interface {
+	Url()     string
+	User()    User
+	SubCmd()  string
 }
 
 // Pluggable options, each command can Register() itself
 type Options struct {
 	URL       string   `short:"u" long:"url" required:"true" description:"controller URL"`
 
-	User      User
+	AuthUser  User
 	
-	commands map[string]CommandConfig
+	commands  map[string]CommandConfig
 
 	cmd       string
 	subCmd    string
 	cmdConfig CommandConfig
+}
+
+func (options Options) Url() string {
+	return options.URL
+}
+
+func (options Options) User() User {
+	return options.AuthUser
+}
+
+func (options Options) SubCmd() string {
+	return options.subCmd
 }
 
 func (options *Options) Register(name string, cmdConfig CommandConfig) {
@@ -69,9 +88,9 @@ func (options *Options) Parse() {
 
 func Main(opts Options) {
 	//log.Printf("Command %v: %#v\n", Opts.cmd, Opts.cmdConfig)
-	if cmd, err := opts.cmdConfig.Command(opts.subCmd); err != nil {
+	if cmd, err := opts.cmdConfig.Command(opts); err != nil {
 		os.Exit(1)
 	} else {
-		cmd.Execute(opts)
+		cmd.Execute()
 	}
 }
