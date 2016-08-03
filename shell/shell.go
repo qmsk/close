@@ -25,6 +25,10 @@ type Command interface {
 type CommonOptions interface {
 	Url()     string
 	User()    User
+}
+
+type CompositionalCommonOptions interface {
+	CommonOptions
 	SubCmd()  string
 }
 
@@ -125,8 +129,10 @@ func (options *Options) Parse() {
 func Main(opts Options) {
 	//log.Printf("Command %v: %#v\n", Opts.cmd, Opts.cmdConfig)
 	if cmd, err := opts.cmdConfig.Command(opts); err != nil {
-		os.Exit(1)
+		log.Printf("Main: config.Command: %v", err)
 	} else {
-		cmd.Execute()
+		if err := cmd.Execute(); err != nil {
+			log.Printf("Main: command.Execute: %v", err)
+		}
 	}
 }

@@ -1,13 +1,12 @@
 package docker
 
 import (
-	"log"
+	"fmt"
 	"github.com/qmsk/close/shell"
 )
 
-// TODO make similar Register functionality as for commands
 type DockerConfig struct {
-	subCommands  map[string]shell.CommandConfig
+	subCommands map[string]shell.CommandConfig
 }
 
 type DockerCmd struct {
@@ -31,13 +30,17 @@ func (cfg DockerConfig) SubCommands() map[string]shell.CommandConfig {
 }
 
 func (config DockerConfig) Command(options shell.CommonOptions) (shell.Command, error) {
-	dockerCmd := &DockerCmd{
-		url:    options.Url(),
-		user:   options.User(),
-		subCmd: options.SubCmd(),
-		config: config,
+	if opts, hasSubCmd := options.(shell.CompositionalCommonOptions); !hasSubCmd {
+		return nil, fmt.Errorf("docker is a compositional command but provided options have no subcommand specified")
+	} else {
+		dockerCmd := &DockerCmd{
+			url:    opts.Url(),
+			user:   opts.User(),
+			subCmd: opts.SubCmd(),
+			config: config,
+		}
+		return dockerCmd, nil
 	}
-	return dockerCmd, nil
 }
 
 func (config DockerConfig) SubCommand(cmd DockerCmd) (shell.Command, error) {
@@ -61,12 +64,10 @@ func (cmd DockerCmd) Execute() error {
 	// log.Printf("command Docker, subcommand %v execute, url %v: %#v", cmd.subCmd, cmd.config.URL, cmd.config)
 
 	if subCmd, err := cmd.config.SubCommand(cmd); err != nil {
-		log.Printf("command Docker, execute: get subcommand failed: %v", err)
-		return err
+		return fmt.Errorf("DockerCmd.Execute: SubCommand: %v", err)
 	} else {
 		return subCmd.Execute()
 	}
 
 	return nil
 }
-

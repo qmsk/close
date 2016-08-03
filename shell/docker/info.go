@@ -38,10 +38,6 @@ func (cmd InfoCmd) User() shell.User {
 	return cmd.user
 }
 
-func (cmd InfoCmd) SubCmd() string {
-	return ""
-}
-
 func (cmd InfoCmd) Path() string {
 	return "/api/docker"
 }
