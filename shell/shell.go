@@ -28,6 +28,12 @@ type CommonOptions interface {
 	SubCmd()  string
 }
 
+type GenericCommand interface {
+	CommonOptions
+	JSONResponseParser
+	Path()     string
+}
+
 // Pluggable options, each command can Register() itself
 type Options struct {
 	URL       string   `short:"u" long:"url" required:"true" description:"controller URL"`

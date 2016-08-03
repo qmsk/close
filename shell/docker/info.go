@@ -2,6 +2,8 @@ package docker
 
 import (
 	"github.com/qmsk/close/docker"
+	"fmt"
+	"io"
 	"encoding/json"
 	"log"
 	"github.com/qmsk/close/shell"
@@ -21,7 +23,6 @@ func (config InfoConfig) Command(options shell.CommonOptions) (shell.Command, er
 		DockerCmd {
 			url:    options.Url(),
 			user:   options.User(),
-			subCmd: options.SubCmd(),
 		},
 
 		config,
@@ -29,24 +30,33 @@ func (config InfoConfig) Command(options shell.CommonOptions) (shell.Command, er
 	return infoCmd, nil
 }
 
-func (cmd InfoCmd) Execute() (err error) {
-	log.Printf("command docker info, Execute: url %v, %#v", cmd.url, cmd.config)
-
-	if resp, err := shell.DoRequest(cmd.url, cmd.user , "/api/docker"); err != nil {
-		log.Printf("shell.DoRequest %v: %v", cmd.url, err)
-	} else {
-		defer resp.Body.Close()
-		log.Printf("Response %v, %v, content length %v\n", resp.Status, resp.Proto, resp.ContentLength)
-
-		var info docker.Info
-
-		if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-			log.Printf("Error decoding Docker info: %v", err)
-		} else {
-			log.Printf("%+v", info)
-		}
-	}
-
-	return
+func (cmd InfoCmd) Url() string {
+	return cmd.url
 }
 
+func (cmd InfoCmd) User() shell.User {
+	return cmd.user
+}
+
+func (cmd InfoCmd) SubCmd() string {
+	return ""
+}
+
+func (cmd InfoCmd) Path() string {
+	return "/api/docker"
+}
+
+func (cmd InfoCmd) Execute() error {
+	return shell.MakeHttpRequest(cmd)
+}
+
+func (cmd InfoCmd) ParseJSON(body io.ReadCloser) error {
+	var info docker.Info
+
+	if err := json.NewDecoder(body).Decode(&info); err != nil {
+		return fmt.Errorf("Error decoding Docker info: %v", err)
+	} else {
+		log.Printf("%+v", info)
+		return nil
+	}
+}
