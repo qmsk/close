@@ -12,7 +12,7 @@ import (
 type SwarmInfo struct {
     Role        string
     Strategy    string
-    NodeCount   int
+    NodeCount   int      `display:"Number of nodes"`
 }
 
 type MemoryInfo struct {

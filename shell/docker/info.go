@@ -6,7 +6,9 @@ import (
 	"io"
 	"encoding/json"
 	"log"
+	"os"
 	"github.com/qmsk/close/shell"
+	"github.com/qmsk/close/util"
 )
 
 type InfoConfig struct{
@@ -52,7 +54,11 @@ func (cmd InfoCmd) ParseJSON(body io.ReadCloser) error {
 	if err := json.NewDecoder(body).Decode(&info); err != nil {
 		return fmt.Errorf("Error decoding Docker info: %v", err)
 	} else {
-		log.Printf("%+v", info)
+		outputter := log.New(os.Stdout, "", 0)
+		outputter.Printf("")
+
+		output := util.PrettySprintf("Info", info)
+		outputter.Printf(output)
 		return nil
 	}
 }
