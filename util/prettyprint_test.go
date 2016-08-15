@@ -16,6 +16,7 @@ type TestStruct struct {
 	Slice            []string
 	SliceStruct      []*SubStruct
 	unexported       string
+	Map              map[string]string
 }
 
 func TestPrettySprintf(t *testing.T) {
@@ -25,6 +26,7 @@ func TestPrettySprintf(t *testing.T) {
 		Slice: []string{"one", "two"},
 		SliceStruct: []*SubStruct{ &SubStruct{ Value: "value", } },
 		unexported: "this should not show",
+		Map: map[string]string{ "key1": "value1", "key2": "value2" },
 	}
 
 	testPoint := &TestStruct {

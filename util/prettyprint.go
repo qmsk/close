@@ -50,6 +50,13 @@ func prettySprintf(name string, v reflect.Value, level int) (output string) {
 		} else {
 			output = prettySprintf(name, v.Elem(), level)
 		}
+	case reflect.Map:
+		output = indent + name + ": [\n"
+		for _, k := range v.MapKeys() {
+			keyName := fmt.Sprintf("%v", k.Interface())
+			output = output + prettySprintf(keyName, v.MapIndex(k), level+1)
+		}
+		output = output + indent + "]\n"
 	default:
 		namePrefix := ""
 		if name != "" {
