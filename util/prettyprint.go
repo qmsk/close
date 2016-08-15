@@ -51,7 +51,11 @@ func prettySprintf(name string, v reflect.Value, level int) (output string) {
 			output = prettySprintf(name, v.Elem(), level)
 		}
 	default:
-		output = indent + fmt.Sprintf("%s: %v\n", name, v.Interface())
+		namePrefix := ""
+		if name != "" {
+			namePrefix = name + ": "
+		}
+		output = indent + fmt.Sprintf("%s%v\n", namePrefix, v.Interface())
 	}
 	return
 }
