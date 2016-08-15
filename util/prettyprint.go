@@ -16,6 +16,11 @@ func PrettySprintf(name string, data interface{}) string {
 func prettySprintf(name string, v reflect.Value, level int) (output string) {
 	var indent, indentFormat string
 
+	if !v.CanInterface() {
+		return
+	}
+	// output = indent + name + ": \n"
+
 	// Contstruct the indentation string, first the format...
 	indentFormat = fmt.Sprintf("%%%ds", INDENT_WIDTH * level)
 	// ... then the string itself
@@ -41,7 +46,7 @@ func prettySprintf(name string, v reflect.Value, level int) (output string) {
 		output = output + indent + "]\n"
 	case reflect.Ptr:
 		if v.IsNil() {
-			output = indent + fmt.Sprintf("%s is empty\n", name)
+			// output = indent + fmt.Sprintf("%s is empty\n", name)
 		} else {
 			output = prettySprintf(name, v.Elem(), level)
 		}

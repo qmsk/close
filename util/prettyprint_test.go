@@ -15,6 +15,7 @@ type TestStruct struct {
 	DisplayTagged    string  `display:"Extra name"`
 	Slice            []string
 	SliceStruct      []*SubStruct
+	unexported       string
 }
 
 func TestPrettySprintf(t *testing.T) {
@@ -23,6 +24,7 @@ func TestPrettySprintf(t *testing.T) {
 		DisplayTagged: "extra value",
 		Slice: []string{"one", "two"},
 		SliceStruct: []*SubStruct{ &SubStruct{ Value: "value", } },
+		unexported: "this should not show",
 	}
 
 	testPoint := &TestStruct {
