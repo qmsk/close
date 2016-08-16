@@ -10,5 +10,5 @@ func init() {
 	Opts.RegisterSub("docker", "info", &docker.InfoConfig)
 	Opts.RegisterSub("docker", "workers", &docker.WorkersConfig{})
 	Opts.RegisterSub("docker", "clients", &docker.ClientsConfig{})
-	Opts.RegisterSub("docker", "list", &docker.ListConfig{})
+	Opts.RegisterSub("docker", "list", &docker.ListConfig)
 }
