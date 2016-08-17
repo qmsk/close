@@ -26,6 +26,11 @@ func prettySprintf(name string, v reflect.Value, level int) (output string) {
 	// ... then the string itself
 	indent = fmt.Sprintf(indentFormat, "")
 
+	namePrefix := ""
+	if name != "" {
+		namePrefix = name + ": "
+	}
+
 	switch v.Kind() {
 	case reflect.Struct:
 		for i := 0; i < v.NumField(); i++ {
@@ -38,7 +43,7 @@ func prettySprintf(name string, v reflect.Value, level int) (output string) {
 			output = output + prettySprintf(fieldName, f, level+1)
 		}
 	case reflect.Slice:
-		output = indent + name + ": [\n"
+		output = indent + namePrefix + "[\n"
 		for j := 0; j < v.Len(); j++ {
 			indexName := fmt.Sprintf("%d", j)
 			output = output + prettySprintf(indexName, v.Index(j), level+1)
@@ -51,17 +56,13 @@ func prettySprintf(name string, v reflect.Value, level int) (output string) {
 			output = prettySprintf(name, v.Elem(), level)
 		}
 	case reflect.Map:
-		output = indent + name + ": [\n"
+		output = indent + namePrefix + "[\n"
 		for _, k := range v.MapKeys() {
 			keyName := fmt.Sprintf("%v", k.Interface())
 			output = output + prettySprintf(keyName, v.MapIndex(k), level+1)
 		}
 		output = output + indent + "]\n"
 	default:
-		namePrefix := ""
-		if name != "" {
-			namePrefix = name + ": "
-		}
 		output = indent + fmt.Sprintf("%s%v\n", namePrefix, v.Interface())
 	}
 	return
