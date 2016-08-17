@@ -5,5 +5,5 @@ import (
 )
 
 func init() {
-	Opts.Register("config", &shell.DumpConfigCmdConfig{})
+	Opts.Register("config", &shell.DumpConfigTextConfig)
 }
