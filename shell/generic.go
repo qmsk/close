@@ -53,13 +53,13 @@ func (cmd GenericCommandImpl) ParseJSON(body io.ReadCloser) error {
 	decodeRes := v.Interface()
 	printRes := decodeRes
 
-	if cmd.config.FieldName != "" {
-		printRes = v.Elem().FieldByName(cmd.config.FieldName).Interface()
-	}
-
 	if err := json.NewDecoder(body).Decode(decodeRes); err != nil {
 		return fmt.Errorf("Error decoding controller state: %v", err)
 	} else {
+		if cmd.config.FieldName != "" {
+			printRes = v.Elem().FieldByName(cmd.config.FieldName).Interface()
+		}
+
 		outputter := log.New(os.Stdout, "", 0)
 		outputter.Printf("")
 
