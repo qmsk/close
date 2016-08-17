@@ -16,3 +16,9 @@ var ClientsConfig = GenericConfigImpl {
 	reflect.TypeOf((*control.APIGet)(nil)).Elem(),
 	"Clients",
 }
+
+var WorkersConfig = GenericConfigImpl {
+	"/api/",
+	reflect.TypeOf((*control.APIGet)(nil)).Elem(),
+	"Workers",
+}
