@@ -40,9 +40,8 @@ type GenericCommand interface {
 
 // Pluggable options, each command can Register() itself
 type Options struct {
-	URL       string   `short:"u" long:"url" required:"true" description:"controller URL"`
-
-	AuthUser  User
+	Config       Config
+	ConfigFile   string   `short:"c" long:"config" description:"configuration file"`
 	
 	commands  map[string]CommandConfig
 
@@ -52,11 +51,11 @@ type Options struct {
 }
 
 func (options Options) Url() string {
-	return options.URL
+	return options.Config.URL
 }
 
 func (options Options) User() User {
-	return options.AuthUser
+	return options.Config.User
 }
 
 func (options Options) SubCmd() string {
@@ -111,6 +110,15 @@ func (options *Options) Parse() {
 		log.Printf("flags Parser.Parser: extra arguments: %v\n", args)
 		parser.WriteHelp(os.Stderr)
 		os.Exit(1)
+	}
+
+	if options.ConfigFile != "" {
+		if config, err := NewConfig(options.ConfigFile); err != nil {
+			log.Printf("Error parsing the configuration file: %v\n", err)
+		} else {
+			options.Config = *config
+			log.Printf("Setting a user from config file: %v, id=%v\n", options.ConfigFile, config.User.Id)
+		}
 	}
 
 	if command := parser.Active; command == nil {
