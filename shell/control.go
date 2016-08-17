@@ -10,3 +10,9 @@ var DumpConfigTextConfig = GenericConfigImpl {
 	reflect.TypeOf((*control.APIGet)(nil)).Elem(),
 	"ConfigText",
 }
+
+var ClientsConfig = GenericConfigImpl {
+	"/api/",
+	reflect.TypeOf((*control.APIGet)(nil)).Elem(),
+	"Clients",
+}

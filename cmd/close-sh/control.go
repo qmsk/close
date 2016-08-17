@@ -6,4 +6,5 @@ import (
 
 func init() {
 	Opts.Register("config", &shell.DumpConfigTextConfig)
+	Opts.Register("clients", &shell.ClientsConfig)
 }
