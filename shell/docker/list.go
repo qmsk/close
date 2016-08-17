@@ -7,6 +7,6 @@ import (
 )
 
 var ListConfig = shell.GenericConfigImpl {
-	"/api/docker/",
-	reflect.SliceOf(reflect.TypeOf((*docker.ContainerStatus)(nil))),
+	Path:     "/api/docker/",
+	ResType:  reflect.SliceOf(reflect.TypeOf((*docker.ContainerStatus)(nil))),
 }

@@ -11,9 +11,9 @@ import (
 )
 
 type GenericConfigImpl struct {
-//	Cmd  string
-	Path    string
-	ResType reflect.Type
+	Path      string
+	ResType   reflect.Type
+	FieldName string
 }
 
 type GenericCommandImpl struct {
@@ -50,15 +50,20 @@ func (cmd GenericCommandImpl) Execute() error {
 
 func (cmd GenericCommandImpl) ParseJSON(body io.ReadCloser) error {
 	v := reflect.New(cmd.config.ResType)
-	res := v.Interface()
+	decodeRes := v.Interface()
+	printRes := decodeRes
 
-	if err := json.NewDecoder(body).Decode(res); err != nil {
+	if cmd.config.FieldName != "" {
+		printRes = v.Elem().FieldByName(cmd.config.FieldName).Interface()
+	}
+
+	if err := json.NewDecoder(body).Decode(decodeRes); err != nil {
 		return fmt.Errorf("Error decoding controller state: %v", err)
 	} else {
 		outputter := log.New(os.Stdout, "", 0)
 		outputter.Printf("")
 
-		output := util.PrettySprintf("", res)
+		output := util.PrettySprintf("", printRes)
 		outputter.Printf(output)
 		return nil
 	}

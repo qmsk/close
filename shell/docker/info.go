@@ -7,6 +7,6 @@ import (
 )
 
 var InfoConfig = shell.GenericConfigImpl {
-	"/api/docker",
-	reflect.TypeOf((*docker.Info)(nil)).Elem(),
+	Path:     "/api/docker",
+	ResType:  reflect.TypeOf((*docker.Info)(nil)).Elem(),
 }
