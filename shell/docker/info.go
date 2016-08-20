@@ -6,7 +6,5 @@ import (
 	"github.com/qmsk/close/shell"
 )
 
-var InfoConfig = shell.GenericConfigImpl {
-	Path:     "/api/docker",
-	ResType:  reflect.TypeOf((*docker.Info)(nil)).Elem(),
-}
+var InfoConfig = shell.NewGenericConfigImpl(
+	"/api/docker", reflect.TypeOf((*docker.Info)(nil)).Elem(), "" )

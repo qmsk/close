@@ -32,12 +32,6 @@ type CompositionalCommonOptions interface {
 	SubCmd()  string
 }
 
-type GenericCommand interface {
-	CommonOptions
-	JSONResponseParser
-	Path()     string
-}
-
 // Pluggable options, each command can Register() itself
 type Options struct {
 	Config       Config
