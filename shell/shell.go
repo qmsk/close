@@ -1,54 +1,29 @@
 package shell
 
 import (
+	"github.com/qmsk/close/shell/config"
  	"github.com/jessevdk/go-flags"
-	//	"net/http"
 	"log"
 	"os"
 )
 
-// Shell commands
-type CommandConfig interface {
-	Command(options CommonOptions) (Command, error)
-}
-
-type CompositionalCommandConfig interface {
-	Register(subcmd string, config CommandConfig)
-	SubCommands() map[string]CommandConfig
-}
-
-type Command interface {
-	Execute() error
-}
-
-// Options, common for all commands
-type CommonOptions interface {
-	Url()     string
-	User()    User
-}
-
-type CompositionalCommonOptions interface {
-	CommonOptions
-	SubCmd()  string
-}
-
 // Pluggable options, each command can Register() itself
 type Options struct {
-	Config       Config
+	Config       config.Config
 	ConfigFile   string   `short:"c" long:"config" description:"configuration file"`
 	
-	commands  map[string]CommandConfig
+	commands  map[string]config.CommandConfig
 
 	cmd       string
 	subCmd    string
-	cmdConfig CommandConfig
+	cmdConfig config.CommandConfig
 }
 
 func (options Options) Url() string {
 	return options.Config.URL
 }
 
-func (options Options) User() User {
+func (options Options) User() config.User {
 	return options.Config.User
 }
 
@@ -57,27 +32,27 @@ func (options Options) SubCmd() string {
 }
 
 // Options itself is a CompositionalCommand
-func (options *Options) Register(name string, cmdConfig CommandConfig) {
+func (options *Options) Register(name string, cmdConfig config.CommandConfig) {
 	if options.commands == nil {
-		options.commands = make(map[string]CommandConfig)
+		options.commands = make(map[string]config.CommandConfig)
 	}
 
 	options.commands[name] = cmdConfig
 }
 
-func (options Options) SubCommands() map[string]CommandConfig {
+func (options Options) SubCommands() map[string]config.CommandConfig {
 	return options.commands
 }
 
 
-func (options *Options) RegisterSub(cmd string, subcmd string, cmdConfig CommandConfig) {
+func (options *Options) RegisterSub(cmd string, subcmd string, cmdConfig config.CommandConfig) {
 	if options.commands == nil {
 		return
 	} else if command, found := options.commands[cmd]; !found {
 		return
 	} else {
 		// Allowing to panic here if assertion fails
-		compcmd := command.(CompositionalCommandConfig)
+		compcmd := command.(config.CompositionalCommandConfig)
 		compcmd.Register(subcmd, cmdConfig)
 	}
 }
@@ -88,7 +63,7 @@ func (options *Options) Parse() {
 	for cmd, cmdConfig := range options.commands {
 		if command, err := parser.AddCommand(cmd, "", "", cmdConfig); err != nil {
 			panic(err)
-		} else if compcmd, ok := cmdConfig.(CompositionalCommandConfig); ok {
+		} else if compcmd, ok := cmdConfig.(config.CompositionalCommandConfig); ok {
 			subcmds := compcmd.SubCommands();
 			for subcmd, subcmdConfig := range subcmds {
 				if _, err := command.AddCommand(subcmd, "", "", subcmdConfig); err != nil {
@@ -107,7 +82,7 @@ func (options *Options) Parse() {
 	}
 
 	if options.ConfigFile != "" {
-		if config, err := NewConfig(options.ConfigFile); err != nil {
+		if config, err := config.NewConfig(options.ConfigFile); err != nil {
 			log.Printf("Error parsing the configuration file: %v\n", err)
 		} else {
 			options.Config = *config

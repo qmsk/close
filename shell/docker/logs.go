@@ -1,8 +1,9 @@
 package docker
 
 import (
+	"github.com/qmsk/close/shell/command"
+	"github.com/qmsk/close/shell/config"
 	"reflect"
-	"github.com/qmsk/close/shell"
 )
 
 type logsConfigId struct {
@@ -10,20 +11,20 @@ type logsConfigId struct {
 }
 
 type logsConfig struct {
-	*shell.GenericConfigImpl
+	*command.GenericConfigImpl
 	LogsCfgID    logsConfigId   `positional-args:"id-struct"`
 }
 
 var LogsConfig = &logsConfig {
-	shell.NewGenericConfigImpl(
+	command.NewGenericConfigImpl(
 		"", reflect.TypeOf((*string)(nil)).Elem(), ""),
 	logsConfigId{},
 }
 
-func (config logsConfig) Command(options shell.CommonOptions) (shell.Command, error) {
+func (config logsConfig) Command(options config.CommonOptions) (config.Command, error) {
 	genericCommand, err := config.GenericConfigImpl.Command(options)
 	// XXX This looks hacky, but how else to insert logsConfig into the GenericCommand?
-	genericCommand.(*shell.GenericCommandImpl).SetConfig(config)
+	genericCommand.(*command.GenericCommandImpl).SetConfig(config)
 	return genericCommand, err
 }
 

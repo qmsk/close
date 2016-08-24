@@ -1,6 +1,7 @@
-package shell
+package command
 
 import (
+	"github.com/qmsk/close/shell/config"
 	"fmt"
 	"io"
 	"encoding/json"
@@ -10,23 +11,10 @@ import (
 	"github.com/qmsk/close/util"
 )
 
-type GenericConfig interface {
-	Path()      string
-	ResType()   reflect.Type
-	FieldName() string
-}
-
 type GenericCommand interface {
-	CommonOptions
+	config.CommonOptions
 	GenericConfig
 	JSONResponseParser
-}
-
-type GenericConfigImpl struct {
-	path      string
-
-	resType   reflect.Type
-	fieldName string
 }
 
 // The separation of concepts is: URL and user are coming from
@@ -34,39 +22,13 @@ type GenericConfigImpl struct {
 // implementation, altogether they make a command
 type GenericCommandImpl struct {
 	url         string
-	user        User
+	user        config.User
 	config      GenericConfig
 }
 
-func (config GenericConfigImpl) Command(options CommonOptions) (Command, error) {
-	genericCommand := &GenericCommandImpl{
-		url: options.Url(),
-		user: options.User(),
-		config: config,
-	}
-
-	return genericCommand, nil
-}
-
-func NewGenericConfigImpl(path string, resType reflect.Type, fieldName string) *GenericConfigImpl {
-	config := &GenericConfigImpl {}
-	config.init(path, resType, fieldName)
-	return config
-}
-
-func (config *GenericConfigImpl) init(path string, resType reflect.Type, fieldName string) {
-	config.path = path
-	config.resType = resType
-	config.fieldName = fieldName
-}
-
-func (config GenericConfigImpl) Path() string { return config.path }
-func (config GenericConfigImpl) ResType() reflect.Type { return config.resType }
-func (config GenericConfigImpl) FieldName() string { return config.fieldName }
-
 func (cmd *GenericCommandImpl) SetConfig(config GenericConfig) { cmd.config = config }
 func (cmd GenericCommandImpl) Url() string { return cmd.url }
-func (cmd GenericCommandImpl) User() User { return cmd.user }
+func (cmd GenericCommandImpl) User() config.User { return cmd.user }
 
 func (cmd GenericCommandImpl) Path() string { return cmd.config.Path() }
 func (cmd GenericCommandImpl) ResType() reflect.Type { return cmd.config.ResType() }
