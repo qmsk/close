@@ -30,8 +30,8 @@ type CompositionalCommandConfig interface {
 }
 
 type User struct {
-    Id       string   `short:"l" long:"login" description:"login username" default:"admin"`
-    Password string   `short:"p" long:"password" description:"login password"`
+	Id       string   `short:"l" long:"login" description:"login username" default:"admin"`
+	Password string   `short:"p" long:"password" description:"login password"`
 }
 
 type Config struct {

@@ -58,3 +58,25 @@ func (cmd GenericCommandImpl) ParseJSON(body io.ReadCloser) error {
 		return nil
 	}
 }
+
+type GenericCompositionalCommandImpl struct {
+	url    string
+	user   config.User
+	subCmd string
+
+	config GenericCompositionalConfigImpl
+}
+
+func (cmd GenericCompositionalCommandImpl) Url() string { return cmd.url }
+func (cmd GenericCompositionalCommandImpl) User() config.User { return cmd.user }
+func (cmd GenericCompositionalCommandImpl) SubCmd() string { return cmd.subCmd }
+
+func (cmd GenericCompositionalCommandImpl) Execute() error {
+	if subCmd, err := cmd.config.SubCommand(cmd); err != nil {
+		return fmt.Errorf("CompositionalCommand.Execute: SubCommand: %v", err)
+	} else {
+		return subCmd.Execute()
+	}
+
+	return nil
+}

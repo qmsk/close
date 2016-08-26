@@ -2,6 +2,7 @@ package command
 
 import (
 	"github.com/qmsk/close/shell/config"
+	"fmt"
 	"reflect"
 )
 
@@ -43,3 +44,40 @@ func (config *GenericConfigImpl) init(path string, resType reflect.Type, fieldNa
 func (config GenericConfigImpl) Path() string { return config.path }
 func (config GenericConfigImpl) ResType() reflect.Type { return config.resType }
 func (config GenericConfigImpl) FieldName() string { return config.fieldName }
+
+type GenericCompositionalConfigImpl struct {
+	subCommands map[string]config.CommandConfig
+}
+
+func (cfg *GenericCompositionalConfigImpl) Register(subcmd string, cmdConfig config.CommandConfig) {
+	if cfg.subCommands == nil {
+		cfg.subCommands = make(map[string]config.CommandConfig)
+	}
+	cfg.subCommands[subcmd] = cmdConfig
+}
+
+func (cfg GenericCompositionalConfigImpl) SubCommands() map[string]config.CommandConfig {
+	return cfg.subCommands
+}
+
+func (cfg GenericCompositionalConfigImpl) SubCommand(options config.CommonOptions) (config.Command, error) {
+	if opts, hasSubCmd := options.(config.CompositionalCommonOptions); !hasSubCmd {
+		return nil, fmt.Errorf("trying to get a subcommand but provided options have no subcommand specified")
+	} else {
+		return cfg.subCommands[opts.SubCmd()].Command(options)
+	}
+}
+
+func (cfg GenericCompositionalConfigImpl) Command(options config.CommonOptions) (config.Command, error) {
+	if opts, hasSubCmd := options.(config.CompositionalCommonOptions); !hasSubCmd {
+		return nil, fmt.Errorf("trying to create a compositional command but provided options have no subcommand specified")
+	} else {
+		cmd := &GenericCompositionalCommandImpl{
+			url:    opts.Url(),
+			user:   opts.User(),
+			subCmd: opts.SubCmd(),
+			config: cfg,
+		}
+		return cmd, nil
+	}
+}
