@@ -7,12 +7,14 @@ import (
 )
 
 type GenericConfig interface {
+	Method()    string
 	Path()      string
 	ResType()   reflect.Type
 	FieldName() string
 }
 
 type GenericConfigImpl struct {
+	method    string
 	path      string
 
 	resType   reflect.Type
@@ -29,18 +31,20 @@ func (config GenericConfigImpl) Command(options config.CommonOptions) (config.Co
 	return genericCommand, nil
 }
 
-func NewGenericConfigImpl(path string, resType reflect.Type, fieldName string) *GenericConfigImpl {
+func NewGenericConfigImpl(method string, path string, resType reflect.Type, fieldName string) *GenericConfigImpl {
 	config := &GenericConfigImpl {}
-	config.init(path, resType, fieldName)
+	config.init(method, path, resType, fieldName)
 	return config
 }
 
-func (config *GenericConfigImpl) init(path string, resType reflect.Type, fieldName string) {
+func (config *GenericConfigImpl) init(method string, path string, resType reflect.Type, fieldName string) {
+	config.method = method
 	config.path = path
 	config.resType = resType
 	config.fieldName = fieldName
 }
 
+func (config GenericConfigImpl) Method() string { return config.method }
 func (config GenericConfigImpl) Path() string { return config.path }
 func (config GenericConfigImpl) ResType() reflect.Type { return config.resType }
 func (config GenericConfigImpl) FieldName() string { return config.fieldName }

@@ -30,6 +30,7 @@ func (cmd *GenericCommandImpl) SetConfig(config GenericConfig) { cmd.config = co
 func (cmd GenericCommandImpl) Url() string { return cmd.url }
 func (cmd GenericCommandImpl) User() config.User { return cmd.user }
 
+func (cmd GenericCommandImpl) Method() string { return cmd.config.Method() }
 func (cmd GenericCommandImpl) Path() string { return cmd.config.Path() }
 func (cmd GenericCommandImpl) ResType() reflect.Type { return cmd.config.ResType() }
 func (cmd GenericCommandImpl) FieldName() string { return cmd.config.FieldName() }

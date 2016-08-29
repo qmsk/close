@@ -13,12 +13,13 @@ type JSONResponseParser interface {
 
 func MakeHttpRequest(command GenericCommand) error {
 	url := command.Url()
-	path := command.Path()
 	user := command.User()
+	method := command.Method()
+	path := command.Path()
 	client := &http.Client{
 	}
 
-	if req, err := http.NewRequest("GET", url + path, nil); err != nil {
+	if req, err := http.NewRequest(method, url + path, nil); err != nil {
 		return fmt.Errorf("http.NewRequest %v %v: %v", url, path, err)
 	} else {
 		req.SetBasicAuth(user.Id, user.Password)

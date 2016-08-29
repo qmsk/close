@@ -18,7 +18,7 @@ type getConfig struct {
 
 var GetConfig = &getConfig {
 	command.NewGenericConfigImpl(
-		"/api/docker/", reflect.TypeOf((*docker.Container)(nil)).Elem(), ""),
+		"GET", "/api/docker/", reflect.TypeOf((*docker.Container)(nil)).Elem(), ""),
 	getConfigId{},
 }
 

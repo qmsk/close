@@ -17,7 +17,7 @@ type logsConfig struct {
 
 var LogsConfig = &logsConfig {
 	command.NewGenericConfigImpl(
-		"", reflect.TypeOf((*string)(nil)).Elem(), ""),
+		"GET", "", reflect.TypeOf((*string)(nil)).Elem(), ""),
 	logsConfigId{},
 }
 
