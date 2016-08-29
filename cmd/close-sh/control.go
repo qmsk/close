@@ -8,4 +8,5 @@ func init() {
 	Opts.Register("config", shell.DumpConfigTextConfig)
 	Opts.Register("clients", shell.ClientsConfig)
 	Opts.Register("workers", shell.WorkersConfig)
+	Opts.Register("stop", shell.StopConfig)
 }

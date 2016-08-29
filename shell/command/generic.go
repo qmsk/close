@@ -40,6 +40,12 @@ func (cmd GenericCommandImpl) Execute() error {
 }
 
 func (cmd GenericCommandImpl) ParseJSON(body io.ReadCloser) error {
+
+	if cmd.config.ResType() == nil {
+		io.Copy(os.Stdout, body)
+		return nil
+	}
+
 	v := reflect.New(cmd.config.ResType())
 	decodeRes := v.Interface()
 	printRes := decodeRes

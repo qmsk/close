@@ -1,9 +1,9 @@
 package shell
 
 import (
+	"github.com/qmsk/close/shell/command"
 	"github.com/qmsk/close/control"
 	"reflect"
-	"github.com/qmsk/close/shell/command"
 )
 
 var DumpConfigTextConfig = command.NewGenericConfigImpl (
@@ -25,4 +25,11 @@ var WorkersConfig = command.NewGenericConfigImpl (
 	"/api/",
 	reflect.TypeOf((*control.APIGet)(nil)).Elem(),
 	"Workers",
+)
+
+var StopConfig = command.NewGenericConfigImpl (
+	"POST",
+	"/api/stop",
+	nil,
+	"",
 )
