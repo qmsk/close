@@ -5,8 +5,9 @@ import (
 )
 
 func init() {
-	Opts.Register("config", shell.DumpConfigTextConfig)
+	Opts.Register("clean", shell.CleanConfig)
 	Opts.Register("clients", shell.ClientsConfig)
-	Opts.Register("workers", shell.WorkersConfig)
+	Opts.Register("config", shell.DumpConfigTextConfig)
 	Opts.Register("stop", shell.StopConfig)
+	Opts.Register("workers", shell.WorkersConfig)
 }

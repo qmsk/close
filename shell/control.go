@@ -33,3 +33,10 @@ var StopConfig = command.NewGenericConfigImpl (
 	nil,
 	"",
 )
+
+var CleanConfig = command.NewGenericConfigImpl (
+	"POST",
+	"/api/clean",
+	nil,
+	"",
+)
