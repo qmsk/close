@@ -1,10 +1,12 @@
-package shell
+package control
 
 import (
 	"github.com/qmsk/close/shell/command"
 	"github.com/qmsk/close/control"
 	"reflect"
 )
+
+var WorkersConfig = &command.GenericCompositionalConfigImpl {}
 
 var DumpConfigTextConfig = command.NewGenericConfigImpl (
 	"GET",
@@ -18,13 +20,6 @@ var ClientsConfig = command.NewGenericConfigImpl (
 	"/api/",
 	reflect.TypeOf((*control.APIGet)(nil)).Elem(),
 	"Clients",
-)
-
-var WorkersConfig = command.NewGenericConfigImpl (
-	"GET",
-	"/api/",
-	reflect.TypeOf((*control.APIGet)(nil)).Elem(),
-	"Workers",
 )
 
 var StopConfig = command.NewGenericConfigImpl (
