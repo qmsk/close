@@ -13,4 +13,5 @@ func init() {
 	Opts.Register("workers", control.WorkersConfig)
 	Opts.RegisterSub("workers", "ls", control.WorkersListConfig)
 	Opts.RegisterSub("workers", "config", control.ConfigListConfig)
+	Opts.RegisterSub("workers", "get", control.GetConfig)
 }
