@@ -6,8 +6,6 @@ import (
 	"reflect"
 )
 
-var WorkersConfig = &command.GenericCompositionalConfigImpl {}
-
 var DumpConfigTextConfig = command.NewGenericConfigImpl (
 	"GET",
 	"/api/",

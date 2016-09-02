@@ -8,6 +8,8 @@ import (
 	"reflect"
 )
 
+var WorkersConfig = &command.GenericCompositionalConfigImpl {}
+
 var WorkersListConfig = command.NewGenericConfigImpl (
 	"GET",
 	"/api/",
