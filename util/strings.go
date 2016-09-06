@@ -22,8 +22,8 @@ func ExpandPath(path string, extra interface{}) (string, error) {
 		}
 
 		for j := 0; j < f.NumField(); j++ {
-			arg := f.Field(i)
-			argT := f.Type().Field(i)
+			arg := f.Field(j)
+			argT := f.Type().Field(j)
 			argName := argT.Tag.Get("positional-arg-name")
 			if argName == "" {
 				continue
