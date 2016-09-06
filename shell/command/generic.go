@@ -26,7 +26,6 @@ type GenericCommandImpl struct {
 	config      GenericConfig
 }
 
-func (cmd *GenericCommandImpl) SetConfig(config GenericConfig) { cmd.config = config }
 func (cmd GenericCommandImpl) Url() string { return cmd.url }
 func (cmd GenericCommandImpl) User() config.User { return cmd.user }
 
@@ -61,7 +60,7 @@ func (cmd GenericCommandImpl) ParseJSON(body io.ReadCloser) error {
 		outputter.Printf("")
 
 		output := util.PrettySprintf("", printRes)
-		outputter.Printf(output)
+		outputter.Print(output)
 		return nil
 	}
 }

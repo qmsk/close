@@ -4,6 +4,7 @@ import (
 	"github.com/qmsk/close/shell/config"
 	"fmt"
 	"reflect"
+	"github.com/qmsk/close/util"
 )
 
 type GenericConfig interface {
@@ -19,6 +20,9 @@ type GenericConfigImpl struct {
 
 	resType   reflect.Type
 	fieldName string
+
+	// Additional parameters of the path can be configured through this field
+	extra     interface{}
 }
 
 func (config GenericConfigImpl) Command(options config.CommonOptions) (config.Command, error) {
@@ -31,23 +35,58 @@ func (config GenericConfigImpl) Command(options config.CommonOptions) (config.Co
 	return genericCommand, nil
 }
 
-func NewGenericConfigImpl(method string, path string, resType reflect.Type, fieldName string) *GenericConfigImpl {
-	config := &GenericConfigImpl {}
-	config.init(method, path, resType, fieldName)
-	return config
+func NewGenericConfigImpl(method string, path string, resType reflect.Type, fieldName string, configType reflect.Type) config.CommandConfig {
+	// Reflect black magic here, allowing to extend
+	// GenericConfigImpl with request parameters in the path
+	if configType == nil {
+		configType = reflect.TypeOf((*GenericConfigImpl)(nil)).Elem()
+	}
+	// Create new value of given config type (will be a pointer)
+	cfgPtrToV := reflect.New(configType)
+	// dereference the pointer
+	cfgV := cfgPtrToV.Elem()
+	// go back to the original variable
+	cfg := cfgPtrToV.Interface()
+
+	// Try getting the embedded field, if the given config type
+	// is the extension of the GenericConfigImpl
+	genCfgV := cfgV.FieldByName("GenericConfigImpl")
+
+	genCfg := cfg
+	if genCfgV.IsValid() {
+		// If it is the extension, create the empty embedded GenericConfigImpl instance
+		genCfgV.Set(reflect.ValueOf(&GenericConfigImpl{}))
+		genCfg = genCfgV.Interface()
+	}
+
+	// Casts assume the correct configType was given
+	genCfg.(*GenericConfigImpl).init(method, path, resType, fieldName, cfg)
+	return cfg.(config.CommandConfig)
 }
 
-func (config *GenericConfigImpl) init(method string, path string, resType reflect.Type, fieldName string) {
+func (config *GenericConfigImpl) init(method string, path string, resType reflect.Type, fieldName string, extra interface{}) {
 	config.method = method
 	config.path = path
 	config.resType = resType
 	config.fieldName = fieldName
+	config.extra = extra
 }
 
 func (config GenericConfigImpl) Method() string { return config.method }
-func (config GenericConfigImpl) Path() string { return config.path }
 func (config GenericConfigImpl) ResType() reflect.Type { return config.resType }
 func (config GenericConfigImpl) FieldName() string { return config.fieldName }
+
+func (config GenericConfigImpl) Path() string {
+	if reflect.TypeOf(config.extra) == reflect.TypeOf(config) {
+		return config.path
+	} else {
+		if path, err := util.ExpandPath(config.path, config.extra); err != nil {
+			return ""
+		} else {
+			return path
+		}
+	}
+}
 
 type GenericCompositionalConfigImpl struct {
 	subCommands map[string]config.CommandConfig

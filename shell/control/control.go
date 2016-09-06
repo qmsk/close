@@ -11,6 +11,7 @@ var DumpConfigTextConfig = command.NewGenericConfigImpl (
 	"/api/",
 	reflect.TypeOf((*control.APIGet)(nil)).Elem(),
 	"ConfigText",
+	nil,
 )
 
 var ClientsConfig = command.NewGenericConfigImpl (
@@ -18,6 +19,7 @@ var ClientsConfig = command.NewGenericConfigImpl (
 	"/api/",
 	reflect.TypeOf((*control.APIGet)(nil)).Elem(),
 	"Clients",
+	nil,
 )
 
 var StopConfig = command.NewGenericConfigImpl (
@@ -25,6 +27,7 @@ var StopConfig = command.NewGenericConfigImpl (
 	"/api/stop",
 	nil,
 	"",
+	nil,
 )
 
 var CleanConfig = command.NewGenericConfigImpl (
@@ -32,4 +35,5 @@ var CleanConfig = command.NewGenericConfigImpl (
 	"/api/clean",
 	nil,
 	"",
+	nil,
 )

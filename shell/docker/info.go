@@ -7,4 +7,4 @@ import (
 )
 
 var InfoConfig = command.NewGenericConfigImpl(
-	"GET", "/api/docker", reflect.TypeOf((*docker.Info)(nil)).Elem(), "" )
+	"GET", "/api/docker", reflect.TypeOf((*docker.Info)(nil)).Elem(), "", nil )

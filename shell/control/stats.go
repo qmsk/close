@@ -13,4 +13,5 @@ var StatsTypesConfig = command.NewGenericConfigImpl (
 	"/api/stats",
 	reflect.SliceOf(reflect.TypeOf((*stats.SeriesMeta)(nil))),
 	"",
+	nil,
 )
